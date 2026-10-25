@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第1章 变量与基本类型 | 大学C++离线助教</title>
+<script>
+/* 主题预置：防止暗色用户看到白屏闪烁（所有页面同款） */
+(function(){try{
+  var t=localStorage.getItem("cppcourse.theme");
+  if(t)document.documentElement.setAttribute("data-theme",t);
+  var f=parseFloat(localStorage.getItem("cppcourse.fontscale"));
+  if(f>0)document.documentElement.style.fontSize=(16*f)+"px";
+}catch(e){}})();
+</script>
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<main class="container chapter">
+
+  <p class="crumbs"><a href="../index.html">首页</a> / <a href="../index.html#toc">章节目录</a> / 第1章</p>
+
+  <header>
+    <h1>第1章 变量与基本类型</h1>
+    <p class="muted"><b>变量</b>就是“给一块内存起个名字，并约定里面装什么类型的数据”。</p>
+  </header>
+
+  <!-- ================= 1. 学习目标 ================= -->
+  <section class="card objectives">
+    <h2 style="margin-top:0">学习目标</h2>
+    <ul>
+      <li>说出变量的四个要素：<b>类型、名字、值、地址</b>。</li>
+      <li>区分 <code>int a;</code>、<code>int a = 1;</code>、<code>int a(1);</code>、<code>int a{1};</code>、<code>int a{};</code> 五种写法，说清 <code>int a;</code> 为什么不能直接读。</li>
+      <li>用 <code>sizeof</code> 查看类型大小，知道结果因平台而异。</li>
+      <li>用 <code>auto</code>、<code>const</code>、<code>constexpr</code>，说清后两者的区别。</li>
+      <li>识别常见字面量（十/八/十六进制、浮点、字符、转义）。</li>
+      <li>解释隐式类型转换的方向，避免窄化转换带来的精度丢失。</li>
+    </ul>
+    <p class="small muted">前置知识：无。</p>
+    </section>
+
+  <!-- ================= 2. 变量的本质 ================= -->
+  <h2>1. 变量：给内存起个名字</h2>
+  <p>一条语句 <code>int a = 42;</code> 做了三件事：<b>分配</b> 4 字节内存、把这 4 字节<b>命名</b>为 <code>a</code>、把整数 <code>42</code> 以 int 的编码方式<b>写入</b>。此后读写 <code>a</code> 就是读写这块内存。</p>
+
+  <article class="example-card" id="ch01-ex-01">
+    <div class="ex-head">
+      <h3 class="ex-title">示例1：定义变量并输出</h3>
+      <div class="ex-meta"><span class="tag">知识点：变量定义</span><span class="tag green">入门必会</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int age = 20;          // 定义整型变量 age
+    double score = 91.5;   // 双精度浮点
+    char grade = 'A';      // 单个字符，用单引号
+    bool pass = true;      // 布尔值：true / false
+
+    std::cout &lt;&lt; age &lt;&lt; " " &lt;&lt; score &lt;&lt; " " &lt;&lt; grade &lt;&lt; " " &lt;&lt; pass &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">20 91.5 A 1</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4~7行</b>：每行定义一个变量并初始化。注意字符用<b>单引号</b> <code>'A'</code>，字符串才用双引号。</li>
+        <li><b>第9行</b>：<code>&lt;&lt;</code> 是“插入运算符”，把数据依次送入标准输出；<code>" "</code> 输出一个空格，<code>"\n"</code> 换行。</li>
+        <li><b>第9行末尾</b>：<code>pass</code> 是 <code>true</code>，但默认输出成 <code>1</code>。想让 <code>bool</code> 打印成 <code>true/false</code>，要用 <code>std::boolalpha</code>（见示例 10）。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>一条语句也可以定义多个同类型变量：<code>int x = 1, y = 2, z;</code>。但为了可读性，建议一行一个；未赋值的 <code>z</code> 在使用前必须先赋值。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>char grade = "A";</code> 是编译错误：双引号是字符串（类型 <code>const char*</code>），不能赋给 <code>char</code>。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "age": "20" }, "out": "", "note": "分配 4 字节给 age，写入 20" },
+      { "line": 5, "vars": { "age": "20", "score": "91.5" }, "out": "", "note": "score 是 double，占 8 字节" },
+      { "line": 6, "vars": { "age": "20", "score": "91.5", "grade": "'A'" }, "out": "", "note": "grade 存的是字符 'A'（编码值 65）" },
+      { "line": 7, "vars": { "age": "20", "score": "91.5", "grade": "'A'", "pass": "true" }, "out": "", "note": "bool 只有 true/false 两个值" },
+      { "line": 9, "vars": { "age": "20", "score": "91.5", "grade": "'A'", "pass": "true" }, "out": "20 91.5 A 1", "note": "依次输出四个变量；true 默认显示为 1" },
+      { "line": 10, "vars": {}, "out": "", "note": "return 0，程序正常结束" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 3. 五种初始化写法 ================= -->
+  <h2>2. 五种初始化写法</h2>
+  <p>C++ 有多种初始化形式，<b>结局并不相同</b>：</p>
+
+  <article class="example-card" id="ch01-ex-02">
+    <div class="ex-head">
+      <h3 class="ex-title">示例2：int a; 与 int a = 1; / int a(1); / int a{1}; / int a{};</h3>
+      <div class="ex-meta"><span class="tag">知识点：初始化形式</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int a = 1;   // 拷贝初始化
+    int b(2);    // 直接初始化
+    int c{3};    // 列表初始化（C++11 起）
+    int d = {4}; // 列表初始化（等号可省）
+    int e{};     // 值初始化：保证为 0
+
+    std::cout &lt;&lt; a &lt;&lt; " " &lt;&lt; b &lt;&lt; " " &lt;&lt; c &lt;&lt; " " &lt;&lt; d &lt;&lt; " " &lt;&lt; e &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">1 2 3 4 0</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：拷贝初始化，最常见。</li>
+        <li><b>第5行</b>：直接初始化，语法来自构造函数调用习惯。</li>
+        <li><b>第6~7行</b>：列表初始化，<b>禁止窄化转换</b>（见示例 5）。</li>
+        <li><b>第8行</b>：<code>int e{};</code> 是<b>值初始化</b>，标准保证 <code>e</code> 为 0——这是它和 <code>int e;</code> 的本质区别。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p><code>int a;</code> 这种“只声明不初始化”的写法叫<b>默认初始化</b>：函数内的局部变量将处于<b>未初始化</b>状态——读它之前不赋值是未定义行为（本章示例 11 详解）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>int a{};</code> 是 0，<code>int a;</code> 是垃圾值。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "a": "1" }, "out": "", "note": "拷贝初始化" },
+      { "line": 5, "vars": { "a": "1", "b": "2" }, "out": "", "note": "直接初始化" },
+      { "line": 6, "vars": { "a": "1", "b": "2", "c": "3" }, "out": "", "note": "列表初始化" },
+      { "line": 7, "vars": { "a": "1", "b": "2", "c": "3", "d": "4" }, "out": "", "note": "带等号的列表初始化" },
+      { "line": 8, "vars": { "a": "1", "b": "2", "c": "3", "d": "4", "e": "0" }, "out": "", "note": "值初始化：标准保证清零" },
+      { "line": 10, "vars": { "a": "1", "b": "2", "c": "3", "d": "4", "e": "0" }, "out": "1 2 3 4 0", "note": "五个值依次输出" }
+    ] }</script>
+  </article>
+
+  <div class="compare">
+    <div class="compare-col badc">
+      <h4>❌ C++98 时代的写法</h4>
+      <pre><code class="cpp">int a = 1;
+int b(2);
+// 无法阻止窄化：
+int x = 3.9;   // x == 3
+int y = 'A';   // y == 65</code></pre>
+    </div>
+    <div class="compare-col good">
+      <h4>✅ 现代写法（C++11 起）</h4>
+      <pre><code class="cpp">int a{1};
+int b{2};
+int x{3.9};   // 编译错误！
+              // 阻止窄化
+int y{'A'};   // 合法：
+              // char→int 无损</code></pre>
+    </div>
+  </div>
+
+  <div class="std-diff">列表初始化 <code>int c{3};</code> 是 <b>C++11</b> 新增；C++98 里只有 <code>=</code> 和 <code>()</code> 两种写法。用 <code>g++ -std=c++98</code> 编译示例 2 会得到“extended initializer lists only available with -std=c++11”警告——GCC 把花括号初始化当扩展放行，加 <code>-pedantic-errors</code> 才会升级为编译错误。</div>
+
+  <!-- ================= 4. 基本类型与 sizeof ================= -->
+  <h2>3. 基本内置类型与 sizeof</h2>
+  <p>C++ 内置类型的大小<b>不由标准统一规定</b>，只规定约束关系（如 <code>sizeof(long long) ≥ sizeof(long) ≥ sizeof(int)</code>）。实际大小由编译器和平台决定。</p>
+
+  <article class="example-card" id="ch01-ex-03">
+    <div class="ex-head">
+      <h3 class="ex-title">示例3：用 sizeof 查看类型大小（Windows x64 典型结果）</h3>
+      <div class="ex-meta"><span class="tag">知识点：sizeof</span><span class="tag purple">平台差异</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    std::cout &lt;&lt; "char   : " &lt;&lt; sizeof(char)     &lt;&lt; " 字节\n";
+    std::cout &lt;&lt; "bool   : " &lt;&lt; sizeof(bool)     &lt;&lt; " 字节\n";
+    std::cout &lt;&lt; "int    : " &lt;&lt; sizeof(int)      &lt;&lt; " 字节\n";
+    std::cout &lt;&lt; "long   : " &lt;&lt; sizeof(long)     &lt;&lt; " 字节\n";
+    std::cout &lt;&lt; "long long: " &lt;&lt; sizeof(long long) &lt;&lt; " 字节\n";
+    std::cout &lt;&lt; "float  : " &lt;&lt; sizeof(float)    &lt;&lt; " 字节\n";
+    std::cout &lt;&lt; "double : " &lt;&lt; sizeof(double)   &lt;&lt; " 字节\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出（Windows 64 位，g++/MSVC）</div>
+      <pre><code class="output-text">char   : 1 字节
+bool   : 1 字节
+int    : 4 字节
+long   : 4 字节
+long long: 8 字节
+float  : 4 字节
+double : 8 字节</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><code>sizeof</code> 是<b>编译期</b>运算符，返回字节数（类型是 <code>size_t</code>）。</li>
+        <li>本例结果取自 Windows x64 的 LLP64 布局（Linux/macOS 的 64 位则是 LP64）：注意 <code>long</code> 在 Windows 上是 4 字节。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>同一程序在 Linux/Mac 的 64 位 g++ 下，<code>long</code> 输出 <b>8</b> 字节；在 16 位单片机上 <code>int</code> 可能只有 2 字节。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>“<code>int</code> 是 4 字节”的严谨说法是“<b>典型平台上</b>是 4 字节；标准只要求它至少 16 位宽”。写可移植代码应使用固定宽度类型 <code>int32_t</code>、<code>int64_t</code>（头文件 <code>&lt;cstdint&gt;</code>）。</p>
+    </div>
+  </article>
+
+  <div class="std-diff">标准只保证：<code>char</code> 恒为 1 字节；<code>int</code> ≥ 16 位；<code>long long</code> ≥ 64 位（C++11 起纳入标准）。<b>“int 永远是 4 字节”这类说法不严谨</b>。</div>
+
+  <!-- ================= 5. 溢出 ================= -->
+  <h2>4. 溢出：无符号环绕，有符号是 UB</h2>
+
+  <article class="example-card" id="ch01-ex-04">
+    <div class="ex-head">
+      <h3 class="ex-title">示例4：unsigned 的“回绕”是定义好的行为</h3>
+      <div class="ex-meta"><span class="tag">知识点：无符号算术</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    unsigned int u = 0;
+    u = u - 1;   // 无符号运算按 2^32 取模，结果回绕到最大值
+
+    int maxInt = 2147483647;   // 32 位有符号 int 的最大值
+    std::cout &lt;&lt; u &lt;&lt; "\n";
+    std::cout &lt;&lt; maxInt &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">4294967295
+2147483647</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：无符号整数运算结果对 2<sup>32</sup> 取模：<code>0 - 1</code> 回绕成 <code>2^32 - 1 = 4294967295</code>。这是<b>标准明确定义</b>的行为，不是 UB。</li>
+        <li><b>第7行</b>：<code>2147483647 = 2^31 - 1</code>，是 32 位有符号 int 的最大值。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 有符号整数溢出是未定义行为！</h4>
+      <div class="ub-warning">把示例中第 5 行改成 <code>int i = 2147483647; i = i + 1;</code>：有符号整数的算术溢出在 C++ 标准中是<b>未定义行为</b>——程序可能输出 -2147483648、可能崩溃、也可能被编译器优化掉。任何考试题若给出“有符号溢出后的确定输出”，题目本身就是错的；实际开发中必须避免溢出。</div>
+      <p>经典连环坑：<code>for (unsigned i = n - 1; i &gt;= 0; --i)</code> —— <code>i</code> 减到 0 后再减一回绕成最大值，<b>死循环</b>（<code>unsigned</code> 永远 ≥ 0，条件恒真）。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "u": "0" }, "out": "", "note": "u = 0（无符号）" },
+      { "line": 5, "vars": { "u": "4294967295" }, "out": "", "note": "0-1 按模 2^32 回绕，这是定义好的行为" },
+      { "line": 7, "vars": { "u": "4294967295", "maxInt": "2147483647" }, "out": "", "note": "2^31 - 1，int 能表示的最大值" },
+      { "line": 8, "vars": { "u": "4294967295", "maxInt": "2147483647" }, "out": "4294967295", "note": "输出回绕后的最大值" },
+      { "line": 9, "vars": { "u": "4294967295", "maxInt": "2147483647" }, "out": "2147483647", "note": "输出 int 最大值" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 6. 窄化转换 ================= -->
+  <h2>5. 窄化转换</h2>
+
+  <article class="example-card" id="ch01-ex-05">
+    <div class="ex-head">
+      <h3 class="ex-title">示例5：int x = 3.9; 通过，int x{3.9}; 报错</h3>
+      <div class="ex-meta"><span class="tag">知识点：窄化转换</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int a = 3.9;    // 旧写法：允许，静默截断
+    int b{3.9};     // ← 编译错误！列表初始化禁止窄化
+    std::cout &lt;&lt; a &lt;&lt; "\n";
+    return 0;
+}
+
+/* g++ 报错（节选）：
+   error: narrowing conversion of '3.8999999999999999e+0'
+          from 'double' to 'int' [-Wnarrowing]
+   简言之：3.9 → int 会丢失小数部分，{} 拒绝放行 */</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出（若把第 5 行注释掉）</div>
+      <pre><code class="output-text">3</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：拷贝初始化允许<b>隐式窄化</b>：3.9 直接砍成 3（向零截断），编译器最多给个警告。</li>
+        <li><b>第5行</b>：列表初始化规定：凡是“可能丢信息”的转换（double→int、int→char、int→bool 等）一律<b>编译错误</b>。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p><code>int b{3};</code> 合法；<code>char c{300};</code> 报错（300 超出 char 范围）；<code>char c = 300;</code> 编译通过但值由实现定义，通常是 44（300 对 256 取模）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>“<code>int x{3.9}</code> 的值是多少？”——<b>它根本没有值，编译都过不了</b>。</p>
+    </div>
+  </article>
+
+  <!-- ================= 7. auto ================= -->
+  <h2>6. auto：让编译器替你写类型</h2>
+
+  <article class="example-card" id="ch01-ex-06">
+    <div class="ex-head">
+      <h3 class="ex-title">示例6：auto 按初始值推导类型</h3>
+      <div class="ex-meta"><span class="tag">知识点：auto</span><span class="tag">C++11</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+int main() {
+    auto x = 5;                 // int
+    auto y = 5.0;               // double
+    auto z = 'c';               // char
+    auto s = std::string("hi"); // std::string
+    auto b = true;              // bool
+
+    std::cout &lt;&lt; x &lt;&lt; " " &lt;&lt; y &lt;&lt; " " &lt;&lt; z &lt;&lt; " " &lt;&lt; s &lt;&lt; " " &lt;&lt; b &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">5 5 c hi 1</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><code>auto</code> 不是“动态类型”：类型在<b>编译期</b>就定了，之后不能再赋别的类型（<code>x = 1.5;</code> 会把 x 存成 1）。</li>
+        <li>整数字面量默认 <code>int</code>，小数字面量默认 <code>double</code>，所以 <code>x</code> 是 int、<code>y</code> 是 double。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p><code>auto y = 5.0f;</code> 推导为 <code>float</code>；<code>auto z = 5u;</code> 推导为 <code>unsigned int</code>。字面量后缀（<code>f</code>、<code>u</code>、<code>L</code>）直接决定推导结果。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>auto a;</code> 是<b>编译错误</b>：没有初始值就无法推导。判断题“auto 变量可以不初始化”为<b>假</b>。</p>
+    </div>
+  </article>
+
+  <!-- ================= 8. const / constexpr ================= -->
+  <h2>7. const 与 constexpr</h2>
+
+  <article class="example-card" id="ch01-ex-07">
+    <div class="ex-head">
+      <h3 class="ex-title">示例7：const 必须初始化；constexpr 是编译期常量</h3>
+      <div class="ex-meta"><span class="tag">知识点：const / constexpr</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    const double pi = 3.14159;  // const：定义后不可修改
+    // pi = 3;                  // ← 编译错误：assignment of read-only variable
+    // const int bad;           // ← 编译错误：const 变量必须初始化
+
+    constexpr int N = 5;        // constexpr：编译期就能算出的常量
+    int arr[N];                 // OK：数组大小需要编译期常量
+
+    std::cout &lt;&lt; pi &lt;&lt; "\n";
+    std::cout &lt;&lt; sizeof(arr) / sizeof(arr[0]) &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">3.14159
+5</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：<code>const</code> 变量一旦初始化，再赋值就是编译错误；因此 <b>const 变量必须在定义时初始化</b>。</li>
+        <li><b>第8行</b>：<code>constexpr</code> 强调“编译期已知”，可以当数组长度、模板实参。</li>
+        <li><b>第12行</b>：<code>sizeof(arr)/sizeof(arr[0])</code> 是求数组元素个数的经典写法，得 5。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p><code>int n; std::cin &gt;&gt; n; int a2[n];</code> 是“变长数组”，<b>标准 C++ 不允许</b>（GCC 作为扩展放行）——可移植写法用 <code>std::vector&lt;int&gt; a2(n);</code>（第 10 章详述）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>const int M = f();</code>（f 是运行期函数）是合法的 const，但<b>不是</b> constexpr，不能做数组长度。判断题“const 变量一定能当数组长度”为<b>假</b>。</p>
+    </div>
+  </article>
+
+  <div class="keypoint"><b>const</b> = “我保证不改”；<b>constexpr</b> = “编译期就算出来，还保证不改”。凡能用 constexpr 的地方都更推荐 constexpr。</div>
+
+  <!-- ================= 9. 字面量 ================= -->
+  <h2>8. 字面量与转义字符</h2>
+
+  <article class="example-card" id="ch01-ex-08">
+    <div class="ex-head">
+      <h3 class="ex-title">示例8：进制前缀、类型后缀、转义字符</h3>
+      <div class="ex-meta"><span class="tag">知识点：字面量</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    std::cout &lt;&lt; 42 &lt;&lt; " " &lt;&lt; 052 &lt;&lt; " " &lt;&lt; 0x2A &lt;&lt; "\n"; // 十进制/八进制/十六进制
+    std::cout &lt;&lt; 3.14f &lt;&lt; " " &lt;&lt; 1e3 &lt;&lt; "\n";             // float 后缀 / 科学计数法
+    std::cout &lt;&lt; 'A' &lt;&lt; " " &lt;&lt; (int)'A' &lt;&lt; "\n";          // 字符与其编码值
+    std::cout &lt;&lt; "换行符本质是\\n，制表符是\\t\n";
+    std::cout &lt;&lt; "引号：\"单引号' 双引号\"\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">42 42 42
+3.14 1000
+A 65
+换行符本质是\n，制表符是\t
+引号："单引号' 双引号"</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：三个字面量值都相等——<code>052</code> 是八进制（8×5+2=42），<code>0x2A</code> 是十六进制（2×16+10=42）。</li>
+        <li><b>第5行</b>：<code>3.14f</code> 是 float；不带 f 的小数是 double；<code>1e3</code> 即 10³=1000。</li>
+        <li><b>第6行</b>：<code>(int)'A'</code> 是 C 风格强制转换，输出字符的 ASCII 编码 65。</li>
+        <li><b>第7~8行</b>：字符串里 <code>\\n</code> 输出字面上的反斜杠+n；<code>\"</code> 在双引号字符串里输出双引号本身。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>十进制字面量<b>不能以 0 开头</b>：<code>int month = 09;</code> 是编译错误（9 不是八进制数码）；<code>int x = 010;</code> 是 8 不是 10。</p>
+    </div>
+  </article>
+
+  <!-- ================= 10. 隐式类型转换 ================= -->
+  <h2>9. 隐式类型转换</h2>
+
+  <article class="example-card" id="ch01-ex-09">
+    <div class="ex-head">
+      <h3 class="ex-title">示例9：赋值时发生的隐式转换（截断与提升）</h3>
+      <div class="ex-meta"><span class="tag">知识点：类型转换</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int i = 3.99;        // double → int：向零截断
+    int j = -3.99;       // 向零截断，不是四舍五入！
+    char c = 'A';
+    int n = c;           // char → int：提升为编码值
+    double d = 7 / 2;    // 先整数除法 7/2=3，再 int→double
+    bool bb = 42;        // 非 0 → true
+
+    std::cout &lt;&lt; i &lt;&lt; " " &lt;&lt; j &lt;&lt; " " &lt;&lt; n &lt;&lt; " " &lt;&lt; d &lt;&lt; " " &lt;&lt; bb &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">3 -3 65 3 1</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4~5行</b>：double 转 int 是<b>向零截断</b>：3.99→3，-3.99→-3。“四舍五入”的说法是错的。</li>
+        <li><b>第7行</b>：char 参与算术时按其编码值（这里是 ASCII 65）。</li>
+        <li><b>第8行</b>：<code>7 / 2</code> 两侧都是 int，先做<b>整数除法</b>得 3，之后才转成 double 3.0。想要 3.5 必须写 <code>7.0 / 2</code> 或 <code>7 / 2.0</code>（第 2 章详述）。</li>
+        <li><b>第9行</b>：任何非零值转 bool 都是 true。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>显式转换写法：<code>static_cast&lt;int&gt;(3.99)</code>（推荐，意图清晰）或 C 风格 <code>(int)3.99</code>。两者结果相同，但 static_cast 更容易被搜索和审查。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>double avg = (a + b) / 2;</code> 当 a、b 都是 int 时结果仍是整数除法。正确写法 <code>double avg = (a + b) / 2.0;</code>。</p>
+    </div>
+  </article>
+
+  <article class="example-card" id="ch01-ex-10">
+    <div class="ex-head">
+      <h3 class="ex-title">示例10：bool 的输出与 boolalpha</h3>
+      <div class="ex-meta"><span class="tag">知识点：bool 与流控制</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    bool b1 = 42;    // 非 0 → true
+    bool b2 = 0;     // 0 → false
+    int  i = true;   // true → 1
+
+    std::cout &lt;&lt; b1 &lt;&lt; b2 &lt;&lt; i &lt;&lt; "\n";            // 默认输出 1 和 0
+    std::cout &lt;&lt; std::boolalpha &lt;&lt; b1 &lt;&lt; " " &lt;&lt; b2 &lt;&lt; "\n"; // 变成 true/false
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">101
+true false</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第8行</b>：默认情况下 <code>true</code> 打印为 <code>1</code>、<code>false</code> 打印为 <code>0</code>，三个连起来就是 101。</li>
+        <li><b>第9行</b>：<code>std::boolalpha</code> 是流操纵符，设置后 bool 以文字形式输出（对同一流持续有效）。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>bool b = -2;</code> 的输出是 <code>1</code> 而不是 -2：bool 只有两个值，任何非零都归一化为 true。</p>
+    </div>
+  </article>
+
+  <!-- ================= 11. 未初始化 ================= -->
+  <h2>10. 未初始化变量</h2>
+
+  <article class="example-card" id="ch01-ex-11">
+    <div class="ex-head">
+      <h3 class="ex-title">示例11：读取未初始化的变量（UB 示范）</h3>
+      <div class="ex-meta"><span class="tag red">未定义行为示范</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int x;          // 默认初始化：局部变量未初始化
+    std::cout &lt;&lt; x &lt;&lt; "\n";   // ⛔ 读取未初始化变量
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-pitfall">
+      <h4>⚠ 为什么没有“预期输出”？</h4>
+      <div class="ub-warning">读取未初始化的局部变量是<b>未定义行为</b>：程序可能输出 0、输出随机垃圾值、或在开启优化的编译器下产生完全无法预测的结果。因此本例<b>不给出预期输出</b>，考试也不允许把它的结果当标准答案。g++ 开警告可捕获此类问题：<code>g++ -Wall -Wuninitialized</code>。</div>
+      <p>规避方法：① 定义即初始化 <code>int x = 0;</code>；② 用值初始化 <code>int x{};</code>；③ 打开编译警告 <code>-Wall</code> 并当错误处理 <code>-Werror</code>。</p>
+    </div>
+    <div class="memviz"><script type="application/json" class="mem-data">{ "title": "int x;  在栈上发生了什么（示意）",
+      "regions": [
+        { "addr": "0x7ffd0a8", "name": "x", "type": "int", "value": "?", "note": "新函数的栈帧恰好复用了上一个函数留下的字节" }
+      ],
+      "note": "所谓“垃圾值”通常是栈上残留的旧数据，每次运行可能不同——这正是标准把它定为 UB 的原因。" }</script></div>
+  </article>
+
+  <!-- ================= 12. 综合示例 ================= -->
+  <h2>11. 综合示例</h2>
+
+  <article class="example-card" id="ch01-ex-12">
+    <div class="ex-head">
+      <h3 class="ex-title">示例12：综合运用——计算圆面积</h3>
+      <div class="ex-meta"><span class="tag green">综合</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    const double pi = 3.14159;   // 常量：圆周率不该被改
+    double r = 2.5;              // 半径
+    double area = pi * r * r;    // 面积 = πr²
+
+    std::cout &lt;&lt; "半径 " &lt;&lt; r &lt;&lt; " 的圆面积 = " &lt;&lt; area &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">半径 2.5 的圆面积 = 19.6349</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：<code>pi</code> 用 const 保护，防止误改。</li>
+        <li><b>第6行</b>：<code>pi * r * r</code> 中三者都是 double，浮点乘法得到 19.6349375。</li>
+        <li><b>第8行</b>：<code>cout</code> 默认输出 <b>6 位有效数字</b>，所以显示 19.6349 而不是 19.6349375。想完整显示需 <code>std::setprecision</code>（详见速查表“输入输出格式控制”）。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>若把 <code>pi</code> 声明成 <code>const float</code>：精度从约 15 位降到约 7 位，面积的存储值会从 19.6349375 变成约 19.6349382——本例默认 6 位有效数字下显示仍是 19.6349，但数值已经悄悄失真。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "pi": "3.14159" }, "out": "", "note": "const double 初始化" },
+      { "line": 5, "vars": { "pi": "3.14159", "r": "2.5" }, "out": "", "note": "半径赋值" },
+      { "line": 6, "vars": { "pi": "3.14159", "r": "2.5", "area": "19.6349375" }, "out": "", "note": "πr² = 19.6349375" },
+      { "line": 8, "vars": { "pi": "3.14159", "r": "2.5", "area": "19.6349375" }, "out": "半径 2.5 的圆面积 = 19.6349", "note": "默认 6 位有效数字" }
+    ] }</script>
+  </article>
+
+  <article class="example-card" id="ch01-ex-13">
+    <div class="ex-head">
+      <h3 class="ex-title">练习：把语句排成能交换 a、b 的正确顺序</h3>
+      <div class="ex-meta"><span class="tag purple">互动练习</span></div>
+    </div>
+    <p>目标：程序最后输出 <code>9 5</code>。下面 5 条语句被打乱了，请拖动（或用 ↑↓ 按钮）恢复正确顺序：</p>
+    <div class="widget-sort"><script type="application/json" class="sort-data">{ "items": [
+      "int a = 5, b = 9;",
+      "int tmp = a;",
+      "a = b;",
+      "b = tmp;",
+      "std::cout << a << \" \" << b;"
+    ], "hint": "交换两个变量需要第三个变量先把其中一个值“接住”。",
+    "explain": "tmp 先保存 a 的旧值 5；a 被赋成 b 的 9；再把 tmp 里的 5 赋给 b。漏掉 tmp 直接 a = b; b = a; 会把两个都变成 9。" }</script></div>
+  </article>
+
+  <!-- ================= 13. 常见错误 ================= -->
+  <h2>12. 常见错误</h2>
+  <div class="warn"><b>1. 未初始化就读取</b>：<code>int x; cout &lt;&lt; x;</code> 是 UB。修复：定义即初始化，或用 <code>{}</code> 值初始化。</div>
+  <div class="warn"><b>2. 八进制陷阱</b>：<code>int x = 010;</code> 是 8。十进制不要以 0 开头。</div>
+  <div class="warn"><b>3. 窄化丢失数据</b>：<code>int n = 3.99;</code> 得 3。需要数值时用 <code>static_cast</code> 并确认舍入方向（向零截断）。</div>
+  <div class="warn"><b>4. char 与 string 混用</b>：<code>'a'</code> 是字符、<code>"a"</code> 是字符串，类型不同不可互换。</div>
+  <div class="warn"><b>5. 有符号溢出</b>：int 最大值 +1 没有标准答案，是 UB；unsigned 回绕到 0 才是定义好的。</div>
+  <p>更多同类错误见 <a href="../errors.html">编译错误博物馆</a>（如“未声明标识符”“窄化转换警告”），以及 <a href="../exam-pitfalls.html">考试易错点</a> 中的“整数溢出”专题。</p>
+
+  <!-- ================= 14. 标准差异汇总 ================= -->
+  <h2>13. C++ 标准差异小结</h2>
+  <table class="data-table">
+    <tr><th>特性</th><th>C++98</th><th>C++11 及以后</th></tr>
+    <tr><td>列表初始化 <code>int a{1};</code></td><td>不可用</td><td>可用，且禁止窄化</td></tr>
+    <tr><td><code>auto</code> 类型推导</td><td>是存储类别关键字（几乎不用）</td><td>按初始值推导类型</td></tr>
+    <tr><td><code>constexpr</code></td><td>不存在</td><td>编译期常量（数组长度等）</td></tr>
+    <tr><td><code>long long</code></td><td>非标准（编译器扩展）</td><td>标准保证 ≥ 64 位</td></tr>
+  </table>
+  <div class="std-diff">类型大小随平台变化的完整对照，见速查表专区《基本类型与格式化输出》。</div>
+
+  <!-- ================= 15. 小结 ================= -->
+  <h2>本章小结</h2>
+  <div class="keypoint">变量 = 类型 + 名字 + 值 + 地址；类型决定内存大小和解释方式。初始化宁多勿少：<code>{}</code> 最安全。</div>
+  <ul>
+    <li>五种初始化：<code>int a;</code>（危险）、<code>= 1</code>、<code>(1)</code>、<code>{1}</code>、<code>{}</code>（保证 0）。</li>
+    <li><code>sizeof</code> 是编译期运算符；类型大小是<b>平台相关</b>的。</li>
+    <li>unsigned 运算回绕有定义；<b>有符号溢出是 UB</b>。</li>
+    <li><code>{}</code> 初始化禁止窄化转换。</li>
+    <li><code>auto</code> 必须初始化；<code>const</code> 必须初始化且不可改；<code>constexpr</code> 还要求编译期可算。</li>
+    <li>double→int 向零截断；非零→bool 为 true；<code>7/2</code> 先整数除法。</li>
+  </ul>
+
+  <!-- ================= 16. 自测清单 ================= -->
+  <h2>自测清单</h2>
+  <ul class="checklist" data-chapter="ch01">
+    <li><label><input type="checkbox" data-check-id="ch01-c1"><span>我能说出变量的四个要素（类型、名字、值、地址）</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch01-c2"><span>我能区分五种初始化写法，并说出 <code>int e{}</code> 与 <code>int e;</code> 的区别</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch01-c3"><span>我知道哪些类型大小由标准保证、哪些因平台而异</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch01-c4"><span>我能解释为什么有符号溢出是 UB 而 unsigned 回绕不是</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch01-c5"><span>我能举一个列表初始化阻止窄化转换的例子</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch01-c6"><span>我能说清 const 与 constexpr 的区别</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch01-c7"><span>我能预测 <code>int i = 3.99; int j = -3.99;</code> 的两个值并说明截断方向</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch01-c8"><span>我能识别 <code>010</code> 是八进制并解释 <code>09</code> 为何报错</span></label></li>
+  </ul>
+
+  <!-- ================= 17. 随堂测验 ================= -->
+  <section class="quiz" data-source="ch01">
+    <script type="application/json" class="quiz-data">{ "title": "随堂测验：变量与基本类型",
+      "questions": [
+        { "type": "mcq", "q": "函数内 <code>int x;</code> 之后立刻 <code>cout &lt;&lt; x;</code>，结果是？",
+          "options": ["一定输出 0", "一定输出随机值", "未定义行为，什么结果都可能", "编译错误"], "answer": 2,
+          "explain": "读取未初始化局部变量是 UB。输出 0、垃圾值、或被优化掉都有可能，因此任何“确定的输出”都不对。" },
+        { "type": "mcq", "q": "<code>int x{3.9};</code> 的结果是？",
+          "options": ["x = 3", "x = 4", "x = 3.9", "编译错误（禁止窄化）"], "answer": 3,
+          "explain": "列表初始化禁止 double→int 的窄化转换，直接编译报错。若写成 int x = 3.9; 才会截断为 3。" },
+        { "type": "tf", "q": "<code>int e{};</code> 保证 e 的值为 0，而 <code>int e;</code> 不保证。",
+          "answer": true, "explain": "int e{} 是值初始化，标准保证清零；int e 是默认初始化，局部变量不初始化。" },
+        { "type": "mcq", "q": "<code>unsigned int u = 0; u = u - 1;</code> 后 <code>cout &lt;&lt; u;</code> 输出？",
+          "options": ["-1", "0", "4294967295", "未定义行为"], "answer": 2,
+          "explain": "无符号运算按 2^32 取模，0-1 回绕为 2^32-1 = 4294967295。这是定义好的行为。" },
+        { "type": "mcq", "q": "<code>auto x = 5.0;</code> 中 x 的类型是？",
+          "options": ["int", "float", "double", "无法确定"], "answer": 2,
+          "explain": "不带后缀的小数字面量默认是 double 类型。" },
+        { "type": "tf", "q": "<code>const int M;</code>（不初始化）能通过编译。",
+          "answer": false, "explain": "const 变量必须在定义时初始化，否则编译错误。" },
+        { "type": "fill", "q": "<code>int n = 'A';</code> 后，n 的值是 ____。（ASCII）",
+          "answer": ["65"], "explain": "char 参与算术按编码值，'A' 的 ASCII 是 65。" },
+        { "type": "fill", "q": "<code>double d = 7 / 2;</code> 后，d 的值是 ____。",
+          "answer": ["3", "3.0"], "explain": "7/2 两侧都是 int，先做整数除法得 3，再隐式转换为 double 3.0。想要 3.5 应写 7.0/2。" },
+        { "type": "mcq", "q": "下列哪个字面量表示八进制？",
+          "options": ["0x1F", "017", "17", "17L"], "answer": 1,
+          "explain": "0 开头是八进制（017 = 15）；0x 开头是十六进制；L 后缀表示 long。" },
+        { "type": "code", "q": "补全代码，使循环执行 5 次：for (int i = 0; i ____ 5; ++i)",
+          "answer": ["<"], "explain": "i 从 0 数到 4 共 5 次，条件是 i < 5。" }
+      ] }</script>
+  </section>
+
+  </main>
+
+<script src="../assets/js/highlight.js"></script>
+<script src="../assets/js/toc.js"></script>
+<script src="../assets/js/nav.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/interactive.js"></script>
+<script src="../assets/js/teacher.js"></script>
+<script src="../assets/js/mastery.js"></script>
+</body>
+</html>

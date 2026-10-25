@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>速查表专区 | 大学C++离线助教</title>
+<script>
+(function(){try{
+  var t=localStorage.getItem("cppcourse.theme");
+  if(t)document.documentElement.setAttribute("data-theme",t);
+  var f=parseFloat(localStorage.getItem("cppcourse.fontscale"));
+  if(f>0)document.documentElement.style.fontSize=(16*f)+"px";
+}catch(e){}})();
+</script>
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .sheet-body ul.notes { margin: 8px 0 0; }
+  .cs-copy-btn { float: right; }
+  /* 直达按钮行 */
+  .quick-jump { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .quick-jump .qj-label { font-size: .8rem; color: var(--text-muted); white-space: nowrap; }
+  .quick-jump .qj-btn {
+    border: 1px dashed var(--border-strong); background: var(--surface); color: var(--text-muted);
+    border-radius: 999px; padding: 2px 11px; font-size: .8rem; cursor: pointer; font-family: inherit;
+  }
+  .quick-jump .qj-btn:hover { border-color: var(--accent); border-style: solid; color: var(--accent); }
+  /* 直达跳转后的高亮闪烁（补足 sticky 头部与筛选栏的遮挡） */
+  html { scroll-padding-top: calc(var(--header-h) + 130px); }
+  .sheet.flash { animation: sheet-flash 1.5s ease; }
+  @keyframes sheet-flash {
+    0% { box-shadow: 0 0 0 3px var(--accent); background: var(--accent-soft); }
+    100% { box-shadow: var(--shadow); background: var(--surface); }
+  }
+  @media print {
+    .filter-bar, .btn, .quick-jump { display: none !important; }
+    .sheet { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<main class="container">
+
+  <p class="crumbs"><a href="index.html">首页</a> / 速查表</p>
+
+  <header>
+    <h1>速查表</h1>
+    <p class="muted"><span id="n-sheets">…</span> 张常用知识表。Ctrl+P 可打印成 PDF。</p>
+  </header>
+
+  <div class="filter-bar">
+    <input type="search" id="q" class="search-input" placeholder="搜索表名或条目关键词…" autocomplete="off">
+    <div class="filter-chips" id="cats"></div>
+    <div class="quick-jump" id="quick-jump"></div>
+    <button class="btn btn-small" id="print-btn">打印 / 导出 PDF</button>
+    <span class="result-count" id="count"></span>
+  </div>
+
+  <div id="list"></div>
+  <div id="empty" hidden class="card center muted">没有匹配的表。</div>
+
+</main>
+
+<script src="assets/js/highlight.js"></script>
+<script src="assets/js/toc.js"></script>
+<script src="assets/js/nav.js"></script>
+<script src="assets/js/interactive.js"></script>
+<script src="assets/js/teacher.js"></script>
+<script src="assets/js/mastery.js"></script>
+<script src="assets/js/cheatsheets-data.js"></script>
+<script>
+(function () {
+  "use strict";
+  var DATA = window.CHEATSHEETS_DATA || [];
+  var esc = function (s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); };
+  var state = { q: "", cat: "" };
+
+  function copyBtn(getText) {
+    var b = document.createElement("button");
+    b.className = "btn btn-small cs-copy-btn";
+    b.textContent = "📋 复制";
+    b.addEventListener("click", function () {
+      if (window.Interact) window.Interact.copyText(getText(), function (ok) {
+        b.textContent = ok ? "✅ 已复制" : "❌ 失败";
+        setTimeout(function () { b.textContent = "📋 复制"; }, 1200);
+      });
+    });
+    return b;
+  }
+
+  function renderSheet(s) {
+    var el = document.createElement("article");
+    el.className = "sheet";
+    el.id = s.id;
+    var html = "<h2>" + esc(s.title) + "</h2>" +
+      (s.desc ? '<p class="sheet-desc">' + s.desc + "</p>" : "") +
+      '<div class="ex-meta" style="margin-bottom:8px"><span class="tag green">' + esc(s.category) + "</span></div>";
+
+    if (s.type === "table") {
+      html += '<table class="sheet-table"><thead><tr>';
+      (s.header || []).forEach(function (h) { html += "<th>" + h + "</th>"; });
+      html += "</tr></thead><tbody>";
+      (s.rows || []).forEach(function (row) {
+        html += "<tr>";
+        row.forEach(function (cell) { html += "<td>" + cell + "</td>"; });
+        html += "</tr>";
+      });
+      html += "</tbody></table>";
+    } else if (s.type === "code") {
+      html += '<pre><code class="cpp">' + esc(s.code) + "</code></pre>";
+      if (s.notes && s.notes.length) {
+        html += '<ul class="notes small">';
+        s.notes.forEach(function (n) { html += "<li>" + n + "</li>"; });
+        html += "</ul>";
+      }
+    } else if (s.type === "items") {
+      html += '<table class="sheet-table"><tbody>';
+      (s.items || []).forEach(function (it) {
+        html += '<tr><td style="white-space:nowrap"><code>' + esc(it.code) + "</code></td><td>" + it.desc + "</td></tr>";
+      });
+      html += "</tbody></table>";
+    }
+    if (s.tip) html += '<div class="tip">' + s.tip + "</div>";
+    el.innerHTML = html;
+
+    // 复制按钮：code 型复制整段；table/items 型复制为文本
+    var text = s.type === "code" ? s.code
+      : s.type === "items" ? (s.items || []).map(function (i) { return i.code + "   // " + i.desc; }).join("\n")
+      : (s.rows || []).map(function (r) { return r.join("\t"); }).join("\n");
+    el.querySelector("h2").appendChild(copyBtn(function () { return text; }));
+    return el;
+  }
+
+  function apply() {
+    var list = document.getElementById("list");
+    list.innerHTML = "";
+    var kw = state.q.trim().toLowerCase();
+    var shown = 0;
+    DATA.forEach(function (s) {
+      if (state.cat && s.category !== state.cat) return;
+      if (kw) {
+        var hay = (s.title + " " + s.desc + " " + (s.rows || []).flat().join(" ") + " " +
+          (s.items || []).map(function (i) { return i.code + " " + i.desc; }).join(" ") + " " +
+          (s.code || "") + " " + (s.notes || []).join(" ")).toLowerCase();
+        if (hay.indexOf(kw) === -1) return;
+      }
+      list.appendChild(renderSheet(s));
+      shown++;
+    });
+    document.getElementById("count").textContent = "共 " + shown + " / " + DATA.length + " 张表";
+    document.getElementById("empty").hidden = shown > 0;
+    if (window.CppLight) window.CppLight.highlightAll(list);
+  }
+
+  (function initControls() {
+    var cats = [];
+    DATA.forEach(function (s) { if (cats.indexOf(s.category) === -1) cats.push(s.category); });
+    var box = document.getElementById("cats");
+    var all = document.createElement("button");
+    all.className = "filter-chip active"; all.textContent = "全部";
+    all.addEventListener("click", function () {
+      state.cat = "";
+      box.querySelectorAll(".filter-chip").forEach(function (c) { c.classList.remove("active"); });
+      all.classList.add("active"); apply();
+    });
+    box.appendChild(all);
+    cats.forEach(function (c) {
+      var b = document.createElement("button");
+      b.className = "filter-chip"; b.textContent = c;
+      b.addEventListener("click", function () {
+        state.cat = (state.cat === c) ? "" : c;
+        box.querySelectorAll(".filter-chip").forEach(function (x) { x.classList.remove("active"); });
+        if (state.cat) b.classList.add("active"); else all.classList.add("active");
+        apply();
+      });
+      box.appendChild(b);
+    });
+    var q = document.getElementById("q");
+    q.addEventListener("input", function () { state.q = q.value; apply(); });
+    document.getElementById("print-btn").addEventListener("click", function () { window.print(); });
+  })();
+
+  /* 直达按钮：按表快捷跳转（清空筛选 → 滚动 → 高亮闪烁） */
+  (function buildQuickJump() {
+    var box = document.getElementById("quick-jump");
+    var lab = document.createElement("span");
+    lab.className = "qj-label";
+    lab.textContent = "直达：";
+    box.appendChild(lab);
+    DATA.forEach(function (s) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "qj-btn";
+      b.textContent = s.short || s.title;
+      b.title = s.title;
+      b.addEventListener("click", function () {
+        state.q = ""; state.cat = "";
+        var qi = document.getElementById("q");
+        if (qi) qi.value = "";
+        var catBox = document.getElementById("cats");
+        catBox.querySelectorAll(".filter-chip").forEach(function (c) { c.classList.remove("active"); });
+        var all = catBox.querySelector(".filter-chip");
+        if (all) all.classList.add("active");
+        apply();
+        var t = document.getElementById(s.id);
+        if (t) {
+          t.scrollIntoView({ behavior: "smooth", block: "start" });
+          t.classList.remove("flash");
+          void t.offsetWidth;   // 重启动画
+          t.classList.add("flash");
+          setTimeout(function () { t.classList.remove("flash"); }, 1600);
+        }
+      });
+      box.appendChild(b);
+    });
+  })();
+
+  document.getElementById("n-sheets").textContent = DATA.length;
+
+  apply();
+
+  if (location.hash) {
+    var t = document.getElementById(location.hash.slice(1));
+    if (t) setTimeout(function () { t.scrollIntoView({ behavior: "smooth", block: "start" }); }, 60);
+  }
+})();
+</script>
+</body>
+</html>

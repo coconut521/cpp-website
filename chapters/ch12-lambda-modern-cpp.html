@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第12章 Lambda 与现代 C++ | 大学C++离线助教</title>
+<script>
+/* 主题预置：防止暗色用户看到白屏闪烁（所有页面同款） */
+(function(){try{
+  var t=localStorage.getItem("cppcourse.theme");
+  if(t)document.documentElement.setAttribute("data-theme",t);
+  var f=parseFloat(localStorage.getItem("cppcourse.fontscale"));
+  if(f>0)document.documentElement.style.fontSize=(16*f)+"px";
+}catch(e){}})();
+</script>
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<main class="container chapter">
+
+  <p class="crumbs"><a href="../index.html">首页</a> / <a href="../index.html#toc">章节目录</a> / 第12章</p>
+
+  <header>
+    <h1>第12章 Lambda 与现代 C++</h1>
+    <p class="muted">本章讲 <b>Lambda 表达式</b>（C++11 引入、就地定义的匿名函数）的语法与捕获规则、与 STL 算法的配合，最后简介 C++14/17/20 的相关现代特性。</p>
+  </header>
+
+  <!-- ================= 1. 学习目标 ================= -->
+  <section class="card objectives">
+    <h2 style="margin-top:0">学习目标</h2>
+    <ul>
+      <li>写出 lambda 的完整语法 <code>[捕获](参数) -&gt; 返回类型 { 函数体 }</code>，说出每一部分的作用。</li>
+      <li>区分 <code>[x, &amp;y]</code>、<code>[=]</code>、<code>[&amp;]</code>、<code>[=, &amp;total]</code> 四类捕获写法，理解“按值捕获发生在定义那一刻”。</li>
+      <li>解释按值捕获的副本默认是 <code>const</code>、<code>mutable</code> 改变的是什么，说明 <code>[this]</code> 与 <code>[*this]</code>。</li>
+      <li>识别“按引用捕获 + lambda 逃逸出作用域”的悬空引用陷阱及其两种修法。</li>
+      <li>用 lambda 给 <code>std::sort</code> 写自定义比较器，用 <code>count_if</code>、<code>for_each</code> 处理数据；说清 lambda、函数指针、<code>std::function</code> 三者的关系。</li>
+      <li>使用 C++17 的结构化绑定、<code>if</code> 带初始化、<code>std::optional</code>、<code>std::string_view</code>、CTAD；了解 C++20 的 concepts、ranges、<code>&lt;=&gt;</code>、指定初始化器。</li>
+    </ul>
+    <p class="small muted">前置知识：<a href="../chapters/ch01-variables.html">第1章 变量与基本类型</a>（<code>auto</code>、列表初始化）；STL 容器与算法（vector、map、sort）。</p>
+    </section>
+
+  <!-- ================= 2. Lambda 是什么 ================= -->
+  <h2>1. Lambda：就地定义的“无名函数”</h2>
+  <p>Lambda（希腊字母 λ）本质上是一个<b>没有名字的函数对象</b>：编译器看到 lambda 表达式，会生成一个匿名的“闭包类型”，并创建该类型的一个对象（称为<b>闭包</b>）。它的类型是编译器私有的、独一无二的，只能用 <code>auto</code>（或 <code>std::function</code>，见第 7 节）来接。完整语法：</p>
+
+  <pre><code class="cpp">[捕获列表] (参数列表) -&gt; 返回类型 { 函数体 }
+    │          │          │         │
+    │          │          │         └─ 要执行的代码
+    │          │          └─ 通常省略（自动推导）；要写时形如 -&gt; double
+    │          └─ 和普通函数一样；无参数可写成 ()
+    └─ 决定怎么“带走”外部变量：[x, &amp;y] / [=] / [&amp;] / [=, &amp;total]</code></pre>
+
+  <table class="data-table">
+    <tr><th>组成部分</th><th>例子</th><th>作用</th></tr>
+    <tr><td>捕获列表 <code>[]</code></td><td><code>[x, &amp;y]</code>、<code>[=]</code>、<code>[&amp;]</code>、<code>[=, &amp;total]</code></td><td>决定如何捕获外部局部变量（本章核心）</td></tr>
+    <tr><td>参数列表 <code>()</code></td><td><code>(int a, int b)</code></td><td>与普通函数相同；无参时 <code>()</code> 可省略</td></tr>
+    <tr><td>返回类型 <code>-&gt; T</code></td><td><code>-&gt; double</code></td><td>通常可省略（自动推导）；返回值类型不一致时必须写</td></tr>
+    <tr><td>函数体 <code>{}</code></td><td><code>{ return a + b; }</code></td><td>与普通函数相同</td></tr>
+  </table>
+
+  <p>lambda 出现前，给算法传“一段逻辑”必须先定义函数或函数对象（仿函数），逻辑与调用处分离。</p>
+
+  <div class="compare">
+    <div class="compare-col badc">
+      <h4>❌ C++98：先定义函数对象（仿函数），再传给算法</h4>
+      <pre><code class="cpp">struct Between60And90 {
+    bool operator()(int s) const {
+        return s &gt;= 60 &amp;&amp; s &lt; 90;
+    }
+};
+// 使用处离定义处很远：
+int n = std::count_if(v.begin(), v.end(),
+                      Between60And90());</code></pre>
+    </div>
+    <div class="compare-col good">
+      <h4>✅ C++11：lambda 就地定义，逻辑就在调用处</h4>
+      <pre><code class="cpp">int n = std::count_if(v.begin(), v.end(),
+    [](int s) { return s &gt;= 60 &amp;&amp; s &lt; 90; });</code></pre>
+    </div>
+  </div>
+
+  <article class="example-card" id="ch12-ex-01">
+    <div class="ex-head">
+      <h3 class="ex-title">示例1：最简形式与完整形式</h3>
+      <div class="ex-meta"><span class="tag">知识点：Lambda 语法</span><span class="tag green">入门必会</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    auto add = [](int a, int b) { return a + b; };    // 最简形式：返回类型自动推导为 int
+    auto ratio = [](double a, double b) -&gt; double {   // 完整形式：显式写出返回类型
+        return a / b;
+    };
+
+    std::cout &lt;&lt; add(2, 3) &lt;&lt; "\n";     // 5
+    std::cout &lt;&lt; ratio(7, 2) &lt;&lt; "\n";   // 3.5
+    [] { std::cout &lt;&lt; "hi\n"; }();      // 无参、无捕获：定义后立即调用
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">5
+3.5
+hi</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：<code>[](int a, int b) { return a + b; }</code> 是 lambda 表达式，<code>auto add</code> 接住闭包对象。返回类型从 <code>a + b</code> 自动推导为 <code>int</code>。</li>
+        <li><b>第5~7行</b>：<code>-&gt; double</code> 显式指定返回类型。参数是 <code>double</code>，所以 <code>ratio(7, 2)</code> 里的 7、2 先转成 7.0、2.0，<code>7.0 / 2.0 = 3.5</code>（不再是第 2 章的整数除法）。</li>
+        <li><b>第11行</b>：<code>[] { ... }()</code>——定义之后紧跟一对 <code>()</code>，当场调用。这种“立即调用”常用于给一段独立逻辑起个“局部作用域”。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>返回类型不一致时必须显式写：<code>auto f = [](int x) -&gt; double { if (x &gt; 0) return 1; return 0.5; };</code> 合法；若去掉 <code>-&gt; double</code>，两个 return 一个是 <code>int</code> 一个是 <code>double</code>，直接编译错误。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>闭包类型独一无二：<code>auto f = [](int x) { return x; };</code> 之后写 <code>f = [](int x) { return x; };</code> 是<b>编译错误</b>——两个 lambda 即使写得一模一样，类型也不同。想让变量能重新赋值，用 <code>std::function</code>（见示例 9）。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": {}, "out": "", "note": "创建闭包 add：返回类型由 a + b 推导为 int" },
+      { "line": 5, "vars": {}, "out": "", "note": "创建闭包 ratio，箭头显式指定返回 double" },
+      { "line": 9, "vars": {}, "out": "5", "note": "调用 add(2, 3)：2 + 3 = 5" },
+      { "line": 10, "vars": {}, "out": "3.5", "note": "ratio(7, 2)：参数是 double，7/2 按 7.0/2.0 算，得 3.5" },
+      { "line": 11, "vars": {}, "out": "hi", "note": "定义并立即调用一个无参、无捕获的 lambda" },
+      { "line": 12, "vars": {}, "out": "", "note": "return 0，程序正常结束" }
+    ] }</script>
+  </article>
+
+  <div class="std-diff">Lambda 表达式是 <b>C++11</b> 引入的；用 <code>g++ -std=c++98</code> 编译示例 1 会直接报错。另注意：全局变量、静态变量<b>不需要捕获</b>就能在 lambda 里直接使用，捕获列表只管“局部变量”。</div>
+
+  <div class="tip">本章示例统一按 C++17 编译：<code>g++ -std=c++17 main.cpp -o main</code>（建议加 <code>-Wall -Wextra</code>）。示例 12 是 C++20 专属语法，需要 <code>-std=c++20</code>。</div>
+
+  <!-- ================= 3. 捕获列表 ================= -->
+  <h2>2. 捕获列表</h2>
+  <p>lambda 的函数体里想用外部的<b>局部变量</b>，必须在 <code>[]</code> 里写明捕获方式。常用写法四类：</p>
+  <table class="data-table">
+    <tr><th>写法</th><th>含义</th></tr>
+    <tr><td><code>[x, &amp;y]</code></td><td>逐个列出：x 按值拷贝，y 按引用（用本体）</td></tr>
+    <tr><td><code>[=]</code></td><td>用到的外部变量<b>全部按值</b>拷贝</td></tr>
+    <tr><td><code>[&amp;]</code></td><td>用到的外部变量<b>全部按引用</b></td></tr>
+    <tr><td><code>[=, &amp;total]</code></td><td>混合：默认按值，<code>&amp;</code> 例外项按引用</td></tr>
+  </table>
+
+  <article class="example-card" id="ch12-ex-02">
+    <div class="ex-head">
+      <h3 class="ex-title">示例2：逐个列出 [x, &amp;y]</h3>
+      <div class="ex-meta"><span class="tag">知识点：捕获列表</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int x = 10;
+    int y = 20;
+
+    auto byVal = [x]() { return x; };            // 按值捕获：拷贝一份 x 存进闭包
+    auto byRef = [&amp;y]() { y += 1; return y; };   // 按引用捕获：闭包里记的是 y 本体
+
+    x = 99;                    // 修改原变量
+    std::cout &lt;&lt; byVal() &lt;&lt; "\n";
+    byRef();                   // 通过引用改了 y 本体
+    std::cout &lt;&lt; y &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">10
+21</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第7行</b>：<code>[x]</code> 在<b>定义那一刻</b>把 x 的值 10 拷贝进闭包对象。此后 x 再怎么变，副本都是旧快照。</li>
+        <li><b>第8行</b>：<code>[&amp;y]</code> 不拷贝，闭包里存的是 y 的引用（可以理解为地址），之后读写都是 y 本体。</li>
+        <li><b>第10~11行</b>：x 改成 99，但 <code>byVal()</code> 读自己的副本 → 输出 10。</li>
+        <li><b>第12~13行</b>：<code>byRef()</code> 执行 <code>y += 1</code>，y 本体变 21 → 输出 21。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>按值捕获是<b>定义时刻的快照</b>：先捕获、后修改原变量，读到的仍是旧值（本例输出 10）。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "x": "10" }, "out": "", "note": "定义 x" },
+      { "line": 5, "vars": { "x": "10", "y": "20" }, "out": "", "note": "定义 y" },
+      { "line": 7, "vars": { "x": "10", "y": "20", "byVal.x": "10（副本）" }, "out": "", "note": "创建闭包 byVal：把 x 的当前值 10 拷贝一份存进闭包" },
+      { "line": 8, "vars": { "x": "10", "y": "20" }, "out": "", "note": "创建闭包 byRef：存的是 y 的引用，之后读写的是 y 本体" },
+      { "line": 10, "vars": { "x": "99", "y": "20" }, "out": "", "note": "原变量 x 改为 99；闭包里的副本不受影响" },
+      { "line": 11, "vars": { "x": "99", "y": "20" }, "out": "10", "note": "byVal() 读自己的副本 → 10" },
+      { "line": 12, "vars": { "x": "99", "y": "21" }, "out": "", "note": "byRef() 执行 y += 1，y 本体变成 21" },
+      { "line": 13, "vars": { "x": "99", "y": "21" }, "out": "21", "note": "打印 y 本体的新值" }
+    ] }</script>
+  </article>
+
+  <article class="example-card" id="ch12-ex-03">
+    <div class="ex-head">
+      <h3 class="ex-title">示例3：默认捕获 = 与 &amp;，以及混合写法 [=, &amp;total]</h3>
+      <div class="ex-meta"><span class="tag">知识点：默认捕获与混合捕获</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+
+int main() {
+    std::vector&lt;int&gt; v{1, 2, 3};
+    int total = 0;
+    int factor = 10;
+
+    auto addMul = [factor, &amp;total](int n) {  // 逐个列出：factor 按值，total 按引用
+        total += n * factor;
+    };
+    addMul(v[0]);              // total = 1*10 = 10
+    addMul(v[1]);              // total = 30
+    std::cout &lt;&lt; total &lt;&lt; "\n";
+
+    auto addAll = [&amp;](int n) { total += n; };  // [&amp;]：用到的全部按引用
+    addAll(v[2]);              // total = 33
+    std::cout &lt;&lt; total &lt;&lt; "\n";
+
+    auto snapshot = [=, &amp;total] {  // [=]：默认按值，total 例外按引用
+        total += factor;
+        return factor;
+    };
+    snapshot();
+    std::cout &lt;&lt; total &lt;&lt; " " &lt;&lt; factor &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">30
+33
+43 10</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第9~13行</b>：<code>[factor, &amp;total]</code>——factor 拷贝一份（值 10），total 按引用。两次调用后 total = 10 + 20 = 30。</li>
+        <li><b>第16~18行</b>：<code>[&amp;]</code> 默认按引用：函数体用到的局部变量（这里只有 total）都以本体参与，total 变 33。</li>
+        <li><b>第20~25行</b>：<code>[=, &amp;total]</code>——默认按值（factor 拿到副本 10），total 例外按引用。<code>total += factor</code> 后 total = 43；factor 的<b>原变量</b>从未被写，仍是 10。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>混合写法的方向别记反：<code>[=, &amp;total]</code> 是“默认值、它引用”；<code>[&amp;, total]</code> 才是“默认引用、它按值”。另外捕获默认符（<code>=</code> 或 <code>&amp;</code>）必须写在捕获列表<b>最前面</b>，写成 <code>[&amp;total, =]</code> 直接编译错误。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 9, "vars": { "total": "0", "factor": "10" }, "out": "", "note": "创建闭包 addMul：factor 拷贝一份（10），total 按引用" },
+      { "line": 12, "vars": { "total": "10", "factor": "10" }, "out": "", "note": "n=1：total += 1*10 → 10" },
+      { "line": 13, "vars": { "total": "30", "factor": "10" }, "out": "", "note": "n=2：total += 2*10 → 30" },
+      { "line": 14, "vars": { "total": "30", "factor": "10" }, "out": "30", "note": "打印 total" },
+      { "line": 17, "vars": { "total": "33", "factor": "10" }, "out": "", "note": "[&] 捕获：total += 3 → 33" },
+      { "line": 18, "vars": { "total": "33", "factor": "10" }, "out": "33", "note": "打印 total" },
+      { "line": 21, "vars": { "total": "43", "factor": "10" }, "out": "", "note": "[=, &total]：total += factor（副本 10）→ 43" },
+      { "line": 25, "vars": { "total": "43", "factor": "10" }, "out": "43 10", "note": "factor 的原变量始终是 10，被改的只有 total" }
+    ] }</script>
+  </article>
+
+  <div class="compare">
+    <div class="compare-col badc">
+      <h4>❌ 目标：让 inc() 累加 n —— 按值捕获做不到</h4>
+      <pre><code class="cpp">int n = 1;
+auto inc = [n]() mutable {
+    ++n;            // 改的只是闭包里的副本
+};
+inc();
+inc();
+std::cout &lt;&lt; n;     // 输出 1：原变量纹丝不动</code></pre>
+    </div>
+    <div class="compare-col good">
+      <h4>✅ 同一目标 —— 按引用捕获正确完成</h4>
+      <pre><code class="cpp">int n = 1;
+auto inc = [&amp;n] {
+    ++n;            // 改的是 n 本体
+};
+inc();
+inc();
+std::cout &lt;&lt; n;     // 输出 3：原变量被累加两次</code></pre>
+    </div>
+  </div>
+
+  <div class="note">按值捕获适合“只读快照”：lambda 可能被存起来晚点用、或多线程里不想共享变量。按引用捕获适合“就地修改”或拷贝大对象代价高时——但必须保证被引用变量的寿命覆盖 lambda 的寿命（第 6 节的陷阱正源于此）。</div>
+
+  <!-- ================= 4. mutable 与捕获 this ================= -->
+  <h2>3. mutable：按值捕获的副本默认是 const</h2>
+  <p>按值捕获进闭包的每个副本，默认带 <code>const</code>——函数体里不能修改它们（否则编译错误）。想改，加 <code>mutable</code>：<b>mutable 解除的是“副本”的 const，原变量仍然不受影响</b>。</p>
+
+  <article class="example-card" id="ch12-ex-04">
+    <div class="ex-head">
+      <h3 class="ex-title">示例4：mutable 只解除副本的 const</h3>
+      <div class="ex-meta"><span class="tag">知识点：mutable</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int n = 1;
+
+    auto counter = [n]() mutable {  // mutable：允许修改“自己的副本”
+        n += 1;
+        return n;
+    };
+    // auto bad = [n] { n += 1; };   // ← 编译错误：副本默认 const
+
+    std::cout &lt;&lt; counter() &lt;&lt; "\n";  // 第一次调用：副本 1→2
+    std::cout &lt;&lt; counter() &lt;&lt; "\n";  // 第二次调用：还是那个闭包，副本 2→3
+    std::cout &lt;&lt; n &lt;&lt; "\n";          // 原变量从未被改：仍是 1
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">2
+3
+1</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第6行</b>：闭包对象里存着一份 <code>n</code> 的拷贝；<code>mutable</code> 把这份拷贝从 const 变为可写。</li>
+        <li><b>第12~13行</b>：<code>counter</code> 是<b>同一个</b>闭包对象，两次调用自增的是<b>同一份副本</b>：1→2、2→3。副本的状态在调用之间保留。</li>
+        <li><b>第14行</b>：原变量 n 从头到尾是 1——mutable 与它无关。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>若只想“用 n 算个数”不改副本，根本不用 mutable：<code>auto next = [n] { return n + 1; };</code>。真正要改<b>原变量</b>时，用按引用捕获 <code>[&amp;n]</code> 而不是 mutable。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>判断题陷阱：“加了 mutable，lambda 就能修改外面的变量”——<b>假</b>。mutable 只让闭包内的副本可写，外面的原变量永远不变。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 6, "vars": { "n": "1", "counter.n": "1（副本）" }, "out": "", "note": "创建闭包：n 的副本存进闭包，mutable 解除副本的 const" },
+      { "line": 12, "vars": { "n": "1", "counter.n": "2（副本）" }, "out": "2", "note": "第一次调用：自增的是闭包内的副本，返回 2" },
+      { "line": 13, "vars": { "n": "1", "counter.n": "3（副本）" }, "out": "3", "note": "第二次调用：闭包对象还在，同一份副本继续 2→3" },
+      { "line": 14, "vars": { "n": "1" }, "out": "1", "note": "原 n 从未被触碰，仍是 1" }
+    ] }</script>
+  </article>
+
+  <p>关于<b>捕获 this</b>，一句话记住：在成员函数里写 <code>[this]</code>，捕获的是<b>当前对象的地址</b>，lambda 内可直接访问成员；<b>C++17</b> 起还可写 <code>[*this]</code>，把整个对象<b>按值拷贝</b>进闭包（之后原对象怎么改都不影响拷贝）。<code>[this]</code> 同样有寿命问题：对象先销毁、lambda 还在，就悬空了。另注意 <b>C++20</b> 起 <code>[=]</code> 隐式捕获 <code>this</code> 已被标记为弃用，要显式写 <code>[this]</code> 或 <code>[*this]</code>。</p>
+
+  <!-- ================= 5. C++14：泛型 lambda 与初始化捕获 ================= -->
+  <h2>4. C++14：泛型 Lambda 与初始化捕获</h2>
+
+  <article class="example-card" id="ch12-ex-05">
+    <div class="ex-head">
+      <h3 class="ex-title">示例5：参数写 auto 的泛型 Lambda，与 [v = std::move(v)] 初始化捕获</h3>
+      <div class="ex-meta"><span class="tag">知识点：泛型 Lambda / 初始化捕获</span><span class="tag green">C++14</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+#include &lt;utility&gt;
+
+int main() {
+    auto g = [](auto a, auto b) { return a + b; };   // 泛型 Lambda（C++14）
+    std::cout &lt;&lt; g(2, 3) &lt;&lt; "\n";                    // 5
+    std::cout &lt;&lt; g(1.5, 2) &lt;&lt; "\n";                  // 3.5
+    std::cout &lt;&lt; g(std::string("ab"), std::string("cd")) &lt;&lt; "\n";  // abcd
+
+    std::string s = "payload";
+    auto take = [msg = std::move(s)] { return msg; }; // 初始化捕获（C++14）
+    std::cout &lt;&lt; take() &lt;&lt; "\n";                      // payload
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">5
+3.5
+abcd
+payload</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第6行</b>：参数写成 <code>auto</code> 就是<b>泛型 Lambda</b>（C++14）：调用时按实参推导，一个 lambda 通吃 int、double、string。</li>
+        <li><b>第7~9行</b>：<code>g(2,3)</code> 得 <code>int</code> 5；<code>g(1.5,2)</code> 中 a 推导为 double、b 为 int，相加得 3.5；两个 string 相加得 <code>"abcd"</code>。</li>
+        <li><b>第11~12行</b>：<b>初始化捕获</b> <code>[msg = std::move(s)]</code>：在闭包里新建成员 <code>msg</code>，用 <code>std::move(s)</code> 初始化——把字符串的内容“搬”进闭包而不是拷贝。等号左边是新成员的名字，右边才是外层作用域的表达式。</li>
+        <li><b>第13行</b>：<code>take()</code> 返回 <code>msg</code> 的拷贝 → payload。此后 <code>s</code> 处于“被移动后”的合法但未指定状态，不要再依赖它的值。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比：泛型 Lambda + if constexpr（C++17）</h4>
+      <pre><code class="cpp">// 片段（需 #include &lt;type_traits&gt;，-std=c++17）
+auto describe = [](auto x) {
+    if constexpr (std::is_integral_v&lt;decltype(x)&gt;)
+        return "整数";
+    else
+        return "非整数";
+};
+std::cout &lt;&lt; describe(42);   // 整数（另一个分支根本不参与编译）</code></pre>
+      <p><code>if constexpr</code> 是<b>编译期</b>分支：条件为假的分支直接丢弃，这让它能安全地写在泛型代码里。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>初始化捕获写成 <code>[msg = msg]</code>（想在原地用同名变量）没问题，但 <code>[std::move(s)]</code> 这种没写新名字的会被当成“捕获 s”，不是移动语义。标准写法就是“新名字 = 表达式”。</p>
+    </div>
+  </article>
+
+  <div class="std-diff">参数 <code>auto</code> 的泛型 Lambda 与初始化捕获 <code>[v = std::move(v)]</code> 都是 <b>C++14</b> 新增；<code>if constexpr</code> 是 <b>C++17</b> 新增。编译示例 5 至少需要 <code>-std=c++14</code>，其变体需要 <code>-std=c++17</code>。</div>
+
+  <!-- ================= 6. Lambda 与 STL 算法 ================= -->
+  <h2>5. Lambda 与 STL 算法</h2>
+  <p>lambda 的最大用处是给 STL 算法传“一小段判断/操作”。本章用到的算法都在 <code>&lt;algorithm&gt;</code> 里，<b>别忘了 <code>#include &lt;algorithm&gt;</code></b>。</p>
+
+  <article class="example-card" id="ch12-ex-06">
+    <div class="ex-head">
+      <h3 class="ex-title">示例6：std::sort 自定义比较器</h3>
+      <div class="ex-meta"><span class="tag">知识点：sort 自定义比较</span><span class="tag purple">常用套路</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;algorithm&gt;
+#include &lt;iostream&gt;
+#include &lt;string&gt;
+#include &lt;vector&gt;
+
+int main() {
+    std::vector&lt;int&gt; nums{5, 1, 4, 2, 3};
+    std::sort(nums.begin(), nums.end(),
+              [](int a, int b) { return a &gt; b; });  // 自定义：降序
+    for (int n : nums) std::cout &lt;&lt; n &lt;&lt; " ";
+    std::cout &lt;&lt; "\n";
+
+    std::vector&lt;std::string&gt; ws{"watermelon", "fig", "banana", "kiwi"};
+    std::sort(ws.begin(), ws.end(),
+              [](const std::string&amp; a, const std::string&amp; b) {
+                  return a.size() &lt; b.size();       // 按长度升序
+              });
+    for (const std::string&amp; w : ws) std::cout &lt;&lt; w &lt;&lt; " ";
+    std::cout &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出（行尾各有一个打印时补的空格）</div>
+      <pre><code class="output-text">5 4 3 2 1 
+fig kiwi banana watermelon </code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第9~10行</b>：比较器的语义是“<b>a 应排在 b 前面时返回 true</b>”。<code>a &gt; b</code> 即“大的在前”→ 降序：5 4 3 2 1。</li>
+        <li><b>第14~18行</b>：按字符串<b>长度</b>升序。四个词长度各不相同（3、4、6、10），结果确定为 fig、kiwi、banana、watermelon。</li>
+        <li><b>打印行</b>：每个元素后补一个空格，所以两行末尾各有一个空格（预期输出已如实写出）。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p><code>std::sort</code> <b>不保证相等元素的相对顺序</b>；若需要稳定，用 <code>std::stable_sort</code>。另外比较器常写成 <code>const&amp;</code> 参数（如本例字符串版），避免拷贝大对象。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>想降序却写成 <code>a &lt; b</code>：不是编译错误，只是排成了升序——“结果与预期相反”类错误。写 <code>&gt;=</code> 更严重：那是未定义行为（见“常见错误”一节）。</p>
+    </div>
+  </article>
+
+  <article class="example-card" id="ch12-ex-07">
+    <div class="ex-head">
+      <h3 class="ex-title">示例7：count_if 统计 + for_each 累计</h3>
+      <div class="ex-meta"><span class="tag">知识点：count_if / for_each</span><span class="tag">算法</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;algorithm&gt;
+#include &lt;iostream&gt;
+#include &lt;vector&gt;
+
+int main() {
+    std::vector&lt;int&gt; scores{90, 55, 76, 48, 88, 61};
+
+    int pass = std::count_if(scores.begin(), scores.end(),
+                             [](int s) { return s &gt;= 60; });
+    std::cout &lt;&lt; "及格人数: " &lt;&lt; pass &lt;&lt; "\n";   // 4
+
+    int sum = 0;
+    std::for_each(scores.begin(), scores.end(),
+                  [&amp;sum](int s) { sum += s; });   // 按引用捕获，向外部累计
+    std::cout &lt;&lt; "总分: " &lt;&lt; sum &lt;&lt; "\n";          // 418
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">及格人数: 4
+总分: 418</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第8~10行</b>：<code>count_if</code> 返回“谓词为 true”的元素个数：90、76、88、61 共 <b>4</b> 个及格。</li>
+        <li><b>第13~14行</b>：<code>for_each</code> 对每个元素执行 lambda；<code>[&amp;sum]</code> 按引用捕获，让 lambda 能把结果累加到外部。90+55+76+48+88+61 = <b>418</b>。</li>
+        <li>同样的累加用范围 for 也行：<code>for (int s : scores) sum += s;</code>——<code>for_each</code> 的价值在于能配合“先 filter 再算”的算法链。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>count_if</code> 的谓词应当是“只读”的：标准不保证它被调用几次、以什么顺序调用（实现还会拷贝谓词）。在谓词里自增计数器这类“有状态”写法，结果是靠不住的。</p>
+    </div>
+  </article>
+
+  <!-- ================= 7. 生命周期陷阱 ================= -->
+  <h2>6. 生命周期陷阱：lambda 比局部变量活得久</h2>
+  <p>按引用捕获只存“地址”，不延长被引用变量的寿命。如果 lambda 被带回/传到<b>原作用域之外</b>再调用，它手里的引用就成了<b>悬空引用</b>——与第 5 章返回局部变量的引用是同一类错误。</p>
+
+  <article class="example-card" id="ch12-ex-08">
+    <div class="ex-head">
+      <h3 class="ex-title">示例8：返回“按引用捕获局部变量”的 lambda（UB 示范）</h3>
+      <div class="ex-meta"><span class="tag red">未定义行为示范</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;functional&gt;
+#include &lt;iostream&gt;
+
+std::function&lt;int()&gt; makeCounter() {
+    int n = 0;                        // 局部变量
+    return [&amp;n] { return ++n; };      // ⛔ 按引用捕获了 n
+}
+
+int main() {
+    auto c = makeCounter();           // makeCounter 已返回，n 已销毁
+    std::cout &lt;&lt; c() &lt;&lt; "\n";         // ⛔ 未定义行为：n 是悬空引用
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-pitfall">
+      <h4>⚠ 为什么没有“预期输出”？</h4>
+      <div class="ub-warning"><code>makeCounter</code> 返回后，其栈帧回收，局部变量 <code>n</code> 销毁；闭包里却还保存着对 <code>n</code> 的引用。之后调用 <code>c()</code> 就是<b>解引用一个已销毁的变量</b>——这是<b>未定义行为</b>：可能崩溃、可能“碰巧”输出 1、可能输出垃圾值、也可能被优化器改成任何样子。因此本例不给预期输出，考试也不允许拿它的结果当答案。<b>修复</b>：① 按值捕获 <code>[n]() mutable { return ++n; }</code>（副本随闭包走，见示例 4）；② 保证被引用变量活得比 lambda 久（例如 lambda 只在原作用域内使用，或引用的对象是 static/全局/堆上的）。</div>
+    </div>
+    <div class="memviz"><script type="application/json" class="mem-data">{ "title": "makeCounter() 返回后的内存状态（示意）",
+      "regions": [
+        { "addr": "0x7ffd…20", "name": "n（已销毁）", "type": "int", "value": "?", "freed": true, "note": "makeCounter 的栈帧已回收" },
+        { "addr": "0x7ffd…88", "name": "c（闭包对象）", "type": "std::function<int()>", "value": "引用 → 0x7ffd…20", "note": "还记着 n 的地址，但那块内存已不属于它" }
+      ],
+      "note": "悬空引用：地址还在、东西没了。与“返回局部变量的引用/指针”是同一类 UB。" }</script></div>
+    <div class="ex-variants">
+      <h4>修复版（可编译，行为确定）</h4>
+      <pre><code class="cpp">std::function&lt;int()&gt; makeCounterFixed() {
+    int n = 0;
+    return [n]() mutable { return ++n; };  // ✅ 按值拷进闭包，副本随闭包存活
+}</code></pre>
+      <p>注意：按值捕获发生在<b>定义时刻</b>（此时 n 还是活的，拷贝合法），之后原 n 销毁也无所谓——闭包用的是自己的副本。</p>
+    </div>
+  </article>
+
+  <div class="warn">同类高频错误：把 <code>[&amp;]</code> 的 lambda 存进容器、注册成回调、传给其他线程——只要它离开了被捕获变量的作用域，引用即悬空。规则：<b>lambda 要逃出作用域，就按值捕获</b>。</div>
+
+  <!-- ================= 8. 函数指针与 std::function ================= -->
+  <h2>7. Lambda、函数指针与 std::function</h2>
+  <p>一句话关系：<b>无捕获</b>的 lambda 可以隐式转换成同签名的<b>函数指针</b>；<b>有捕获</b>的 lambda 携带状态、转不成函数指针，要装进 <code>std::function</code>（能装下“任何可以像函数那样调用的东西”，需要 <code>#include &lt;functional&gt;</code>）。</p>
+
+  <article class="example-card" id="ch12-ex-09">
+    <div class="ex-head">
+      <h3 class="ex-title">示例9：无捕获 lambda 可转函数指针；有捕获的用 std::function</h3>
+      <div class="ex-meta"><span class="tag">知识点：可调用对象</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;functional&gt;
+#include &lt;iostream&gt;
+
+int apply(int x, int (*f)(int)) {   // 参数：老式函数指针
+    return f(x);
+}
+
+int main() {
+    auto square = [](int x) { return x * x; };   // 无捕获 lambda
+    int (*fp)(int) = square;                     // ✅ 可隐式转换为函数指针
+    std::cout &lt;&lt; apply(5, fp) &lt;&lt; "\n";           // 25
+    std::cout &lt;&lt; apply(6, square) &lt;&lt; "\n";       // 36（直接传也行）
+
+    int base = 10;
+    auto addBase = [base](int x) { return base + x; };  // 有捕获 lambda
+    std::function&lt;int(int)&gt; g = addBase;         // ✅ 装进 std::function
+    std::cout &lt;&lt; g(5) &lt;&lt; "\n";                   // 15
+
+    std::function&lt;int(int)&gt; h = square;          // std::function 也能装无捕获 lambda
+    std::cout &lt;&lt; h(7) &lt;&lt; "\n";                   // 49
+    // int (*bad)(int) = addBase;                // ⛔ 编译错误：有捕获不能转函数指针
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">25
+36
+15
+49</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第10~12行</b>：无捕获的 <code>square</code> 没有状态，编译器允许它退化成普通函数指针 <code>int(*)(int)</code>，因此能赋给 <code>fp</code>、也能直接传给 <code>apply</code>。</li>
+        <li><b>第15~17行</b>：<code>addBase</code> 捕获了 <code>base</code>（闭包里存着 10），转不成函数指针；<code>std::function&lt;int(int)&gt;</code> 用“类型擦除”装下任何 <code>int(int)</code> 形状的可调用对象，<code>g(5) = 10 + 5 = 15</code>。</li>
+        <li><b>第20行</b>：三种东西都能装进 <code>std::function</code>：函数指针、无捕获 lambda、有捕获 lambda——这就是它常被用作“回调参数类型”的原因。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>模板参数也能接任何可调用对象且零额外开销：<code>template &lt;class F&gt; int apply2(int x, F f) { return f(x); }</code>——<code>apply2(3, addBase)</code> 合法。考试记结论：<b>函数指针最窄，std::function 最通用</b>。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>std::function</code> 的灵活性有代价（类型擦除，可能引入额外间接调用），性能敏感的接口优先用模板参数或无捕获 lambda。</p>
+    </div>
+  </article>
+
+  <!-- ================= 9. C++17 精选 ================= -->
+  <h2>8. 现代 C++ 精选（C++17）</h2>
+  <p>C++17 的特性让代码少写类型、少写临时变量，并把“有没有值”表达清楚。</p>
+
+  <article class="example-card" id="ch12-ex-10">
+    <div class="ex-head">
+      <h3 class="ex-title">示例10：结构化绑定 + if / switch 带初始化</h3>
+      <div class="ex-meta"><span class="tag">知识点：结构化绑定</span><span class="tag green">C++17</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;map&gt;
+#include &lt;string&gt;
+
+int main() {
+    std::map&lt;std::string, int&gt; ages{
+        {"Li", 20}, {"Wang", 21}, {"Zhao", 19}};
+
+    for (const auto&amp; [name, age] : ages) {   // 结构化绑定（C++17）
+        std::cout &lt;&lt; name &lt;&lt; " -&gt; " &lt;&lt; age &lt;&lt; "\n";
+    }
+
+    if (auto it = ages.find("Wang"); it != ages.end()) {  // if 带初始化（C++17）
+        std::cout &lt;&lt; "Wang 的年龄是 " &lt;&lt; it-&gt;second &lt;&lt; "\n";
+    } else {
+        std::cout &lt;&lt; "查无此人\n";
+    }
+
+    switch (int n = 21 % 4; n) {             // switch 带初始化（C++17）
+        case 1: std::cout &lt;&lt; "余数是 1\n"; break;
+        default: std::cout &lt;&lt; "余数不是 1\n"; break;
+    }
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">Li -&gt; 20
+Wang -&gt; 21
+Zhao -&gt; 19
+Wang 的年龄是 21
+余数是 1</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第9~11行</b>：<code>auto [name, age]</code> 把每个键值对（pair）的 <code>first</code>/<code>second</code> 直接命名为 name、age。map 按<b>键升序</b>遍历："Li" &lt; "Wang" &lt; "Zhao"。</li>
+        <li><b>第13行</b>：<code>if (init; cond)</code>——<code>it</code> 的作用域被限制在整个 if/else 里，不会泄漏到函数其他地方。</li>
+        <li><b>第19行</b>：<code>switch (init; cond)</code> 同理：<code>n = 21 % 4 = 1</code>，命中 <code>case 1</code>。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>C++17 之前只能 <code>for (const auto&amp; kv : ages) std::cout &lt;&lt; kv.first &lt;&lt; kv.second;</code>——结构化绑定让“先取 pair 再取成员”的中间名字消失了。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>const auto&amp; [name, age]</code> 是<b>引用绑定</b>，不能通过它们修改元素；写成 <code>auto [name, age]</code> 才是拷贝一份。别把“绑定”当成“又复制了一遍数据”。</p>
+    </div>
+  </article>
+
+  <article class="example-card" id="ch12-ex-11">
+    <div class="ex-head">
+      <h3 class="ex-title">示例11：std::optional、std::string_view 与 CTAD</h3>
+      <div class="ex-meta"><span class="tag">知识点：optional / string_view / CTAD</span><span class="tag green">C++17</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;optional&gt;
+#include &lt;string_view&gt;
+#include &lt;utility&gt;
+#include &lt;vector&gt;
+
+std::optional&lt;int&gt; findIndex(const std::vector&lt;int&gt;&amp; v, int target) {
+    for (std::size_t i = 0; i &lt; v.size(); ++i)
+        if (v[i] == target) return static_cast&lt;int&gt;(i);
+    return std::nullopt;                 // “没找到”：不再用 -1 冒充
+}
+
+int main() {
+    std::vector v{10, 20, 30};           // CTAD：推导为 vector&lt;int&gt;（C++17）
+    std::pair p{1, 2.5};                 // CTAD：推导为 pair&lt;int, double&gt;
+
+    if (auto idx = findIndex(v, 20))     // optional 可直接当条件用
+        std::cout &lt;&lt; "找到，下标 " &lt;&lt; *idx &lt;&lt; "\n";
+    if (!findIndex(v, 99))
+        std::cout &lt;&lt; "99 不存在\n";
+
+    std::string_view sv = "modern c++";  // 只读视图，不拷贝数据
+    std::cout &lt;&lt; sv.substr(0, 6) &lt;&lt; "\n";   // modern
+    std::cout &lt;&lt; p.first &lt;&lt; " " &lt;&lt; p.second &lt;&lt; "\n";  // 1 2.5
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">找到，下标 1
+99 不存在
+modern
+1 2.5</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第7~11行</b>：<code>std::optional&lt;int&gt;</code> = “可能有一个 int”。找到就返回下标，找不到返回 <code>std::nullopt</code>——比“返回 -1 表示没找到”的魔法值安全得多，类型系统替你记住“可能没有”。</li>
+        <li><b>第14~15行</b>：<b>CTAD</b>（类模板实参推导）：模板参数从初始值推出来，<code>std::vector&lt;int&gt;</code>、<code>std::pair&lt;int, double&gt;</code> 不用再手写尖括号。</li>
+        <li><b>第17~20行</b>：<code>if (auto idx = ...)</code> 利用 optional 的“有没有值”语义；<code>*idx</code> 取出里面的 1。</li>
+        <li><b>第22~23行</b>：<code>string_view</code> 是字符串的<b>只读视图</b>（指针 + 长度），切片 <code>substr</code> 不产生任何拷贝。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>不想写 if 判断？<code>int idx = findIndex(v, 99).value_or(-1);</code>——没找到就给兜底值 -1，一行搞定。注意 <code>string_view</code> 不拥有数据：它引用的字符串必须活得比它久，否则和悬空引用同病。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <div class="ub-warning">对<b>空的</b> <code>std::optional</code> 使用 <code>*</code> 或 <code>-&gt;</code>（如 <code>*findIndex(v, 99)</code>）是<b>未定义行为</b>——它假定“一定有值”。取值前先判 <code>if (opt)</code>，或用 <code>value_or(兜底值)</code>、<code>opt.value()</code>（没值时抛异常而非 UB）。</div>
+    </div>
+  </article>
+
+  <!-- ================= 10. C++20 一瞥 ================= -->
+  <h2>9. C++20 一瞥</h2>
+  <p>本课程对 C++20 只要求认得出特性、说得出用途。先看两个可运行的例子：</p>
+
+  <article class="example-card" id="ch12-ex-12">
+    <div class="ex-head">
+      <h3 class="ex-title">示例12：指定初始化器与三路比较</h3>
+      <div class="ex-meta"><span class="tag">知识点：C++20 精选</span><span class="tag purple">需要 -std=c++20</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+struct Point { int x; int y; };
+
+int main() {
+    Point p{.x = 1, .y = 2};      // C++20 指定初始化器：按成员名初始化
+    std::cout &lt;&lt; p.x &lt;&lt; " " &lt;&lt; p.y &lt;&lt; "\n";
+
+    int a = 3, b = 5;
+    auto r = a &lt;=&gt; b;             // C++20 三路比较：一次给出 小于/等于/大于
+    std::cout &lt;&lt; (r &lt; 0) &lt;&lt; (r == 0) &lt;&lt; (r &gt; 0) &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">1 2
+100</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第6行</b>：<code>{.x = 1, .y = 2}</code> 按成员<b>名字</b>初始化，一眼看出哪个值给哪个成员（必须按声明顺序写，C 语言的乱序写法在 C++ 里不允许）。</li>
+        <li><b>第10行</b>：<code>a &lt;=&gt; b</code> 一次比较出三种关系（3 &lt; 5，结果为“小于”类别的值）。</li>
+        <li><b>第11行</b>：<code>r &lt; 0</code> 为 true 输出 1，<code>r == 0</code>、<code>r &gt; 0</code> 为 false 输出 0 → 连起来是 100。它最大的用途：给自己的类<b>自动生成</b>全部六个比较运算符。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>指定初始化器必须<b>按成员声明顺序</b>：<code>Point{.y = 2, .x = 1}</code> 是编译错误。另外它是 C++20 特性，用 <code>-std=c++17</code> 编译示例 12 会报错。</p>
+    </div>
+  </article>
+
+  <p><b>concepts：给模板加约束</b>——把“T 必须是整数”写成代码，违反约束时报错更简短：</p>
+  <pre><code class="cpp">// 片段（-std=c++20，需 #include &lt;concepts&gt;）
+template &lt;std::integral T&gt;
+T twice(T x) { return x * 2; }
+
+twice(21);    // OK：21 是整数
+twice(1.5);   // 编译错误：double 不满足 integral 约束</code></pre>
+
+  <p><b>ranges：管道式数据处理</b>——用 <code>|</code> 把“过滤、变换”串起来（惰性求值，不产生中间容器）：</p>
+  <pre><code class="cpp">// 片段（-std=c++20，需 #include &lt;ranges&gt;）
+auto evens = std::vector{1, 2, 3, 4, 5, 6}
+           | std::views::filter([](int x) { return x % 2 == 0; })
+           | std::views::transform([](int x) { return x * 10; });
+// 遍历 evens 依次得到 20 40 60</code></pre>
+
+  <div class="std-diff">concepts、ranges 管道、三路比较 <code>&lt;=&gt;</code>、指定初始化器均为 <b>C++20</b> 新增；GCC 10 及以上对这四个特性支持较完整，编译需 <code>-std=c++20</code>。课程只作了解，不作考点重点。</div>
+
+  <!-- ================= 11. 时间线 ================= -->
+  <h2>10. 现代 C++ 特性时间线</h2>
+  <p>本课程出现过的现代特性，按标准版本排列：</p>
+
+  <table class="data-table">
+    <tr><th>标准</th><th>本课程提过的代表性特性</th></tr>
+    <tr><td><b>C++11</b></td><td>Lambda 表达式（本章）、<code>auto</code> 与 <code>constexpr</code>（第1章）、列表初始化 <code>{}</code>（第1章）、范围 <code>for</code>、<code>nullptr</code>、<code>long long</code> 纳入标准（第1章）</td></tr>
+    <tr><td><b>C++14</b></td><td>泛型 Lambda（本章）、初始化捕获 <code>[v = std::move(v)]</code>（本章）、函数返回类型推导、二进制字面量 <code>0b1010</code></td></tr>
+    <tr><td><b>C++17</b></td><td>结构化绑定、<code>if</code>/<code>switch</code> 带初始化、<code>std::optional</code>、<code>std::string_view</code>、CTAD、<code>if constexpr</code>（本章第 4、8 节）</td></tr>
+    <tr><td><b>C++20</b></td><td>concepts、ranges 管道、三路比较 <code>&lt;=&gt;</code>、指定初始化器 <code>{.x = 1}</code>（本章第 9 节）</td></tr>
+  </table>
+
+  <p class="small muted">练一练：把五个标准按时间先后排好序（拖动或用 ↑↓ 按钮）。</p>
+  <div class="widget-sort"><script type="application/json" class="sort-data">{ "items": [
+    "C++98 —— 基准版本：没有 lambda、没有 auto",
+    "C++11 —— lambda、auto、范围 for、列表初始化 {}",
+    "C++14 —— 泛型 lambda、初始化捕获 [v = std::move(v)]",
+    "C++17 —— 结构化绑定、if 带初始化、optional、string_view",
+    "C++20 —— concepts、ranges、三路比较 <=>、指定初始化器"
+  ], "hint": "时间从早到晚，四年一个台阶。", "explain": "C++11 引入 lambda 与 auto；C++14 补上泛型 lambda 与初始化捕获；C++17 带来结构化绑定与 optional；C++20 加入 concepts 与 ranges。" }</script></div>
+
+  <p>完整的“Lambda 捕获写法”和“新特性速览”表，见 <a href="../cheatsheets.html">速查表专区</a>。</p>
+
+  <article class="example-card" id="ch12-ex-13">
+    <div class="ex-head">
+      <h3 class="ex-title">练习：把语句排成能输出 12 的正确顺序</h3>
+      <div class="ex-meta"><span class="tag purple">互动练习</span></div>
+    </div>
+    <p>目标：程序最后输出 <code>12</code>。下面 5 条语句被打乱了，请拖动（或用 ↑↓ 按钮）恢复正确顺序：</p>
+    <div class="widget-sort"><script type="application/json" class="sort-data">{ "items": [
+      "int total = 0;",
+      "auto add = [&total](int x) { total += x; };",
+      "add(5);",
+      "add(7);",
+      "std::cout << total << \"\\n\";"
+    ], "hint": "先有变量，再定义捕获它的 lambda，然后才是两次调用和打印。", "explain": "add 按引用捕获 total：add(5) 后 total=5，add(7) 后 total=12，最后输出 12。若捕获写成 [total]，副本是 const，total += x 直接编译错误。" }</script></div>
+  </article>
+
+  <!-- ================= 12. 常见错误 ================= -->
+  <h2>11. 常见错误</h2>
+  <div class="warn"><b>1. 想用外部变量却忘写捕获列表</b>：<code>auto f = [] { return total; };</code> 报 <code>'total' is not captured</code>。修复：把 total 写进 <code>[]</code>（按值或按引用）。</div>
+  <div class="warn"><b>2. 按值捕获却想修改</b>：<code>[total]() { total += x; }</code> 报 <code>assignment of read-only variable</code>。想改<b>原变量</b>用按引用 <code>[&amp;total]</code>；只想改<b>自己的副本</b>加 <code>mutable</code>。两者效果完全不同，见示例 4。</div>
+  <div class="warn"><b>3. 有捕获的 lambda 赋给函数指针</b>：<code>int (*fp)(int) = addBase;</code> 报 <code>cannot convert</code>。有捕获的闭包携带状态，只有无捕获 lambda 能转函数指针；通用场合用 <code>std::function</code>（示例 9）。</div>
+  <div class="warn"><b>4. 以为 [=] 能捕获一切</b>：全局变量、静态存储期变量本来就直接可见，<b>无需也不能捕获</b>；成员函数里访问成员需要 <code>[this]</code>（C++20 起 <code>[=]</code> 隐式捕获 this 已弃用，要显式写）。</div>
+  <div class="warn"><b>5. 用 sort / count_if 忘了头文件</b>：报 <code>'sort' is not a member of 'std'</code>。修复：<code>#include &lt;algorithm&gt;</code>。</div>
+  <div class="ub-warning"><b>sort 比较器写成 &gt;=（破坏严格弱序）</b>：<code>std::sort</code> 要求比较器满足“严格弱序”——相等元素的 <code>comp(a,b)</code> 和 <code>comp(b,a)</code> 都必须是 false。写成 <code>[](int a, int b) { return a &gt;= b; }</code> 后，相等的两个元素两个方向都返回 true，标准未规定会发生什么：libstdc++ 调试模式会直接 abort，普通模式可能越界访问内存。这是未定义行为，不是“排得慢一点”。修复：用 <code>&gt;</code> 或 <code>&lt;</code>。</div>
+  <p>更多同类错误见 <a href="../errors.html">编译错误博物馆</a>（如 "is not captured"、“cannot convert”），考前再刷一遍 <a href="../exam-pitfalls.html">考试易错点</a>。</p>
+
+  <!-- ================= 13. 标准差异 ================= -->
+  <h2>12. C++ 标准差异小结</h2>
+  <table class="data-table">
+    <tr><th>特性</th><th>引入标准</th><th>一句话</th></tr>
+    <tr><td>Lambda 表达式、<code>[this]</code>、<code>mutable</code></td><td>C++11</td><td>就地定义可调用对象并捕获外部变量</td></tr>
+    <tr><td>泛型 Lambda、初始化捕获</td><td>C++14</td><td>参数写 <code>auto</code>；<code>[v = std::move(v)]</code> 把值“搬”进闭包</td></tr>
+    <tr><td>结构化绑定 / if·switch 带初始化 / optional / string_view / CTAD / if constexpr</td><td>C++17</td><td>本章第 4、8 节的日常福利</td></tr>
+    <tr><td><code>[*this]</code> 按值捕获当前对象</td><td>C++17</td><td>把整个对象拷贝进闭包</td></tr>
+    <tr><td>concepts / ranges / 三路比较 <code>&lt;=&gt;</code> / 指定初始化器</td><td>C++20</td><td>本章第 9 节，认得出即可</td></tr>
+    <tr><td><code>[=]</code> 隐式捕获 <code>this</code></td><td>C++20 弃用</td><td>显式写 <code>[this]</code> 或 <code>[*this]</code></td></tr>
+  </table>
+  <div class="std-diff">同一份代码在不同 <code>-std</code> 下命运不同：lambda 语法 C++11 起才有，泛型 lambda 要 C++14，结构化绑定要 C++17。g++ 11 起默认 <code>gnu++17</code>，更老的版本默认更低甚至 <code>gnu++98</code>——遇到“明明是对的语法却报错”，先检查编译命令里的 <code>-std=</code>。</div>
+
+  <!-- ================= 14. 小结 ================= -->
+  <h2>本章小结</h2>
+  <div class="keypoint">Lambda = 捕获列表 + 参数 + （返回类型） + 函数体：它让“一小段逻辑”第一次可以写在调用处。用它的关键只有两件事——<b>捕获什么、捕获的变量能活多久</b>。</div>
+  <ul>
+    <li>语法：<code>[捕获](参数) -&gt; 返回类型 { 函数体 }</code>；返回类型通常省略，多 return 类型不一致时必须写。</li>
+    <li>捕获四式：<code>[x, &amp;y]</code> 逐个列、<code>[=]</code> 全按值、<code>[&amp;]</code> 全按引用、<code>[=, &amp;total]</code> 混合（默认符必须写最前）。按值捕获是<b>定义时刻的快照</b>。</li>
+    <li>按值副本默认 const：<code>mutable</code> 只解除副本的 const，原变量不受影响；要改原变量请按引用。</li>
+    <li>寿命规则：按引用捕获的 lambda 一旦逃出作用域就是悬空引用（UB）——逃逸场合按值捕获，或保证变量活得够久。</li>
+    <li>可调用对象：无捕获 lambda 可隐式转函数指针；有捕获的装 <code>std::function</code>；STL 算法（<code>sort</code>/<code>count_if</code>/<code>for_each</code>）是 lambda 的主场。</li>
+    <li>现代特性：C++14 泛型 lambda / 初始化捕获；C++17 结构化绑定 / if 带初始化 / optional / string_view / CTAD；C++20 concepts / ranges / <code>&lt;=&gt;</code> / 指定初始化器。</li>
+  </ul>
+
+  <!-- ================= 15. 课程总结与路线 ================= -->
+  <h2>全课程总结与后续学习路线</h2>
+  <ul>
+    <li>书单：<b>《C++ Primer（第 5 版）》</b>（系统性教材，覆盖 C++11）；进阶读<b>《Effective C++》《Effective Modern C++》</b>。</li>
+    <li>编译：<code>g++ -std=c++17 -Wall -Wextra main.cpp -o main</code>。</li>
+    <li>编辑器：VS Code + C/C++ 扩展（编辑、跳转、断点调试）。</li>
+    <li>多文件工程：CMake，用 <code>CMakeLists.txt</code> 描述构建。</li>
+    <li>查漏补缺：<a href="../index.html#toc">章节目录</a>。</li>
+  </ul>
+
+  <!-- ================= 16. 自测清单 ================= -->
+  <h2>自测清单</h2>
+  <ul class="checklist" data-chapter="ch12">
+    <li><label><input type="checkbox" data-check-id="ch12-c1"><span>我能写出 lambda 的完整语法并指出捕获列表、参数、返回类型、函数体各部分的作用</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch12-c2"><span>我能区分 <code>[x, &amp;y]</code>、<code>[=]</code>、<code>[&amp;]</code>、<code>[=, &amp;total]</code> 四种捕获写法</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch12-c3"><span>我能解释“按值捕获发生在定义那一刻”，并预测先捕获后修改变量的结果</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch12-c4"><span>我能说清 mutable 改变的是什么，以及它为什么不会影响原变量</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch12-c5"><span>我能解释“按引用捕获 + lambda 逃逸作用域”为什么是 UB，并给出两种修法</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch12-c6"><span>我会用 lambda 给 sort 写比较器（降序、按长度），并用 count_if / for_each</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch12-c7"><span>我能说清无捕获 lambda、有捕获 lambda、函数指针、std::function 的转换关系</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch12-c8"><span>我会用结构化绑定遍历 map、写 if 带初始化，并能说出 optional / string_view / CTAD 各解决什么问题</span></label></li>
+  </ul>
+
+  <!-- ================= 17. 随堂测验 ================= -->
+  <section class="quiz" data-source="ch12">
+    <script type="application/json" class="quiz-data">{ "title": "随堂测验：Lambda 与现代 C++",
+      "questions": [
+        { "type": "mcq", "q": "<code>int x = 10;</code> 之后定义 <code>auto f = [x]() { return x; };</code>，再执行 <code>x = 99;</code>，最后 <code>std::cout &lt;&lt; f();</code> 输出？",
+          "options": ["10", "99", "编译错误", "未定义行为"], "answer": 0,
+          "explain": "按值捕获在 lambda <b>定义那一刻</b>把 x 的值拷贝进闭包；之后修改原 x 与副本无关，f() 读到的是副本 10。" },
+        { "type": "mcq", "q": "<code>int n = 1;</code> 定义 <code>auto c = [n]() mutable { return ++n; };</code>，连续调用两次 <code>c(); c();</code> 后 <code>std::cout &lt;&lt; n;</code> 输出？",
+          "options": ["1", "2", "3", "编译错误"], "answer": 0,
+          "explain": "mutable 只是解除“闭包内副本”的 const：自增发生在副本上（1→2→3），原变量 n 从未被触碰，仍是 1。" },
+        { "type": "fill", "q": "按值捕获所有外部变量、但 <code>total</code> 例外按引用捕获，捕获列表应写作 ____。（捕获默认符要写在最前）",
+          "answer": ["[=, &total]", "[=,&total]"],
+          "explain": "捕获默认符 = 写在最前，例外项用 & 标注按引用，即 [=, &total]。" },
+        { "type": "mcq", "q": "哪种 lambda 可以隐式转换成同签名的函数指针？",
+          "options": ["任何 lambda", "只有无捕获的 lambda", "只有带 mutable 的 lambda", "只有按引用捕获的 lambda"], "answer": 1,
+          "explain": "无捕获的 lambda 不携带状态，才能退化为普通函数指针；有捕获的要装进 std::function。" },
+        { "type": "mcq", "q": "<code>auto g = [](auto a, auto b) { return a + b; };</code>，调用 <code>g(1.5, 2)</code> 的结果和类型是？",
+          "options": ["3，int", "3.5，double", "编译错误：参数类型不一致", "运行时才报错"], "answer": 1,
+          "explain": "泛型 Lambda（C++14）：a 推导为 double、b 为 int，相加得 double 3.5。" },
+        { "type": "tf", "q": "按引用捕获局部变量后，把 lambda 存到该变量作用域之外继续调用，程序一定会崩溃。",
+          "answer": false,
+          "explain": "这是未定义行为：可能崩溃，也可能“碰巧看起来正常”、输出垃圾值。正确做法是按值捕获，或保证被引用变量活得比 lambda 久。" },
+        { "type": "tf", "q": "泛型 Lambda（参数写 auto）和初始化捕获 [v = std::move(v)] 都是 C++14 引入的。",
+          "answer": true,
+          "explain": "两者都是 C++14 新增；Lambda 本身是 C++11 引入的。" },
+        { "type": "mcq", "q": "对 <code>std::map&lt;std::string, int&gt;</code> 用 <code>for (const auto&amp; [k, v] : m)</code> 遍历时，k 和 v 是？",
+          "options": ["k 是键、v 是值", "k 是值、v 是键", "k 是下标、v 是元素", "k 和 v 都是迭代器"], "answer": 0,
+          "explain": "结构化绑定把每个键值对（pair）的 first / second 命名为 k 和 v，即键和值；map 按键升序遍历。" },
+        { "type": "mcq", "q": "下列哪一项属于 C++20 新特性？",
+          "options": ["结构化绑定", "std::optional", "concepts（约束模板）", "泛型 Lambda"], "answer": 2,
+          "explain": "结构化绑定、optional 是 C++17；泛型 Lambda 是 C++14；concepts、ranges、三路比较 &lt;=&gt; 是 C++20。" },
+        { "type": "code", "q": "补全比较器，使 <code>std::sort(v.begin(), v.end(), [](int a, int b) { return ____; });</code> 把 v 排成降序。",
+          "answer": ["a > b", "a>b", "b < a", "b<a"],
+          "explain": "降序要求“a 应排在 b 前面”时返回 true，即 a > b（等价地 b < a）。注意不要写成 >=，那会破坏严格弱序。" }
+      ] }</script>
+  </section>
+
+  </main>
+
+<script src="../assets/js/highlight.js"></script>
+<script src="../assets/js/toc.js"></script>
+<script src="../assets/js/nav.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/interactive.js"></script>
+<script src="../assets/js/teacher.js"></script>
+<script src="../assets/js/mastery.js"></script>
+</body>
+</html>

@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第2章 运算符与表达式 | 大学C++离线助教</title>
+<script>
+/* 主题预置：防止暗色用户看到白屏闪烁（所有页面同款） */
+(function(){try{
+  var t=localStorage.getItem("cppcourse.theme");
+  if(t)document.documentElement.setAttribute("data-theme",t);
+  var f=parseFloat(localStorage.getItem("cppcourse.fontscale"));
+  if(f>0)document.documentElement.style.fontSize=(16*f)+"px";
+}catch(e){}})();
+</script>
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<main class="container chapter">
+
+  <p class="crumbs"><a href="../index.html">首页</a> / <a href="../index.html#toc">章节目录</a> / 第2章</p>
+
+  <header>
+    <h1>第2章 运算符与表达式</h1>
+    <p class="muted"><b>运算符</b>（operator）规定运算方式；<b>表达式</b>（expression）是由运算符和操作数组成的、既有值又有类型的东西。</p>
+  </header>
+
+  <!-- ================= 1. 学习目标 ================= -->
+  <section class="card objectives">
+    <h2 style="margin-top:0">学习目标</h2>
+    <ul>
+      <li>说清 <code>i++</code> 与 <code>++i</code> 各自<b>返回什么值、何时加 1</b>；识别 <code>i = i++ + 1;</code> 这类<b>未定义行为</b>并改写成安全写法。</li>
+      <li>预测 <code>7 / 2</code>、<code>-7 / 2</code>、<code>7 % 2</code>、<code>-7 % 2</code> 的结果，知道除零在整数与浮点下的不同结局。</li>
+      <li>解释 <code>0.1 + 0.2</code> 为什么“显示 0.3 却不等于 0.3”，写出 epsilon 误差比较。</li>
+      <li>解释 <code>-1 &lt; 1u</code> 为什么是 false，掌握整型提升与混合运算的转换链。</li>
+      <li>记住最易错的优先级组合（<code>&lt;&lt;</code> 与 <code>&lt;</code>、<code>&amp;</code> 与 <code>==</code>），拿不准时加括号。</li>
+      <li>使用<b>逗号、三目、赋值</b>表达式的值。</li>
+    </ul>
+    <p class="small muted">前置知识：<a href="../chapters/ch01-variables.html">第1章 变量与基本类型</a>。</p>
+    </section>
+
+  <!-- ================= 2. 自增与自减 ================= -->
+  <h2>1. 自增与自减：i++ 与 ++i</h2>
+  <p><b>自增 <code>++</code></b> 让变量加 1，<b>自减 <code>--</code></b> 让变量减 1，各有两种写法：<b>后缀</b> <code>i++</code> 与<b>前缀</b> <code>++i</code>。两者的<b>副作用相同</b>（都让 i 加 1），差别在<b>表达式本身的值</b>：<code>i++</code> 的值是<b>旧值</b>（先取值，后自增），<code>++i</code> 的值是<b>新值</b>（先自增，后取值）。</p>
+
+  <article class="example-card" id="ch02-ex-01">
+    <div class="ex-head">
+      <h3 class="ex-title">示例1：i++ 取旧值，++i 取新值</h3>
+      <div class="ex-meta"><span class="tag">知识点：自增运算符</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int i = 5;
+    std::cout &lt;&lt; i++ &lt;&lt; "\n";   // 先取旧值 5 打印，再让 i 变 6
+    std::cout &lt;&lt; i   &lt;&lt; "\n";   // 6
+
+    int j = 5;
+    std::cout &lt;&lt; ++j &lt;&lt; "\n";   // 先加 1 变 6，再打印新值
+    std::cout &lt;&lt; j   &lt;&lt; "\n";   // 6
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">5
+6
+6
+6</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：<code>i++</code> 是<b>后缀</b>：整个表达式的值是 i 的<b>旧值 5</b>，打印 5；随后副作用发生，i 变成 6。</li>
+        <li><b>第6行</b>：i 已经是 6。</li>
+        <li><b>第9行</b>：<code>++j</code> 是<b>前缀</b>：先让 j 变成 6，表达式的值是<b>新值 6</b>，打印 6。</li>
+        <li><b>第10行</b>：j 保持 6。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>同理，<code>i--</code> 取旧值后减 1，<code>--i</code> 先减 1 再取新值。判断题“<code>i++</code> 与 <code>++i</code> 对 i 的最终效果不同”——<b>假</b>，两者的副作用完全一样，不同的只是表达式取的值。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>std::cout &lt;&lt; i++</code> 打印的是<b>加 1 之前</b>的值。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "i": "5" }, "out": "", "note": "i 初始化为 5" },
+      { "line": 5, "vars": { "i": "6" }, "out": "5", "note": "i++ 的值是旧值 5，先打印；随后 i 自增为 6" },
+      { "line": 6, "vars": { "i": "6" }, "out": "6", "note": "此时 i 已是 6" },
+      { "line": 8, "vars": { "i": "6", "j": "5" }, "out": "", "note": "j 初始化为 5" },
+      { "line": 9, "vars": { "i": "6", "j": "6" }, "out": "6", "note": "++j 先自增为 6，表达式的值是新值 6" },
+      { "line": 10, "vars": { "i": "6", "j": "6" }, "out": "6", "note": "j 保持 6" },
+      { "line": 11, "vars": {}, "out": "", "note": "return 0，程序结束" }
+    ] }</script>
+  </article>
+
+  <p>用下面的自增自减动画元件观察“取值”与“加 1”谁先谁后：</p>
+  <div class="widget-incdec" data-start="5"></div>
+
+  <div class="tip"><b>单独成句时两者等价；循环里推荐 ++i。</b>如果 <code>i++;</code> 或 <code>++i;</code> 独占一条语句、返回值没人用，两者效果完全相同。但要对<b>类类型</b>（如 STL 迭代器、大对象）多想一步：重载后的后缀 <code>it++</code> 必须先构造一个“旧值副本”再自增，白白多一次拷贝；前缀 <code>++it</code> 直接改自己，通常更高效。所以 STL 的惯用写法是 <code>++it</code>。对 <code>int</code> 这类内建类型，现代编译器生成的机器码没有区别。</div>
+
+  <!-- ================= 3. 表达式中的 UB ================= -->
+  <h2>2. 一条语句只修改变量一次</h2>
+  <p>自增自减和赋值都带<b>副作用</b>（会改变内存）。C++ 标准只保证：在同一个表达式里，对同一个变量的多次修改之间、以及“修改”与“读取”之间的先后顺序，只有在明确规定的场合才是确定的。顺序不明确时，就是<b>未定义行为</b>。</p>
+
+  <article class="example-card" id="ch02-ex-02">
+    <div class="ex-head">
+      <h3 class="ex-title">示例2：同一表达式里修改两次——UB 示范</h3>
+      <div class="ex-meta"><span class="tag red">未定义行为示范</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int i = 1;
+    i = i++ + 1;    // ⛔ 这一句里 i++ 改了一次 i，= 又改一次 i
+    std::cout &lt;&lt; i &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-pitfall">
+      <h4>⚠ 为什么没有“预期输出”？</h4>
+      <div class="ub-warning"><b>第5行</b>对 i 做了两次修改（<code>i++</code> 一次、赋值 <code>=</code> 一次），而这两次副作用之间<b>没有顺序保证</b>——标准明文规定这是<b>未定义行为</b>：结果可能是 2、可能是 3，开优化后还可能完全出乎意料。同理，<code>v[i] = i++;</code>（i 既当下标被读、又被 <code>i++</code> 改）在 C++11/14 下同样是 UB；C++17 给赋值和下标补上了求值顺序之后，这一句才变得有定义，但换个组合（如 <code>i = i++ + 1;</code>）仍是 UB。正确的做法永远是：<b>一条语句里每个变量最多修改一次</b>，其余拆开写。g++ 用 <code>-Wall -Wsequence-point</code> 能对这类代码给出警告。</div>
+      <p>这类代码在考试中若出现“输出是多少”的选项，正确答案只能是“未定义行为”——但更常见的考法是让你<b>认出并改正</b>它。</p>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：问题不在“看得懂看不懂”，而在标准不给答案。编译器不报错不等于没问题——UB 的定义就是“标准不管”。</li>
+        <li><b>第6行</b>：如果第 5 行已被替换成安全写法，这里才会输出确定的结果。</li>
+      </ul>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "i": "1" }, "out": "", "note": "i 初始化为 1" },
+      { "line": 5, "vars": { "i": "?" }, "out": "", "note": "两次修改无顺序保证：标准不定义结果，此行之后 i 的值不可预测" }
+    ] }</script>
+  </article>
+
+  <div class="compare">
+    <div class="compare-col badc">
+      <h4>❌ 依赖未定义顺序的写法</h4>
+      <pre><code class="cpp">i = i++ + 1;   // 改两次
+v[i] = i++;    // 又读又改
+a[i++] = i;    // 同上</code></pre>
+    </div>
+    <div class="compare-col good">
+      <h4>✅ 一句一改，意图清晰</h4>
+      <pre><code class="cpp">i = i + 1;     // 或 ++i;
+v[i] = i;      // 先用后改
+++i;
+a[i] = i + 1;</code></pre>
+    </div>
+  </div>
+
+  <div class="std-diff">C++98/03 对求值顺序的规定很松，<code>i = i++ + 1;</code> 一类的经典例句大量落入 UB；<b>C++17</b> 明确了 <code>&lt;&lt;</code>、<code>&gt;&gt;</code>、下标、赋值等运算符左右操作数的先后，救活了个别例句，但 <code>i = i++ + 1;</code> 至今仍是 UB。<b>不要依赖标准版本，一句一改最安全。</b></div>
+
+  <!-- ================= 4. 短路求值 ================= -->
+  <h2>3. 短路求值：&& 与 ||</h2>
+  <p><code>&amp;&amp;</code>（逻辑与）与 <code>||</code>（逻辑或）不总把两边都算完：<code>&amp;&amp;</code> 的<b>左边为假</b>时右边<b>不算</b>（整体必假）；<code>||</code> 的<b>左边为真</b>时右边<b>不算</b>（整体必真）。标准保证左操作数先于右操作数求值——所以右边被跳过时，它的<b>副作用也一起被跳过</b>。</p>
+
+  <article class="example-card" id="ch02-ex-03">
+    <div class="ex-head">
+      <h3 class="ex-title">示例3：右边被跳过时，自增也没发生</h3>
+      <div class="ex-meta"><span class="tag">知识点：短路求值</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int a = 0, b = 0;
+
+    bool r1 = ++a &gt; 0 || ++b &gt; 0;   // 左为真：右边不计算
+    std::cout &lt;&lt; r1 &lt;&lt; " " &lt;&lt; a &lt;&lt; " " &lt;&lt; b &lt;&lt; "\n";
+
+    bool r2 = a &lt; 0 &amp;&amp; ++b &gt; 0;     // 左为假：右边不计算
+    std::cout &lt;&lt; r2 &lt;&lt; " " &lt;&lt; a &lt;&lt; " " &lt;&lt; b &lt;&lt; "\n";
+
+    bool r3 = a &gt; 0 &amp;&amp; ++b &gt; 0;     // 左为真：右边才算
+    std::cout &lt;&lt; r3 &lt;&lt; " " &lt;&lt; a &lt;&lt; " " &lt;&lt; b &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">1 1 0
+0 1 0
+1 1 1</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第6~7行</b>：<code>++a</code> 让 a 变 1，<code>1 &gt; 0</code> 为真；<code>||</code> 短路，右边 <code>++b</code> <b>根本没有执行</b>，b 保持 0。输出 <code>1 1 0</code>（bool 默认打印 1/0）。</li>
+        <li><b>第9~10行</b>：<code>a &lt; 0</code> 为假；<code>&amp;&amp;</code> 短路，<code>++b</code> 没有执行，b 仍是 0。输出 <code>0 1 0</code>。</li>
+        <li><b>第12~13行</b>：<code>a &gt; 0</code> 为真，这次右边<b>才</b>被计算：<code>++b</code> 让 b 变 1。输出 <code>1 1 1</code>。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>把第 9 行的 <code>&amp;&amp;</code> 换成 <code>&amp;</code>（按位与）就不短路了：两边都会算，b 会变成 1。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>别把有副作用的操作藏在条件右边然后指望它执行：<code>if (x != 0 &amp;&amp; ++count &gt; 0)</code>——x 为 0 时 <code>count</code> 不一定自增。需要“无论如何都计数”就把它写到条件外面。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "a": "0", "b": "0" }, "out": "", "note": "a、b 都是 0" },
+      { "line": 6, "vars": { "a": "1", "b": "0" }, "out": "", "note": "++a 后 a=1，1>0 为真；|| 短路，++b 被跳过" },
+      { "line": 7, "vars": { "a": "1", "b": "0" }, "out": "1 1 0", "note": "r1 为 true 打印 1" },
+      { "line": 9, "vars": { "a": "1", "b": "0" }, "out": "", "note": "a<0 为假；&& 短路，++b 被跳过，b 仍是 0" },
+      { "line": 10, "vars": { "a": "1", "b": "0" }, "out": "0 1 0", "note": "r2 为 false 打印 0" },
+      { "line": 12, "vars": { "a": "1", "b": "1" }, "out": "", "note": "a>0 为真，这次才计算右边：++b 让 b=1" },
+      { "line": 13, "vars": { "a": "1", "b": "1" }, "out": "1 1 1", "note": "r3 为 true 打印 1" }
+    ] }</script>
+  </article>
+
+  <div class="note"><b>短路常用作守卫</b>：<code>if (n != 0 &amp;&amp; total / n &gt; 60)</code>——n 为 0 时右边根本不执行，避免整数除零的 UB（见第 5 节）。同理 <code>if (p != nullptr &amp;&amp; ...)</code> 是指针判空的惯用写法（指针详见后续章节）。</div>
+
+  <!-- ================= 5. 优先级与结合性 ================= -->
+  <h2>4. 运算符优先级与结合性：最易错的四组</h2>
+  <p><b>优先级</b>决定“先算谁”，<b>结合性</b>决定同级运算“从左还是从右算起”。不必背整张表，先记住最常考的四组：</p>
+
+  <table class="data-table">
+    <tr><th>写法</th><th>实际含义</th><th>想要的写法</th></tr>
+    <tr><td><code>cout &lt;&lt; 1 &lt; 2</code></td><td><code>(cout &lt;&lt; 1) &lt; 2</code>——<code>&lt;&lt;</code> 优先级高于 <code>&lt;</code>，先流插入再比较，<b>编译错误</b></td><td><code>cout &lt;&lt; (1 &lt; 2)</code></td></tr>
+    <tr><td><code>x &amp; 1 == 0</code></td><td><code>x &amp; (1 == 0)</code>——<code>==</code> 高于 <code>&amp;</code>，先判等再按位与</td><td><code>(x &amp; 1) == 0</code></td></tr>
+    <tr><td><code>-i++</code></td><td><code>-(i++)</code>——后缀 <code>++</code> 高于一元负号：先取旧值再自增，最后取负</td><td>拆成两句，如 <code>--i;</code> 或 <code>int t = -i; ++i;</code></td></tr>
+    <tr><td><code>a = b = 5</code></td><td><code>a = (b = 5)</code>——赋值<b>右结合</b>，先把 5 给 b，再把表达式的值 5 给 a</td><td>确认链式赋值是有意为之</td></tr>
+  </table>
+
+  <article class="example-card" id="ch02-ex-04">
+    <div class="ex-head">
+      <h3 class="ex-title">示例4：x &amp; 1 == 0 与 (x &amp; 1) == 0 差在哪</h3>
+      <div class="ex-meta"><span class="tag">知识点：优先级</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int x = 4;
+
+    std::cout &lt;&lt; ((x &amp; 1) == 0) &lt;&lt; "\n";  // 1：先按位与，再判等
+    std::cout &lt;&lt; (x &amp; 1 == 0) &lt;&lt; "\n";    // 0：== 优先级更高
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">1
+0</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第6行</b>：<code>(4 &amp; 1)</code> 得 0（二进制 100 &amp; 001），<code>0 == 0</code> 为真，输出 1。这是“判断 x 是不是偶数”的正确写法。</li>
+        <li><b>第7行</b>：不加括号时 <code>==</code> 先算：<code>1 == 0</code> 得 false（转成 0），再算 <code>4 &amp; 0</code> 得 0，输出 0——结果直接反过来。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>一元负号与后缀 ++ 的组合：<code>-i++</code> 是 <code>-(i++)</code>——先取 i 的旧值取负，再让 i 自增。设 <code>int i = 3;</code>，<code>std::cout &lt;&lt; -i++;</code> 输出 <code>-3</code>，随后 i 为 4。想表达“先取负再减 1”请直接写 <code>--i</code> 配合取负，或拆成两条语句。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>cout &lt;&lt; 1 &lt; 2</code> 不是“输出比较结果”，而是编译错误：它被读成 <code>(cout &lt;&lt; 1) &lt; 2</code>，流对象没法和整数比较。比较表达式放进 <code>&lt;&lt;</code> 链时必须自带括号。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "x": "4" }, "out": "", "note": "x 为 4（二进制 100）" },
+      { "line": 6, "vars": { "x": "4" }, "out": "1", "note": "(4 & 1) = 0，0 == 0 为真" },
+      { "line": 7, "vars": { "x": "4" }, "out": "0", "note": "先算 1 == 0 得 0，再算 4 & 0 = 0" }
+    ] }</script>
+  </article>
+
+  <p>完整的优先级总表（约 18 级）放在速查表专区，考前过一遍即可：见 <a href="../cheatsheets.html">速查表：运算符优先级与结合性</a>。日常守则只有一条——<b>拿不准就加括号</b>。</p>
+
+  <!-- ================= 6. 整数除法与取余 ================= -->
+  <h2>5. 整数除法与取余</h2>
+  <p>第 1 章埋的伏笔现在揭晓：<code>7 / 2</code> 两侧都是 <code>int</code> 时发生的是<b>整数除法</b>，小数部分直接丢弃（<b>向零截断</b>）。<code>%</code> 是<b>取余</b>（取模）运算符，只对整数有意义，并满足恒等式 <code>(a / b) * b + a % b == a</code>。</p>
+
+  <article class="example-card" id="ch02-ex-05">
+    <div class="ex-head">
+      <h3 class="ex-title">示例5：负数参与整数除法与取余</h3>
+      <div class="ex-meta"><span class="tag">知识点：/ 与 %</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    std::cout &lt;&lt; 7 / 2 &lt;&lt; "\n";    // 3：整数除法，向零截断
+    std::cout &lt;&lt; -7 / 2 &lt;&lt; "\n";   // -3：不是 -4！
+    std::cout &lt;&lt; 7 % 2 &lt;&lt; "\n";    // 1
+    std::cout &lt;&lt; -7 % 2 &lt;&lt; "\n";   // -1：余数符号跟被除数
+    std::cout &lt;&lt; 7.0 / 2 &lt;&lt; "\n";  // 3.5：有浮点参与才是浮点除法
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">3
+-3
+1
+-1
+3.5</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：<code>7 / 2</code> 商 3 余 1，整数除法丢掉小数 → 3。</li>
+        <li><b>第5行</b>：C++11 起规定整数除法<b>向零截断</b>：-3.5 截成 <b>-3</b>（不是向 -∞ 方向的 -4）。</li>
+        <li><b>第6行</b>：<code>7 % 2</code> = 7 - 3×2 = 1。</li>
+        <li><b>第7行</b>：由恒等式，<code>-7 % 2</code> = -7 - (-3)×2 = <b>-1</b>。<b>余数的符号与被除数相同</b>。</li>
+        <li><b>第8行</b>：<code>7.0</code> 是 double，<code>2</code> 被提升为 2.0，做的是<b>浮点除法</b> → 3.5。想要小数，让除法里出现至少一个浮点数。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p><code>7 % -2</code> 呢？商向零取整是 -3，余数 = 7 - (-3)×(-2) = 1——符号依然跟被除数 7。无论除数正负，<b>余数符号只看被除数</b>。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>“<code>-7 / 2</code> 等于 -4”是常见错误（那是向 -∞ 取整，Python <code>//</code> 的行为）。C++11 起一律<b>向零截断</b>得 -3。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": {}, "out": "3", "note": "整数除法：商 3 余 1，丢小数" },
+      { "line": 5, "vars": {}, "out": "-3", "note": "向零截断：-3.5 → -3" },
+      { "line": 6, "vars": {}, "out": "1", "note": "7 - 3×2 = 1" },
+      { "line": 7, "vars": {}, "out": "-1", "note": "-7 - (-3)×2 = -1，符号同被除数" },
+      { "line": 8, "vars": {}, "out": "3.5", "note": "7.0 是 double，触发浮点除法" }
+    ] }</script>
+  </article>
+
+  <div class="ub-warning"><b>整数除零是未定义行为</b>：<code>7 / 0</code>、<code>7 % 0</code> 都没有定义——程序可能崩溃（Windows 上常表现为浮点异常）、可能输出垃圾值、可能被编译器优化改变行为。另外 <code>INT_MIN / -1</code>（最小 int 除以 -1，结果超出 int 范围）也是 UB。写除法前先确认除数不为 0，或用短路求值做守卫（第 3 节）。<b>浮点除零不是这条路</b>：见第 6 节，主流平台上它给出 <code>inf</code>。</div>
+
+  <div class="std-diff">C++98/03 时代，含负操作数的整数除法允许实现选择“向 -∞ 取整”（<code>-7 / 2</code> 可能得 -4）；<b>C++11</b> 起统一规定<b>向零截断</b>，<code>%</code> 的符号随之固定为“与被除数相同”。</div>
+
+  <!-- ================= 7. 浮点精度 ================= -->
+  <h2>6. 浮点数：精度、比较与 inf</h2>
+  <p><code>double</code> 用二进制存数，很多十进制小数（如 0.1）在二进制里是<b>无限循环小数</b>，只能近似存储。于是 <code>0.1 + 0.2</code> 的真实结果是 0.30000000000000004……而 <code>cout</code> 默认只输出 <b>6 位有效数字</b>，恰好把它显示成 <code>0.3</code>——<b>显示像相等，存储不相等</b>。</p>
+
+  <article class="example-card" id="ch02-ex-06">
+    <div class="ex-head">
+      <h3 class="ex-title">示例6：0.1 + 0.2 显示 0.3，却不等于 0.3</h3>
+      <div class="ex-meta"><span class="tag">知识点：浮点精度</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;cmath&gt;
+
+int main() {
+    double a = 0.1 + 0.2;
+    std::cout &lt;&lt; a &lt;&lt; "\n";                            // 0.3：默认 6 位有效数字
+    std::cout &lt;&lt; (a == 0.3) &lt;&lt; "\n";                   // 0：并不相等！
+    std::cout &lt;&lt; (std::fabs(a - 0.3) &lt; 1e-9) &lt;&lt; "\n";  // 1：误差在允许范围内
+    std::cout &lt;&lt; 1.0 / 3.0 &lt;&lt; "\n";                    // 0.333333
+    std::cout &lt;&lt; std::isinf(1.0 / 0.0) &lt;&lt; "\n";        // 1：浮点除零得 inf
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">0.3
+0
+1
+0.333333
+1</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第6行</b>：<code>a</code> 的真实值约 0.30000000000000004，<code>cout</code> 按 6 位有效数字显示为 <code>0.3</code>。</li>
+        <li><b>第7行</b>：<code>==</code> 是<b>精确比较</b>。a 的二进制表示与字面量 <code>0.3</code> 的二进制表示不同 → false，打印 0。</li>
+        <li><b>第8行</b>：正确姿势：判断两者之差的绝对值是否小于一个很小的 <b>epsilon</b>（这里取 1e-9）→ true，打印 1。</li>
+        <li><b>第9行</b>：1/3 是无限循环小数，double 存的是近似值；6 位有效数字显示为 <code>0.333333</code>（六个 3，不是 0.33 也不是 1/3）。</li>
+        <li><b>第10行</b>：浮点除以 0 在支持 IEEE 754 的主流平台上得到 <b>±inf（无穷大）</b>，程序不崩溃；<code>std::isinf</code> 返回 1 表示“是无穷大”。若直接 <code>std::cout &lt;&lt; (1.0 / 0.0)</code>，主流实现打印 <code>inf</code>。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>想要看更多位？<code>std::cout &lt;&lt; std::setprecision(17) &lt;&lt; a;</code>（需 <code>&lt;iomanip&gt;</code>）会显示 <code>0.30000000000000004</code>。速查表里有完整的格式化输出对照。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>“<code>cout &lt;&lt; 0.1 + 0.2</code> 输出 0.30000000000000004”——错，默认精度下输出 <b>0.3</b>；显示 0.3 不等于存储值是 0.3。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 5, "vars": { "a": "0.30000000000000004" }, "out": "", "note": "0.1 与 0.2 都只能近似存储，相加后差一点点" },
+      { "line": 6, "vars": { "a": "0.30000000000000004" }, "out": "0.3", "note": "默认 6 位有效数字" },
+      { "line": 7, "vars": { "a": "0.30000000000000004" }, "out": "0", "note": "与字面量 0.3 的二进制表示不同，== 为假" },
+      { "line": 8, "vars": { "a": "0.30000000000000004" }, "out": "1", "note": "fabs(a - 0.3) ≈ 5.55e-17 < 1e-9，判定相等" },
+      { "line": 9, "vars": { "a": "0.30000000000000004" }, "out": "0.333333", "note": "1/3 的 double 近似值，6 位有效数字" },
+      { "line": 10, "vars": { "a": "0.30000000000000004" }, "out": "1", "note": "1.0 / 0.0 为 +inf，isinf 返回 true" }
+    ] }</script>
+  </article>
+
+  <div class="tip"><b>浮点比较三步</b>：① 算差的绝对值 <code>std::fabs(x - y)</code>；② 与合适的 epsilon 比（数量级依问题而定）；③ 不用 <code>==</code>。<code>fabs</code>、<code>isinf</code> 等函数都在 <code>&lt;cmath&gt;</code> 里。</div>
+
+  <!-- ================= 8. 类型转换与提升 ================= -->
+  <h2>7. 类型转换与整型提升</h2>
+  <p>两种类型混在一起运算时，编译器会把其中一方<b>隐式转换</b>成另一方，转换总朝“表达能力更强”的方向进行：</p>
+
+  <table class="data-table">
+    <tr><th>混合运算</th><th>转换方向</th><th>例子</th></tr>
+    <tr><td><code>char</code> / <code>short</code> 参与算术</td><td>整型提升为 <code>int</code></td><td><code>'A' + 1</code> → 66</td></tr>
+    <tr><td><code>int</code> 与 <code>unsigned</code></td><td><code>int</code> → <code>unsigned</code></td><td><code>-1 &lt; 1u</code> → false（本节示例）</td></tr>
+    <tr><td>整数与浮点</td><td>整数 → 浮点</td><td><code>7 / 2.0</code> → 3.5</td></tr>
+    <tr><td><code>float</code> 与 <code>double</code></td><td><code>float</code> → <code>double</code></td><td><code>3.14f + 1</code> → double</td></tr>
+  </table>
+
+  <p>第二条最危险：<b>有符号与无符号混用时，有符号一方转成无符号</b>。负数转无符号按模回绕，-1 变成最大值。</p>
+
+  <article class="example-card" id="ch02-ex-07">
+    <div class="ex-head">
+      <h3 class="ex-title">示例7：-1 &lt; 1u 是 false</h3>
+      <div class="ex-meta"><span class="tag">知识点：有符号/无符号混用</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int i = -1;
+    unsigned u = 1;
+    std::cout &lt;&lt; (i &lt; u) &lt;&lt; "\n";   // 0！-1 被转成 4294967295 再比
+    std::cout &lt;&lt; (i + u) &lt;&lt; "\n";   // 0：4294967295 + 1 回绕为 0
+    std::cout &lt;&lt; (i &lt; 1) &lt;&lt; "\n";   // 1：双方都是有符号，比较正常
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">0
+0
+1</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第6行</b>：<code>int</code> 与 <code>unsigned</code> 比较，i 先被转换成 unsigned：-1 按模 2<sup>32</sup> 回绕为 4294967295。<code>4294967295 &lt; 1</code> 为假 → 0。这是<b>定义好的行为</b>，不是 UB。</li>
+        <li><b>第7行</b>：同理，<code>i + u</code> 按无符号算：4294967295 + 1 回绕为 0（无符号回绕是定义好的，见第 1 章示例 4）。</li>
+        <li><b>第8行</b>：两侧都是有符号 int，正常比较，-1 &lt; 1 为真 → 1。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p><code>long</code>（32 位平台上）与 <code>unsigned int</code> 混用则相反：unsigned int 会被提升为 long，负数不会回绕。规则：<b>双方先整型提升，再向等级更高的一方转换；有符号与无符号同级时，有符号让位</b>。与其背转换表，不如让类型保持一致。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>sizeof(v) &lt; n</code> 这类比较（<code>sizeof</code> 返回无符号类型）在 n 为负或有符号时同样会中招。防御方法：开启 <code>-Wall -Wsign-compare</code>，让编译器替你盯住。</p>
+    </div>
+    <div class="memviz"><script type="application/json" class="mem-data">{ "title": "i < u 的实际比较过程（32 位平台示意）",
+      "regions": [
+        { "addr": "0x7ffd…1004", "name": "i", "type": "int", "value": "-1", "note": "补码 0xFFFFFFFF" },
+        { "addr": "0x7ffd…1000", "name": "u", "type": "unsigned", "value": "1", "note": "0x00000001" }
+      ],
+      "note": "比较前 i 被转成 unsigned：同样的 32 个比特被重新解释为 4294967295，于是 4294967295 < 1 为假。" }</script></div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "i": "-1" }, "out": "", "note": "有符号 -1" },
+      { "line": 5, "vars": { "i": "-1", "u": "1" }, "out": "", "note": "无符号 1" },
+      { "line": 6, "vars": { "i": "-1", "u": "1" }, "out": "0", "note": "i 先转成 4294967295 再比较，结果为假" },
+      { "line": 7, "vars": { "i": "-1", "u": "1" }, "out": "0", "note": "无符号加法：4294967295 + 1 按模 2^32 回绕为 0" },
+      { "line": 8, "vars": { "i": "-1", "u": "1" }, "out": "1", "note": "全有符号的比较不受影响" }
+    ] }</script>
+  </article>
+
+  <div class="keypoint"><b>int 与 unsigned 比较时，int 会被转成 unsigned</b>——-1 变成约 43 亿，<code>&lt;</code> 变假。课程代码里能不用 unsigned 就不用；必须用（如 <code>size()</code>）时，别拿它和可能为负的 int 比较。</div>
+
+  <!-- ================= 9. 逗号、三目与赋值 ================= -->
+  <h2>8. 逗号、三目与赋值表达式</h2>
+  <p>C++ 里赋值不是语句而是<b>表达式</b>，它有值（被赋的那个值）；三目运算符 <code>条件 ? 值1 : 值2</code> 是唯一的<b>三元</b>运算符，两个分支之一就是整个表达式的值；<b>逗号运算符</b> <code>a, b</code> 先算 a 丢掉结果，取 b 的值——它优先级<b>最低</b>。</p>
+
+  <article class="example-card" id="ch02-ex-08">
+    <div class="ex-head">
+      <h3 class="ex-title">示例8：三目取大、逗号取末值、赋值右结合</h3>
+      <div class="ex-meta"><span class="tag">知识点：表达式求值</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int a = 3, b = 7;
+    int bigger = (a &gt; b) ? a : b;        // 三目：条件为真取 a，否则取 b
+    std::cout &lt;&lt; "较大值: " &lt;&lt; bigger &lt;&lt; "\n";
+
+    int x = 0;
+    int t = (x = 2, x * 5);              // 逗号：先算 x=2 丢弃，再算 x*5
+    std::cout &lt;&lt; "逗号: " &lt;&lt; t &lt;&lt; ", x=" &lt;&lt; x &lt;&lt; "\n";
+
+    int p, q, r;
+    p = q = r = 1;                       // 右结合：r=1 → q=1 → p=1
+    std::cout &lt;&lt; p &lt;&lt; q &lt;&lt; r &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">较大值: 7
+逗号: 10, x=2
+111</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：<code>3 &gt; 7</code> 为假，取冒号后的 b → 7。三目常用于“二选一”赋值。</li>
+        <li><b>第9行</b>：逗号运算符取<b>最后一个</b>子表达式的值：先执行 <code>x = 2</code>（副作用保留），再算 <code>x * 5</code> = 10 → t = 10。整个式子必须加括号，否则 <code>=</code> 的优先级会抢先生效。</li>
+        <li><b>第13行</b>：赋值右结合，等价于 <code>p = (q = (r = 1))</code>，三个变量都是 1，连起来打印 111。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>三目两个分支的类型不同时会向公共类型转换：<code>(x &gt; 0) ? x : 0.5</code> 的结果是 double——即使走了 int 分支，值也被转成浮点。赋值表达式的值则一定是被赋的类型：<code>if ((n = count) != 0)</code> 是“赋值并判断”的惯用法（注意是两个等号里只想要一个的场景，别与 <code>==</code> 混淆）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>不是所有逗号都是逗号运算符：变量定义 <code>int a = 1, b = 2;</code> 和函数参数 <code>f(a, b)</code> 里的逗号只是<b>分隔符</b>，不参与“取最后一个值”。考题常拿 <code>int t = x = 2, x * 5;</code> 设陷阱——它根本编译不过（逗号被当成定义分隔符）。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "a": "3", "b": "7" }, "out": "", "note": "a=3，b=7" },
+      { "line": 5, "vars": { "a": "3", "b": "7", "bigger": "7" }, "out": "", "note": "3 > 7 为假，取 b" },
+      { "line": 6, "vars": { "a": "3", "b": "7", "bigger": "7" }, "out": "较大值: 7", "note": "打印三目结果" },
+      { "line": 9, "vars": { "a": "3", "b": "7", "bigger": "7", "x": "2", "t": "10" }, "out": "", "note": "先 x=2，再算 x*5=10 作为逗号表达式的值" },
+      { "line": 10, "vars": { "a": "3", "b": "7", "bigger": "7", "x": "2", "t": "10" }, "out": "逗号: 10, x=2", "note": "副作用 x=2 保留了下来" },
+      { "line": 13, "vars": { "a": "3", "b": "7", "bigger": "7", "x": "2", "t": "10", "p": "1", "q": "1", "r": "1" }, "out": "", "note": "右结合：r 先变 1，再 q，再 p" },
+      { "line": 14, "vars": { "p": "1", "q": "1", "r": "1" }, "out": "111", "note": "三个 1 连续输出" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 10. 综合示例 ================= -->
+  <h2>9. 综合示例：平均分的两种算法</h2>
+
+  <article class="example-card" id="ch02-ex-09">
+    <div class="ex-head">
+      <h3 class="ex-title">示例9：sum / 3 与 sum / 3.0</h3>
+      <div class="ex-meta"><span class="tag green">综合</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int s1 = 92, s2 = 88, s3 = 79;
+    int sum = s1 + s2 + s3;
+    int avgInt = sum / 3;          // 整数除法：86，小数被丢掉
+    double avgReal = sum / 3.0;    // 有 double 参与：真正的除法
+
+    std::cout &lt;&lt; "总分: " &lt;&lt; sum &lt;&lt; "\n";
+    std::cout &lt;&lt; "整数平均: " &lt;&lt; avgInt &lt;&lt; "\n";
+    std::cout &lt;&lt; "实数平均: " &lt;&lt; avgReal &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">总分: 259
+整数平均: 86
+实数平均: 86.3333</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：92 + 88 + 79 = 259。</li>
+        <li><b>第6行</b>：<code>259 / 3</code> 两侧都是 int → 整数除法得 86，余 1 被丢弃。</li>
+        <li><b>第7行</b>：<code>3.0</code> 是 double，259 被提升为 259.0 → <code>86.333333…</code>，存入 double。</li>
+        <li><b>第11行</b>：<code>cout</code> 默认 6 位有效数字：86.333333… 显示为 <code>86.3333</code>（6 位有效数字，恰好 4 位小数）。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>把第 7 行写成 <code>double avgReal = (double)sum / 3;</code> 也行——先转换 sum，除法就是浮点的。但 <code>(double)(sum / 3)</code> 不行：先整数除法已经丢了余数。转换的<b>时机</b>在除法之前还是之后，结果不同。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>double avg = (a + b) / 2;</code>（a、b 是 int）平均分照样丢小数。让除数或被除数带一个 <code>.0</code>，是最省事的修复。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "s1": "92", "s2": "88", "s3": "79" }, "out": "", "note": "三科成绩" },
+      { "line": 5, "vars": { "s1": "92", "s2": "88", "s3": "79", "sum": "259" }, "out": "", "note": "总分 259" },
+      { "line": 6, "vars": { "s1": "92", "s2": "88", "s3": "79", "sum": "259", "avgInt": "86" }, "out": "", "note": "整数除法 259/3 = 86 余 1，余数丢弃" },
+      { "line": 7, "vars": { "s1": "92", "s2": "88", "s3": "79", "sum": "259", "avgInt": "86", "avgReal": "86.333333333333333" }, "out": "", "note": "259.0 / 3.0，double 近似存储" },
+      { "line": 9, "vars": { "sum": "259" }, "out": "总分: 259", "note": "输出总分" },
+      { "line": 10, "vars": { "sum": "259" }, "out": "整数平均: 86", "note": "整型直接输出" },
+      { "line": 11, "vars": { "sum": "259" }, "out": "实数平均: 86.3333", "note": "默认 6 位有效数字" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 11. 互动练习 ================= -->
+  <h2>10. 互动练习：把语句排成能运行的程序</h2>
+
+  <article class="example-card" id="ch02-ex-10">
+    <div class="ex-head">
+      <h3 class="ex-title">练习：排出计算商与余数的完整程序</h3>
+      <div class="ex-meta"><span class="tag purple">互动练习</span></div>
+    </div>
+    <p>目标：程序最后输出 <code>3 2</code>（17 除以 5 的商和余数）。下面 8 条语句被打乱了，请拖动（或用 ↑↓ 按钮）恢复正确顺序：</p>
+    <div class="widget-sort"><script type="application/json" class="sort-data">{ "items": [
+      "#include <iostream>",
+      "int main() {",
+      "int a = 17, b = 5;",
+      "int q = a / b;",
+      "int r = a % b;",
+      "std::cout << q << \" \" << r;",
+      "return 0;",
+      "}"
+    ], "hint": "头文件和 main 骨架先行；先定义数据，再计算，最后输出并收尾；花括号要成对。",
+    "explain": "17 / 5 = 3（整数除法），17 % 5 = 2，程序输出 3 2。#include 与 main 开头在最前，return 0; 与配对的 } 收尾——顺序错了不是“结果不对”，而是直接编译失败。" }</script></div>
+  </article>
+
+  <!-- ================= 12. 常见错误 ================= -->
+  <h2>11. 常见错误</h2>
+  <div class="warn"><b>1. 想要小数却写整数除法</b>：<code>7 / 2</code> 得 3。修复：任一侧写成浮点 <code>7.0 / 2</code>，或先转换再除（转换时机要在除法<b>之前</b>）。</div>
+  <div class="warn"><b>2. 有符号与无符号混用</b>：<code>-1 &lt; 1u</code> 是 false。修复：类型保持一致；必须混用时开 <code>-Wall -Wsign-compare</code>。</div>
+  <div class="warn"><b>3. 浮点用 == 判等</b>：<code>(0.1 + 0.2) == 0.3</code> 为 false。修复：<code>std::fabs(x - y) &lt; eps</code>。</div>
+  <div class="warn"><b>4. 位运算忘加括号</b>：<code>x &amp; 1 == 0</code> 实为 <code>x &amp; (1 == 0)</code>。涉及 <code>&amp;</code>、<code>|</code>、<code>&lt;&lt;</code> 与比较运算混写时，一律加括号。</div>
+  <div class="warn"><b>5. 以为 -7 % 2 是 1</b>：那是数学/Python 的习惯。C++11 起整数除法向零截断，<b>余数符号同被除数</b>，-7 % 2 = -1。</div>
+  <div class="ub-warning"><b>6. 同一表达式里多次修改同一变量</b>：<code>i = i++ + 1;</code>、<code>v[i] = i++;</code>（C++11/14）等都是未定义行为，没有“正确输出”可言。修复：一条语句只修改一次。</div>
+  <p>更多同类问题见 <a href="../errors.html">编译错误博物馆</a> 与 <a href="../exam-pitfalls.html">考试易错点</a> 中的“运算符与表达式”专题。</p>
+
+  <!-- ================= 13. 标准差异 ================= -->
+  <h2>12. C++ 标准差异小结</h2>
+  <table class="data-table">
+    <tr><th>特性</th><th>C++98/03</th><th>C++11 及以后</th></tr>
+    <tr><td>负操作数的整数除法</td><td>实现定义（可向 -∞ 取整）</td><td>统一向零截断：<code>-7 / 2 = -3</code></td></tr>
+    <tr><td><code>%</code> 的符号</td><td>随除法取整方式而变</td><td>固定为与被除数相同：<code>-7 % 2 = -1</code></td></tr>
+    <tr><td><code>std::isinf</code> / <code>std::isnan</code></td><td>非标准（编译器扩展）</td><td><code>&lt;cmath&gt;</code> 标准提供</td></tr>
+    <tr><td>复杂表达式求值顺序</td><td>大量未指明（经典 UB 例句的温床）</td><td>C++17 明确 <code>&lt;&lt;</code>、<code>&gt;&gt;</code>、下标、赋值等的顺序；<code>i = i++ + 1</code> 仍是 UB</td></tr>
+  </table>
+  <div class="std-diff">判断题“<code>-7 / 2</code> 在任何 C++ 标准下都是 -3”——<b>假</b>：C++98/03 允许实现得 -4，C++11 起才统一为 -3。考试默认按现行标准（C++11 及以后）作答。</div>
+
+  <!-- ================= 14. 小结 ================= -->
+  <h2>本章小结</h2>
+  <div class="keypoint">每个运算符都要回答两个问题：“算出什么值”与“留下什么副作用”。i++ 取旧值、&& 与 || 会短路、赋值/三目/逗号都有值——而<b>同一表达式改两次同一变量时，标准不定义结果</b>。</div>
+  <ul>
+    <li><code>i++</code> 取旧值后加 1，<code>++i</code> 先加 1 取新值；单独成句时等价，循环里推荐 <code>++i</code>。</li>
+    <li><code>i = i++ + 1;</code> 这类“一式多改”是 <b>UB</b>，一句一改。</li>
+    <li><code>&amp;&amp;</code> 左假右不算，<code>||</code> 左真右不算——右边的副作用也被跳过；这是标准的守卫机制。</li>
+    <li>整数除法向零截断（<code>-7/2 = -3</code>），余数符号同被除数（<code>-7%2 = -1</code>）；整数除零是 UB，浮点除零（IEEE 754 平台）得 <code>inf</code>。</li>
+    <li><code>cout</code> 默认 6 位<b>有效数字</b>：<code>0.1 + 0.2</code> 显示 0.3 却不等于 0.3，浮点判等用 epsilon。</li>
+    <li>有符号与无符号混用时，有符号一方转成无符号：<code>-1 &lt; 1u</code> 为 false。</li>
+    <li>优先级最易错四组：<code>&lt;&lt;</code> 高于 <code>&lt;</code>、<code>==</code> 高于 <code>&amp;</code>、后缀 <code>++</code> 高于一元负号、赋值右结合——拿不准就加括号。</li>
+  </ul>
+
+  <!-- ================= 15. 自测清单 ================= -->
+  <h2>自测清单</h2>
+  <ul class="checklist" data-chapter="ch02">
+    <li><label><input type="checkbox" data-check-id="ch02-c1"><span>我能说清 i++ 与 ++i 各自返回什么值、何时加 1</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch02-c2"><span>我知道单独成句时 i++ 与 ++i 等价，并说清循环里推荐 ++i 的原因</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch02-c3"><span>我能解释为什么 <code>i = i++ + 1;</code> 是未定义行为，并写出两种安全改法</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch02-c4"><span>我能举一个短路求值中“右边副作用被跳过”的例子</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch02-c5"><span>我能算对 7/2、-7/2、7%2、-7%2，并说明 C++11 的截断与符号规则</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch02-c6"><span>我能解释 0.1 + 0.2 为何显示 0.3 却不等于 0.3，并写出 epsilon 比较</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch02-c7"><span>我能解释 -1 &lt; 1u 为什么是 false</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch02-c8"><span>我背得出/查得到最易错的优先级组合，并知道 <code>&lt;&lt;</code> 与 <code>&lt;</code> 的优先级关系</span></label></li>
+  </ul>
+
+  <!-- ================= 16. 随堂测验 ================= -->
+  <section class="quiz" data-source="ch02">
+    <script type="application/json" class="quiz-data">{ "title": "随堂测验：运算符与表达式",
+      "questions": [
+        { "type": "mcq", "q": "<code>int i = 3; std::cout &lt;&lt; i++;</code> 输出？",
+          "options": ["3", "4", "编译错误", "输出值不确定"], "answer": 0,
+          "explain": "i++ 作为表达式的值取旧值 3，打印 3；随后 i 才自增为 4。" },
+        { "type": "mcq", "q": "只看“让 i 加 1”这个效果，循环里推荐的写法是？",
+          "options": ["i++（内建类型更快）", "++i（内建类型同效，类类型通常更省）", "i = i++ + 1", "两者有本质区别，都不能用"], "answer": 1,
+          "explain": "内建类型下两者生成的代码相同；类类型（如迭代器）的后缀形式要先复制旧值，前缀 ++i 通常更高效，故推荐 ++i。" },
+        { "type": "tf", "q": "<code>i = i++ + 1;</code> 能得到一个可预测的结果。",
+          "answer": false,
+          "explain": "同一表达式里 i 被修改两次且无顺序保证，是未定义行为——任何“确定的输出”都不对。" },
+        { "type": "mcq", "q": "<code>int x = 4; std::cout &lt;&lt; (x &amp; 1 == 0);</code> 输出？",
+          "options": ["1", "0", "4", "编译错误"], "answer": 1,
+          "explain": "== 优先级高于 &amp;：先算 1 == 0 得 0，再算 4 &amp; 0 = 0。想要的判断应写 (x &amp; 1) == 0，结果才是 1。" },
+        { "type": "fill", "q": "表达式 <code>-7 % 2</code> 的值是 ____。",
+          "answer": ["-1"], "explain": "C++11 起整数除法向零截断：-7/2 = -3，余数 = -7 - (-3)×2 = -1。余数符号与被除数相同。" },
+        { "type": "mcq", "q": "<code>int i = -1; unsigned u = 1; std::cout &lt;&lt; (i &lt; u);</code> 输出？",
+          "options": ["1（真）", "0（假）", "编译错误", "未定义行为"], "answer": 1,
+          "explain": "i 被转成 unsigned：-1 回绕为 4294967295，4294967295 < 1 为假，输出 0。这是定义好的行为，不是 UB。" },
+        { "type": "mcq", "q": "<code>std::cout &lt;&lt; 0.1 + 0.2;</code> 在默认设置下输出？",
+          "options": ["0.3", "0.30000000000000004", "0.300000", "0.1"], "answer": 0,
+          "explain": "默认 6 位有效数字，0.30000000000000004 显示为 0.3。注意 (0.1 + 0.2 == 0.3) 仍是 false——显示值不等于存储值。" },
+        { "type": "tf", "q": "<code>std::cout &lt;&lt; (0.1 + 0.2 == 0.3);</code> 输出 1。",
+          "answer": false,
+          "explain": "== 是精确比较，两者二进制表示不同，结果为 false，输出 0。浮点判等应比较误差是否小于 epsilon。" },
+        { "type": "mcq", "q": "<code>int a = 3, b = 7; int m = (a &gt; b) ? a : b;</code> 中 m 的值？",
+          "options": ["3", "7", "0", "编译错误"], "answer": 1,
+          "explain": "3 > 7 为假，三目取冒号后的 b，m = 7。三目是唯一的三元运算符，整个表达式有值。" },
+        { "type": "code", "q": "补全取余运算：<code>int r = 17 ____ 5;</code>，使 r 为 2",
+          "answer": ["%"], "explain": "% 是取余（取模）运算符，17 % 5 = 2。" }
+      ] }</script>
+  </section>
+
+  </main>
+
+<script src="../assets/js/highlight.js"></script>
+<script src="../assets/js/toc.js"></script>
+<script src="../assets/js/nav.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/interactive.js"></script>
+<script src="../assets/js/teacher.js"></script>
+<script src="../assets/js/mastery.js"></script>
+</body>
+</html>

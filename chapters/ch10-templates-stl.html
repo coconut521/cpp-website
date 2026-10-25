@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第10章 模板与 STL | 大学C++离线助教</title>
+<script>
+/* 主题预置：防止暗色用户看到白屏闪烁（所有页面同款） */
+(function(){try{
+  var t=localStorage.getItem("cppcourse.theme");
+  if(t)document.documentElement.setAttribute("data-theme",t);
+  var f=parseFloat(localStorage.getItem("cppcourse.fontscale"));
+  if(f>0)document.documentElement.style.fontSize=(16*f)+"px";
+}catch(e){}})();
+</script>
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<main class="container chapter">
+
+  <p class="crumbs"><a href="../index.html">首页</a> / <a href="../index.html#toc">章节目录</a> / 第10章</p>
+
+  <header>
+    <h1>第10章 模板与 STL</h1>
+    <p class="muted"><b>模板</b>让编译器按类型生成代码：写一次 <code>myMax</code>，int、double、string 都能用。<b>STL</b>（标准模板库）就是用这套技术实现的标准库：容器 <code>vector</code>、<code>map</code>、<code>set</code>，加算法 <code>sort</code> / <code>find</code> / <code>accumulate</code>。</p>
+  </header>
+
+  <!-- ================= 1. 学习目标 ================= -->
+  <section class="card objectives">
+    <h2 style="margin-top:0">学习目标</h2>
+    <ul>
+      <li>写函数模板 <code>template&lt;typename T&gt;</code>，判断<b>实参推导</b>何时成功、何时必须显式指定（如 <code>myMax&lt;double&gt;(3, 4.0)</code>）。</li>
+      <li>理解模板在<b>编译期实例化</b>，模板定义必须放<b>头文件</b>（两阶段检查）。</li>
+      <li>实现简单的类模板 <code>Stack&lt;T&gt;</code>，知道类模板可以有默认参数。</li>
+      <li>使用 <code>vector</code> 的多种初始化、<code>push_back</code>/<code>pop_back</code>、<code>size</code>/<code>empty</code>、<code>insert</code>/<code>erase</code>，区分 <code>[]</code> 与 <code>.at()</code>。</li>
+      <li>识别<b>迭代器失效</b>的场景，写出 <code>it = v.erase(it)</code> 的正确删除循环。</li>
+      <li>分清 <code>map</code> 的 <code>[]</code> 两种含义（不存在的 key 会被<b>自动插入</b>）、<code>find</code>/<code>count</code> 的用法、按 key 升序遍历；对比 <code>unordered_map</code> 选型；使用 <code>sort</code>（升序 / <code>greater&lt;int&gt;()</code> 降序 / 自定义 lambda）、<code>find</code>、<code>count</code>、<code>accumulate</code>、<code>max_element</code>。</li>
+    </ul>
+    <p class="small muted">前置知识：<a href="../chapters/ch01-variables.html">第1章 变量与基本类型</a>（<code>auto</code>、列表初始化、<code>const</code>）；第7章 类与对象、第9章 移动语义与智能指针。</p>
+    </section>
+
+  <!-- ================= 2. 函数模板 ================= -->
+  <h2>1. 函数模板：写一次，对所有类型生效</h2>
+  <p>不用模板时，“求较大值”要按类型抄很多份。函数模板把“类型”变成<b>参数</b>：编译器每次看到调用，就按实参类型“照模具生成”一份真正的函数——这个过程叫<b>实例化</b>（instantiation），发生在<b>编译期</b>。</p>
+
+  <article class="example-card" id="ch10-ex-01">
+    <div class="ex-head">
+      <h3 class="ex-title">示例1：函数模板 myMax 与实参推导</h3>
+      <div class="ex-meta"><span class="tag">知识点：函数模板</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+// 函数模板：T 是类型参数，调用时由实参推导（或显式指定）
+template &lt;typename T&gt;
+T myMax(T a, T b) {
+    return a &gt; b ? a : b;
+}
+
+int main() {
+    std::cout &lt;&lt; myMax(3, 7) &lt;&lt; "\n";      // T 推导为 int
+    std::cout &lt;&lt; myMax(1.5, 2.5) &lt;&lt; "\n";  // T 推导为 double
+    std::cout &lt;&lt; myMax&lt;double&gt;(3, 4.0) &lt;&lt; "\n";  // 类型推导冲突：显式指定 T=double
+    std::cout &lt;&lt; myMax(std::string("abc"), std::string("abd")) &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">7
+2.5
+4
+abd</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5~8行</b>：模板定义。编译器先检查模板本身“长得对不对”（语法与具体 T 无关的部分），此时<b>不生成任何代码</b>。</li>
+        <li><b>第11行</b>：两个实参都是 int → 推导出 T=int，编译器实例化出 <code>int myMax(int, int)</code> 并调用。</li>
+        <li><b>第13行</b>：<code>myMax(3, 4.0)</code> 直接写是<b>编译错误</b>——一个实参推出 int、另一个推出 double，T 冲突。<code>myMax&lt;double&gt;</code> 显式指定 T=double，于是 3 被转成 3.0，返回 4.0，<code>cout</code> 默认输出 <code>4</code>。</li>
+        <li><b>第14行</b>：<code>std::string</code> 支持 <code>&gt;</code>（按字典序），所以模板对它同样有效——这就是“泛型”。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>想让两个实参<b>允许不同类型</b>，就声明两个类型参数：<code>template &lt;typename T, typename U&gt;</code>（见示例 2）。考试判断题：“模板函数在运行时根据实参类型选择代码”——<b>错</b>，实例化发生在编译期。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>myMax(3, 4.0)</code> 编译不过，<b>不会</b>自动把 3 转成 double——“推导冲突”和“隐式转换”是两回事；只有显式指定（或两实参同类型）才行。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 11, "vars": { "T": "int", "a": "3", "b": "7" }, "out": "7", "note": "两个实参都是 int：T 推导为 int，实例化出 int myMax(int, int)" },
+      { "line": 12, "vars": { "T": "double", "a": "1.5", "b": "2.5" }, "out": "2.5", "note": "这次实例化的是另一个函数 myMax<double>" },
+      { "line": 13, "vars": { "T": "double（显式指定）", "a": "3.0", "b": "4.0" }, "out": "4", "note": "int 和 double 推导冲突，显式指定后 3 转成 3.0；返回 4.0 默认显示为 4" },
+      { "line": 14, "vars": { "T": "std::string" }, "out": "abd", "note": "string 按字典序比较：abd > abc" }
+    ] }</script>
+  </article>
+
+  <article class="example-card" id="ch10-ex-02">
+    <div class="ex-head">
+      <h3 class="ex-title">示例2：多类型参数模板</h3>
+      <div class="ex-meta"><span class="tag">知识点：多类型参数</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+// 多类型参数：T 和 U 可以各自推导
+template &lt;typename T, typename U&gt;
+void printPair(const T&amp; a, const U&amp; b) {
+    std::cout &lt;&lt; "(" &lt;&lt; a &lt;&lt; ", " &lt;&lt; b &lt;&lt; ")\n";
+}
+
+// 单类型参数：每个用到的 T 都会实例化出一份真函数
+template &lt;typename T&gt;
+T twice(T x) { return x + x; }
+
+int main() {
+    printPair(1, 3.14);            // T=int, U=double
+    printPair("score", 97.5);      // T=const char*, U=double
+    std::cout &lt;&lt; twice(10) &lt;&lt; "\n";   // 实例化 twice&lt;int&gt;
+    std::cout &lt;&lt; twice(1.5) &lt;&lt; "\n";  // 实例化 twice&lt;double&gt;
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">(1, 3.14)
+(score, 97.5)
+20
+3</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第6行</b>：参数写成 <code>const T&amp;</code>——模板里更是惯例：避免拷贝大对象，还兼容 string 这类不便拷贝的类型。</li>
+        <li><b>第15~16行</b>：T、U 各自独立推导，所以 int 配 double、const char* 配 double 都能编译。</li>
+        <li><b>第18行</b>：<code>twice(1.5)</code> 是 <code>twice&lt;double&gt;</code>，返回 3.0；<code>cout</code> 默认 6 位有效数字，显示成 <code>3</code>——不是丢了类型，是显示格式如此。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>第 16 行若写成 <code>printPair&lt;int&gt;(1, 3.14)</code>：只显式给出第一个类型，U 仍由 3.14 推导——模板实参可以<b>只指定前几个</b>，其余靠推导。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>把模板定义写进 <code>.cpp</code>、在另一个 <code>.cpp</code> 里调用 → 链接错误 <code>undefined reference</code>。原因见下面的“两阶段”说明。</p>
+    </div>
+  </article>
+
+  <div class="keypoint">为什么模板定义要放<b>头文件</b>（两阶段一句话）：编译器第一阶段检查模板定义本身（与 T 无关的部分），第二阶段在每个<b>实例化点</b>代入 T 再检查并生成代码——因此每个使用点都必须能看到<b>完整定义</b>。模板和 <code>inline</code> 函数一样，通常直接写在头文件里；只把定义放 .cpp 会在链接期报 <code>undefined reference</code>。</div>
+
+  <!-- ================= 3. 类模板 ================= -->
+  <h2>2. 类模板：自己实现一个 Stack&lt;T&gt;</h2>
+  <p>类模板把“元素类型”参数化：写一个 <code>Stack&lt;T&gt;</code>，就有 <code>Stack&lt;int&gt;</code>、<code>Stack&lt;std::string&gt;</code> 无数个类可用。注意成员函数定义也写在类里（或随类写在头文件中）。</p>
+
+  <article class="example-card" id="ch10-ex-03">
+    <div class="ex-head">
+      <h3 class="ex-title">示例3：类模板 Stack&lt;T&gt;（基于 vector 实现）</h3>
+      <div class="ex-meta"><span class="tag">知识点：类模板</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+#include &lt;cstddef&gt;    // std::size_t
+#include &lt;stdexcept&gt;
+#include &lt;string&gt;
+
+template &lt;typename T&gt;
+class Stack {
+public:
+    void push(const T&amp; x) { data_.push_back(x); }
+    void pop() {
+        if (data_.empty())
+            throw std::logic_error("pop from empty stack");
+        data_.pop_back();
+    }
+    const T&amp; top() const {
+        if (data_.empty())
+            throw std::logic_error("top of empty stack");
+        return data_.back();
+    }
+    bool empty() const { return data_.empty(); }
+    std::size_t size() const { return data_.size(); }
+private:
+    std::vector&lt;T&gt; data_;    // 复用 vector 存元素
+};
+
+int main() {
+    Stack&lt;int&gt; s;               // 实例化 Stack&lt;int&gt;：成员 data_ 就是 vector&lt;int&gt;
+    s.push(1);
+    s.push(2);
+    s.push(3);
+    std::cout &lt;&lt; s.top() &lt;&lt; " " &lt;&lt; s.size() &lt;&lt; "\n";
+    s.pop();
+    std::cout &lt;&lt; s.top() &lt;&lt; " " &lt;&lt; s.size() &lt;&lt; "\n";
+
+    Stack&lt;std::string&gt; names;   // 同一个模板的另一种实例化
+    names.push("C++");
+    std::cout &lt;&lt; names.top() &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">3 3
+2 2
+C++</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第28行</b>：<code>Stack&lt;int&gt;</code> 不是“一个类”，而是让编译器用 <code>int</code> 代入模板生成的一个类；<code>Stack&lt;std::string&gt;</code> 是另一个完全独立的类。</li>
+        <li><b>第12、17行</b>：栈空时 pop/top 无意义，抛异常报告错误（异常机制第 11 章详解）。</li>
+        <li><b>第32~34行</b>：后进先出——top 是 3、size 是 3；pop 后 top 变 2。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比（模板默认参数一句话）</h4>
+      <p>类模板也能有默认参数：<code>template &lt;typename T, typename Container = std::vector&lt;T&gt;&gt; class Stack;</code> —— 使用时省略第二个实参就默认用 <code>vector&lt;T&gt;</code>。标准库的 <code>std::stack</code> 正是这样设计的（底层容器还可以换成 deque/list）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>模板类名不能“裸用”：类模板内部可以直接写 <code>Stack</code>，但类外代码必须写 <code>Stack&lt;int&gt;</code>——少了 <code>&lt;int&gt;</code> 就是编译错误。</p>
+    </div>
+  </article>
+
+  <!-- ================= 4. vector ================= -->
+  <h2>3. vector：最常用的动态数组</h2>
+  <p><code>std::vector&lt;T&gt;</code> 是“可自动扩容的数组”：元素在堆上<b>连续存放</b>、支持下标随机访问、尾部增删都是 O(1)。</p>
+
+  <article class="example-card" id="ch10-ex-04">
+    <div class="ex-head">
+      <h3 class="ex-title">示例4：vector 的初始化、增删与 [] / .at() 的区别</h3>
+      <div class="ex-meta"><span class="tag">知识点：vector 基础</span><span class="tag green">入门必会</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+#include &lt;stdexcept&gt;
+
+int main() {
+    std::vector&lt;int&gt; v1;             // 空向量
+    std::vector&lt;int&gt; v2(3);          // 3 个元素，值初始化为 0
+    std::vector&lt;int&gt; v3(3, 9);       // 3 个元素，都是 9
+    std::vector&lt;int&gt; v4 = {1, 2, 3}; // 列表初始化（C++11）
+
+    v1.push_back(10);                // 尾部追加
+    v1.push_back(20);
+    v1.push_back(30);
+    v1.pop_back();                   // 移除尾部元素 30
+
+    std::cout &lt;&lt; v1.size() &lt;&lt; " " &lt;&lt; std::boolalpha &lt;&lt; v1.empty() &lt;&lt; "\n";
+    std::cout &lt;&lt; v1[0] &lt;&lt; " " &lt;&lt; v1[1] &lt;&lt; "\n";    // [] 不检查越界
+    std::cout &lt;&lt; v3[1] &lt;&lt; " " &lt;&lt; v4[2] &lt;&lt; "\n";
+
+    std::vector&lt;int&gt; w = {1, 2, 3};
+    try {
+        std::cout &lt;&lt; w.at(1) &lt;&lt; "\n";            // 合法下标
+        std::cout &lt;&lt; w.at(5) &lt;&lt; "\n";            // 越界：抛 std::out_of_range
+    } catch (const std::out_of_range&amp;) {
+        std::cout &lt;&lt; "at 越界：捕获异常\n";      // what() 文字因编译器而异，不打印
+    }
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">2 false
+10 20
+9 3
+2
+at 越界：捕获异常</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第6~9行</b>：四种初始化要分清——<code>(3)</code> 是 3 个 0；<code>(3, 9)</code> 是 3 个 9；<code>{1, 2, 3}</code> 是逐个列出（C++11 列表初始化）。</li>
+        <li><b>第11~14行</b>：<code>push_back</code> 尾部追加、<code>pop_back</code> 移除尾部（不返回被删元素）。v1 先变 [10,20,30] 再变 [10,20]。</li>
+        <li><b>第16行</b>：<code>size()</code> 返回元素个数（类型是无符号 <code>size_t</code>）；<code>boolalpha</code> 让 bool 显示成 true/false（第 1 章讲过）。</li>
+        <li><b>第17~18行</b>：<code>[]</code> 直接按下标取元素，<b>不做任何检查</b>。</li>
+        <li><b>第22~25行</b>：<code>.at(i)</code> 功能一样，但<b>先检查下标</b>：越界抛 <code>std::out_of_range</code>。异常机制第 11 章详解；at 更安全，[] 更快。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>把第 23 行换成 <code>w[5]</code>：编译照样通过、运行“可能”也看不出异常——但这是<b>未定义行为</b>（见本章“常见错误”第 2 条）。调试期想被立刻拦住，就用 <code>.at()</code>。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>std::vector&lt;int&gt; v(3);</code> 与 <code>std::vector&lt;int&gt; v{3};</code> 不同：前者是 3 个 0，后者是只有 1 个元素 3。圆括号看“数量”，花括号看“内容”。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 6, "vars": { "v1": "[]" }, "out": "", "note": "空向量：size()==0、empty()==true" },
+      { "line": 8, "vars": { "v1": "[]", "v3": "[9, 9, 9]" }, "out": "", "note": "(3, 9)：3 个元素都是 9" },
+      { "line": 9, "vars": { "v1": "[]", "v3": "[9, 9, 9]", "v4": "[1, 2, 3]" }, "out": "", "note": "列表初始化最直观（C++11）" },
+      { "line": 14, "vars": { "v1": "[10, 20]" }, "out": "", "note": "push 10、20、30 之后 pop_back 移除 30" },
+      { "line": 16, "vars": { "v1": "[10, 20]" }, "out": "2 false", "note": "size 是 2；boolalpha 生效后 empty 打印成 false" },
+      { "line": 17, "vars": {}, "out": "10 20", "note": "[] 直接按下标访问，不检查" },
+      { "line": 22, "vars": { "w": "[1, 2, 3]" }, "out": "2", "note": "at(1) 合法，正常返回" },
+      { "line": 25, "vars": { "w": "[1, 2, 3]" }, "out": "at 越界：捕获异常", "note": "at(5) 抛出 out_of_range 被 catch 接住；第 11 章详解异常" }
+    ] }</script>
+  </article>
+
+  <article class="example-card" id="ch10-ex-05">
+    <div class="ex-head">
+      <h3 class="ex-title">示例5：遍历 vector 的三种写法</h3>
+      <div class="ex-meta"><span class="tag">知识点：迭代器 / range-for</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+
+int main() {
+    std::vector&lt;int&gt; v = {4, 5, 6};
+
+    // 写法一：下标遍历（需要“随机访问”能力的容器）
+    for (std::size_t i = 0; i &lt; v.size(); ++i)
+        std::cout &lt;&lt; v[i] &lt;&lt; " ";
+    std::cout &lt;&lt; "\n";
+
+    // 写法二：迭代器遍历（所有 STL 容器通用）
+    for (std::vector&lt;int&gt;::iterator it = v.begin(); it != v.end(); ++it)
+        std::cout &lt;&lt; *it &lt;&lt; " ";
+    std::cout &lt;&lt; "\n";
+
+    // 写法三：range-for（C++11，日常首选）
+    for (int x : v)
+        std::cout &lt;&lt; x &lt;&lt; " ";
+    std::cout &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">4 5 6
+4 5 6
+4 5 6</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li>三行输出相同；每行末尾其实多一个空格（<code>&lt;&lt; " "</code> 的效果），显示上看不出来。</li>
+        <li><b>写法一</b>：<code>size()</code> 返回无符号 <code>size_t</code>，循环变量也用 <code>std::size_t</code>，避免“有符号/无符号比较”警告。</li>
+        <li><b>写法二</b>：<b>迭代器</b>是“泛化的指针”——<code>begin()</code> 指向首元素，<code>end()</code> 指向<b>最后一个元素的下一位置</b>（尾后，不指向任何元素）；<code>*it</code> 解引用取元素，<code>++it</code> 前进，用 <code>it != end()</code> 判断结束。第 12 行可用 <code>auto it = v.begin()</code> 简写。</li>
+        <li><b>写法三</b>：range-for 在编译期就展开成“迭代器循环”，等价于写法二，只是替你管好了迭代器。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>只想读不想改：range-for 写 <code>for (const int&amp; x : v)</code>（或 <code>const auto&amp;</code>），避免拷贝；vector 是连续存储，支持 <code>v.begin() + 2</code> 这种跳跃，<code>list</code> 则不支持。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>end()</code> 不是最后一个元素，是<b>尾后位置</b>，对它解引用是未定义行为。循环条件必须写 <code>it != v.end()</code>，不要写 <code>it &lt;= v.end()</code>。</p>
+    </div>
+  </article>
+
+  <article class="example-card" id="ch10-ex-06">
+    <div class="ex-head">
+      <h3 class="ex-title">示例6：insert / erase（在任意位置增删）</h3>
+      <div class="ex-meta"><span class="tag">知识点：insert / erase</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+
+int main() {
+    std::vector&lt;int&gt; v = {10, 20, 30};
+
+    v.insert(v.begin(), 5);        // 最前面插入 5 → {5, 10, 20, 30}
+    v.insert(v.begin() + 2, 15);   // 插到下标 2 处  → {5, 10, 15, 20, 30}
+    v.erase(v.begin() + 1);        // 删掉下标 1 的 10 → {5, 15, 20, 30}
+
+    for (int x : v) std::cout &lt;&lt; x &lt;&lt; " ";
+    std::cout &lt;&lt; "\n";
+    std::cout &lt;&lt; "size=" &lt;&lt; v.size() &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">5 15 20 30
+size=4</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第7~9行</b>：insert / erase 的第一个参数都是<b>位置（迭代器）</b>，不是下标；<code>v.begin() + 2</code> 表示“下标 2 的位置”（vector 连续存储才支持这种跳跃）。</li>
+        <li><b>中间状态</b>：插入 5 后是 {5,10,20,30}；在下标 2（元素 20）处插入 15 得 {5,10,15,20,30}；删下标 1（元素 10）得 {5,15,20,30}。</li>
+        <li><b>第9行</b>：<code>erase</code> 返回指向“被删元素的下一个”的迭代器——这个返回值怎么用，是示例 7 的主角。</li>
+        <li><b>size 与 capacity 一句话</b>：<code>size()</code> 是<b>当前元素个数</b>；<code>capacity()</code> 是<b>已分配空间能容纳的元素数</b>，恒有 capacity ≥ size。超出 capacity 的 push_back 会触发“重新分配 + 整体搬移”；<code>reserve(n)</code> 可一次性预留。具体数值由实现决定，所以本例不打印 capacity。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>在 vector 中部 insert/erase 要搬移后面的所有元素，代价 O(n)；频繁在头部或中部增删应考虑 <code>std::deque</code> / <code>std::list</code>（本章不展开）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>“size 是容量吗？”——不是。size 是<b>装了多少</b>，capacity 是<b>能装多少</b>；判断“是否为空”用 <code>empty()</code>，不要写 <code>size() == 0</code> 的老习惯（功能一样，empty 更清晰且对所有容器都高效）。</p>
+    </div>
+  </article>
+
+  <!-- ================= 5. 迭代器失效 ================= -->
+  <h2>4. 迭代器失效（重点考题）</h2>
+  <p>迭代器“指向”容器里的元素。但 vector 的元素住在<b>一整块连续内存</b>里——一旦这块内存被重新分配或元素被移动，原来保存的迭代器就成了“指向旧地址的野指针”。这叫<b>迭代器失效</b>。</p>
+
+  <article class="example-card" id="ch10-ex-07">
+    <div class="ex-head">
+      <h3 class="ex-title">示例7：边遍历边删除——erase 的正确姿势</h3>
+      <div class="ex-meta"><span class="tag">知识点：迭代器失效</span><span class="tag amber">高频考点</span><span class="tag red">易错</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+
+int main() {
+    std::vector&lt;int&gt; v = {1, 2, 4, 5, 6, 8, 9};
+
+    // 目标：删掉所有偶数
+    for (auto it = v.begin(); it != v.end(); ) {
+        if (*it % 2 == 0)
+            it = v.erase(it);   // erase 返回“下一个”有效位置，必须接住
+        else
+            ++it;               // 保留的元素才手动前进
+    }
+
+    for (int x : v) std::cout &lt;&lt; x &lt;&lt; " ";
+    std::cout &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">1 5 9</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第8行</b>：循环的“前进”不再交给 for 的第三段，而是由循环体自己决定——删除时不前进（erase 的返回值已经指向下一个），保留时才 <code>++it</code>。</li>
+        <li><b>第10行</b>：<code>v.erase(it)</code> 删除 it 指向的元素，并<b>返回指向下一个元素的迭代器</b>。<code>it = v.erase(it)</code> 就是标准写法。</li>
+        <li>为什么必须接住返回值？因为 <code>erase</code> 会让“被删位置及其之后”的迭代器全部失效——原来的 <code>it</code> 已经不可用，能用的只有返回值。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>不手写循环也可以：<code>v.erase(std::remove_if(v.begin(), v.end(), [](int x){ return x % 2 == 0; }), v.end());</code>（erase-remove 惯用法）或 C++20 的 <code>std::erase_if(v, ...)</code>。但考试考的是手写循环版。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>最经典的错误是“<code>for (...; ++it)</code> 里调 <code>v.erase(it)</code>”——先失效再自增。下一小节的对比框给出正误写法。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 5, "vars": { "v": "[1, 2, 4, 5, 6, 8, 9]", "it": "指向 1" }, "out": "", "note": "初始：it 指向首元素 1" },
+      { "line": 12, "vars": { "v": "[1, 2, 4, 5, 6, 8, 9]", "it": "指向 2" }, "out": "", "note": "1 是奇数：保留，++it 前进到 2" },
+      { "line": 10, "vars": { "v": "[1, 4, 5, 6, 8, 9]", "it": "指向 4" }, "out": "", "note": "2 是偶数：erase 删掉它，返回值让 it 直接指向 4（不需要 ++）" },
+      { "line": 10, "vars": { "v": "[1, 5, 6, 8, 9]", "it": "指向 5" }, "out": "", "note": "4 也是偶数：erase 后 it 指向 5" },
+      { "line": 12, "vars": { "v": "[1, 5, 6, 8, 9]", "it": "指向 6" }, "out": "", "note": "5 是奇数：++it 到 6" },
+      { "line": 10, "vars": { "v": "[1, 5, 8, 9]", "it": "指向 8" }, "out": "", "note": "erase 删掉 6" },
+      { "line": 10, "vars": { "v": "[1, 5, 9]", "it": "指向 9" }, "out": "", "note": "erase 删掉 8；it 指向最后一个元素 9" },
+      { "line": 12, "vars": { "v": "[1, 5, 9]", "it": "end()（尾后）" }, "out": "", "note": "9 是奇数：++it 后等于 end()，循环结束" },
+      { "line": 16, "vars": {}, "out": "1 5 9", "note": "剩下的全是奇数" }
+    ] }</script>
+  </article>
+
+  <div class="compare">
+    <div class="compare-col badc">
+      <h4>❌ 错误写法：erase 后还 ++it</h4>
+      <pre><code class="cpp">for (auto it = v.begin();
+     it != v.end(); ++it) {
+    if (*it % 2 == 0)
+        v.erase(it);
+    // erase 后 it 已失效，
+    // 随后的 ++it 是未定义行为！
+}</code></pre>
+    </div>
+    <div class="compare-col good">
+      <h4>✅ 正确写法：接住返回值</h4>
+      <pre><code class="cpp">for (auto it = v.begin();
+     it != v.end(); ) {
+    if (*it % 2 == 0)
+        it = v.erase(it);
+    else
+        ++it;
+}</code></pre>
+    </div>
+  </div>
+
+  <div class="ub-warning">失效迭代器不可用，也不可预测。<code>auto it = v.begin(); v.push_back(4); std::cout &lt;&lt; *it;</code> —— 若 <code>push_back</code> 触发扩容，元素整体搬移到新内存，<code>it</code> 指向已被释放的旧内存，解引用它是<b>未定义行为</b>：可能输出垃圾、可能崩溃，也可能“碰巧正常”。规则：<b>任何可能改变容量的操作（push_back、insert、resize…）之后，之前保存的迭代器、引用、指针一律视为失效，要用就重新取</b>。</div>
+
+  <!-- ================= 6. map / unordered_map / set ================= -->
+  <h2>5. 关联容器：map、unordered_map 与 set</h2>
+  <p>“关联容器”按 <b>key</b> 存取：<code>map&lt;K, V&gt;</code> 是键值对字典，<code>set&lt;K&gt;</code> 是“只有 key 的集合”。<code>map</code> 底层是红黑树（有序），<code>unordered_map</code> 底层是哈希表（无序）。</p>
+
+  <article class="example-card" id="ch10-ex-08">
+    <div class="ex-head">
+      <h3 class="ex-title">示例8：map 的 [] 两种含义（重点！）与升序遍历</h3>
+      <div class="ex-meta"><span class="tag">知识点：map</span><span class="tag amber">高频考点</span><span class="tag red">易错</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+#include &lt;map&gt;
+
+int main() {
+    std::map&lt;std::string, int&gt; score;
+    score["alice"] = 90;    // key 不存在：先插入再赋值
+    score["bob"] = 75;
+    score["alice"] = 95;    // key 已存在：直接改值
+
+    std::cout &lt;&lt; score["alice"] &lt;&lt; "\n";       // 查询（此时已存在）
+    std::cout &lt;&lt; score.count("bob") &lt;&lt; "\n";   // 1：存在
+
+    std::cout &lt;&lt; score["carol"] &lt;&lt; "\n";       // ⚠ 不存在：插入 {carol, 0} 并返回 0！
+    std::cout &lt;&lt; score.size() &lt;&lt; "\n";         // 3：carol 被悄悄插进来了
+
+    if (score.find("dave") == score.end())
+        std::cout &lt;&lt; "dave 不存在（find 不会插入）\n";
+
+    for (const auto&amp; kv : score)               // 按 key 升序（字典序）遍历
+        std::cout &lt;&lt; kv.first &lt;&lt; "=" &lt;&lt; kv.second &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">95
+1
+0
+3
+dave 不存在（find 不会插入）
+alice=95
+bob=75
+carol=0</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>[] 的两种含义</b>：key 已存在 → 返回对应值的引用（可读可改）；key <b>不存在 → 先插入 {key, 默认值}，再返回引用</b>。int 的默认值是 0，std::string 的默认值是空串。</li>
+        <li><b>第11~12行</b>：此时 alice、bob 已存在，<code>[]</code> 表现为查询；<code>count(k)</code> 返回 0 或 1（map 的 key 不会重复）。</li>
+        <li><b>第14~15行</b>：<b>只想查询却用 <code>[]</code>，会把不存在的 key 连同默认值插进容器</b>——size 变了、数据被污染。只查询请用 <code>find</code> / <code>count</code> / <code>at()</code>（<code>at</code> 对不存在的 key 抛 <code>out_of_range</code>，不插入）。</li>
+        <li><b>第17行</b>：<code>find(k)</code> 找不到时返回 <code>end()</code>，绝不插入；找到时返回指向该键值对的迭代器，用 <code>it-&gt;first</code> / <code>it-&gt;second</code> 取 key / value。</li>
+        <li><b>第20~21行</b>：map 遍历<b>永远按 key 升序</b>（底层红黑树有序）：字符串按字典序，alice → bob → carol。每个元素是 <code>pair&lt;const K, V&gt;</code>，用 <code>kv.first</code> / <code>kv.second</code> 访问。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>统计计数的最短写法正是利用“[] 会自动插入 0”：<code>++freq[key];</code>——第一次见到某 key 时先插入 0，再自增成 1。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>考试判断题：“<code>m[k]</code> 当 k 不存在时返回默认值，容器不变”——<b>错</b>，容器会插入新元素。反向也成立：打印 <code>m.size()</code> 前先想想有没有用 <code>[]</code> 查过不存在的 key。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 7, "vars": { "score": "{alice: 90}" }, "out": "", "note": "[] 第一次见到 alice：先插入 {alice, 0}，再赋值 90" },
+      { "line": 9, "vars": { "score": "{alice: 95, bob: 75}" }, "out": "", "note": "alice 已存在：直接覆盖旧值" },
+      { "line": 11, "vars": {}, "out": "95", "note": "此时 alice 已存在，[] 纯查询" },
+      { "line": 12, "vars": {}, "out": "1", "note": "count 返回 0 或 1" },
+      { "line": 14, "vars": { "score": "{alice: 95, bob: 75, carol: 0}" }, "out": "0", "note": "carol 不存在：[] 插入默认值 0 并返回它" },
+      { "line": 15, "vars": { "score": "{alice: 95, bob: 75, carol: 0}" }, "out": "3", "note": "size 变成 3：只想查询却改了容器" },
+      { "line": 18, "vars": {}, "out": "dave 不存在（find 不会插入）", "note": "find 找不到返回 end()，绝不插入" },
+      { "line": 21, "vars": {}, "out": "alice=95", "note": "遍历第 1 圈：按 key 升序，alice 最小" },
+      { "line": 21, "vars": {}, "out": "bob=75", "note": "第 2 圈" },
+      { "line": 21, "vars": {}, "out": "carol=0", "note": "第 3 圈：字符串按字典序，alice、bob、carol 依次增大" }
+    ] }</script>
+  </article>
+
+  <article class="example-card" id="ch10-ex-09">
+    <div class="ex-head">
+      <h3 class="ex-title">示例9：unordered_map——哈希表、平均 O(1)、顺序不确定</h3>
+      <div class="ex-meta"><span class="tag">知识点：unordered_map</span><span class="tag">C++11</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+#include &lt;unordered_map&gt;
+
+int main() {
+    std::unordered_map&lt;std::string, int&gt; age;
+    age["tom"] = 18;
+    age["jerry"] = 20;
+    age["spike"] = 25;
+
+    std::cout &lt;&lt; age["jerry"] &lt;&lt; "\n";      // 平均 O(1) 查找
+    std::cout &lt;&lt; age.count("tom") &lt;&lt; "\n";  // 1
+
+    // 遍历顺序由哈希决定、不确定——所以本例不遍历输出
+    std::cout &lt;&lt; "size=" &lt;&lt; age.size() &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">20
+1
+size=3</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><code>unordered_map</code> 用<b>哈希函数</b>把 key 映射到桶（bucket）里：查找平均 <b>O(1)</b>，最坏（哈希全撞车）退化为 O(n)。</li>
+        <li>它的遍历顺序由哈希和桶的布局决定，<b>既不是插入顺序也不是字母序，且不可预测</b>——所以本例刻意不遍历输出。任何“给出 unordered_map 遍历输出”的考试题都是错题。</li>
+        <li>需要的接口（<code>[]</code>、<code>find</code>、<code>count</code>、size）与 map 完全一致，可以随时互换。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比（选型一句话）</h4>
+      <p>要<b>有序遍历</b>或“找某个范围内的所有 key” → <code>map</code>；只要<b>快</b>、不在乎顺序 → <code>unordered_map</code>；拿不准先用 map——它的行为是确定的。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>unordered_map 的 <code>[]</code> 同样会“查无插入”，坑和 map 一模一样；另外它对 key 的要求是“可哈希 + 可判等”，自定义类型不像 map 那样只要提供 <code>&lt;</code> 就够。</p>
+    </div>
+  </article>
+
+  <h3>map 与 unordered_map 怎么选？</h3>
+  <table class="data-table">
+    <tr><th></th><th>map</th><th>unordered_map</th></tr>
+    <tr><td>底层结构</td><td>红黑树（平衡二叉搜索树）</td><td>哈希表</td></tr>
+    <tr><td>遍历顺序</td><td><b>按 key 升序</b></td><td>不确定（不要依赖）</td></tr>
+    <tr><td>单次查找</td><td>O(log n)</td><td>平均 O(1)，最坏 O(n)</td></tr>
+    <tr><td>插入/删除后已有迭代器</td><td>不失效（树结构稳定）</td><td>rehash 时可能全部失效</td></tr>
+    <tr><td>对 key 的要求</td><td>可用 <code>&lt;</code> 比较</td><td>可哈希、可用 == 判等</td></tr>
+    <tr><td>头文件</td><td><code>&lt;map&gt;</code></td><td><code>&lt;unordered_map&gt;</code>（C++11 起）</td></tr>
+  </table>
+
+  <article class="example-card" id="ch10-ex-10">
+    <div class="ex-head">
+      <h3 class="ex-title">示例10：set——自动去重、自动排序</h3>
+      <div class="ex-meta"><span class="tag">知识点：set</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;set&gt;
+
+int main() {
+    std::set&lt;int&gt; s;
+    s.insert(30);
+    s.insert(10);
+    s.insert(20);
+    s.insert(10);                 // 重复元素：被忽略，size 不变
+
+    std::cout &lt;&lt; s.size() &lt;&lt; "\n";        // 3
+    std::cout &lt;&lt; s.count(20) &lt;&lt; "\n";     // 1
+    std::cout &lt;&lt; s.count(99) &lt;&lt; "\n";     // 0
+
+    for (int x : s) std::cout &lt;&lt; x &lt;&lt; " ";  // 自动按升序排列
+    std::cout &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">3
+1
+0
+10 20 30</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第9行</b>：set 里元素<b>至多出现一次</b>——重复 insert 是空操作，size 保持 3。</li>
+        <li><b>第11行</b>：插入顺序是 30、10、20、10，但 set 底层红黑树自动按升序摆放。</li>
+        <li><b>第15行</b>：遍历得到 <code>10 20 30</code>——有序，且无重复。set 没有 <code>[]</code>（它不是“按位置”存取的），查找用 <code>find</code>/<code>count</code>。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>需要“去重但保留插入顺序”时，经典做法是 vector + set 辅助判重；需要“允许重复计数”用 <code>multiset</code> / <code>multimap</code>（count 可大于 1）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>“set 会把后插入的大数排前面”——错，<code>set&lt;int&gt;</code> 默认<b>升序</b>。想让降序要写 <code>std::set&lt;int, std::greater&lt;int&gt;&gt;</code>。</p>
+    </div>
+  </article>
+
+  <!-- ================= 7. 常用算法 ================= -->
+  <h2>6. 常用算法：sort / find / count / accumulate</h2>
+  <p>算法住在 <code>&lt;algorithm&gt;</code>（数值类在 <code>&lt;numeric&gt;</code>），统一用<b>迭代器区间</b> <code>[begin, end)</code> 指定“处理谁”——所以对 vector、数组、deque 都通用。</p>
+
+  <article class="example-card" id="ch10-ex-11">
+    <div class="ex-head">
+      <h3 class="ex-title">示例11：sort 三种用法 + find / count / max_element / accumulate</h3>
+      <div class="ex-meta"><span class="tag">知识点：常用算法</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+#include &lt;algorithm&gt;    // sort, find, count, max_element
+#include &lt;functional&gt;   // std::greater
+#include &lt;numeric&gt;      // accumulate
+
+int main() {
+    std::vector&lt;int&gt; v = {5, 2, 8, 2, 9, 1};
+
+    std::sort(v.begin(), v.end());            // 默认：升序
+    for (int x : v) std::cout &lt;&lt; x &lt;&lt; " ";
+    std::cout &lt;&lt; "\n";
+
+    std::sort(v.begin(), v.end(), std::greater&lt;int&gt;());  // 传比较器：降序
+    for (int x : v) std::cout &lt;&lt; x &lt;&lt; " ";
+    std::cout &lt;&lt; "\n";
+
+    // 自定义比较 lambda：先按“除 3 的余数”升序，余数相同按数值升序
+    std::sort(v.begin(), v.end(), [](int a, int b) {
+        if (a % 3 != b % 3) return a % 3 &lt; b % 3;
+        return a &lt; b;
+    });
+    for (int x : v) std::cout &lt;&lt; x &lt;&lt; " ";
+    std::cout &lt;&lt; "\n";
+
+    auto it = std::find(v.begin(), v.end(), 8);
+    if (it != v.end())
+        std::cout &lt;&lt; "找到 8，下标 " &lt;&lt; (it - v.begin()) &lt;&lt; "\n";
+
+    std::cout &lt;&lt; std::count(v.begin(), v.end(), 2) &lt;&lt; "\n";       // 2 出现几次
+    std::cout &lt;&lt; *std::max_element(v.begin(), v.end()) &lt;&lt; "\n";   // 最大值
+    std::cout &lt;&lt; std::accumulate(v.begin(), v.end(), 0) &lt;&lt; "\n";  // 求和，初值 0
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">1 2 2 5 8 9
+9 8 5 2 2 1
+9 1 2 2 5 8
+找到 8，下标 5
+2
+9
+27</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第10~12行</b>：<code>sort</code> 默认用 <code>&lt;</code> 比较 → 升序：1 2 2 5 8 9。</li>
+        <li><b>第14~16行</b>：<code>std::greater&lt;int&gt;()</code> 表示“用 &gt; 比较” → 降序。它来自 <code>&lt;functional&gt;</code>，末尾的 <code>()</code> 是“构造一个临时对象”。</li>
+        <li><b>第19~24行</b>：lambda（第 12 章详讲）自定义比较：余数 0 的排最前（9），余数 1 的次之（1），余数 2 的最后（2 2 5 8 按数值升序）。比较器必须“严格弱序”：相等元素要返回 false，所以余数相同要再比数值，绝不能写 <code>&lt;=</code>。</li>
+        <li><b>第26~28行</b>：<code>find</code> 返回<b>迭代器</b>；找不到返回 <code>end()</code>，必须先判断再解引用。<code>it - v.begin()</code> 得到下标 5（第三个 sort 之后 8 在 v[5]）。</li>
+        <li><b>第30~32行</b>：<code>count</code> 数出现次数（得 2）；<code>max_element</code> 返回指向最大元素的迭代器，解引用得 9；<code>accumulate</code> 从初值 0 开始累加：9+1+2+2+5+8 = 27。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p><code>accumulate</code> 的第三个参数是<b>累加初值</b>，还决定累加类型：求 double 之和要写 <code>std::accumulate(v.begin(), v.end(), 0.0)</code>，写 0 就按整数累加截断。找最小值用 <code>min_element</code>，用法相同。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>比较器写 <code>a &lt;= b</code>：对“相等的两个元素”返回 true，违反严格弱序——<b>未定义行为</b>（可能越界崩溃），见“常见错误”第 5 条。另外 <code>sort</code> 是不稳定排序，相等元素的先后不保证；需要稳定用 <code>stable_sort</code>。</p>
+    </div>
+  </article>
+
+  <article class="example-card" id="ch10-ex-12">
+    <div class="ex-head">
+      <h3 class="ex-title">示例12：综合运用——成绩统计</h3>
+      <div class="ex-meta"><span class="tag green">综合</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;vector&gt;
+#include &lt;map&gt;
+#include &lt;algorithm&gt;
+#include &lt;numeric&gt;
+
+int main() {
+    std::vector&lt;int&gt; scores = {88, 92, 75, 88, 61, 92, 88};
+
+    std::sort(scores.begin(), scores.end());   // 升序
+    int total = std::accumulate(scores.begin(), scores.end(), 0);
+    double avg = static_cast&lt;double&gt;(total) / scores.size();
+    int hi = *std::max_element(scores.begin(), scores.end());
+
+    std::cout &lt;&lt; "总分=" &lt;&lt; total &lt;&lt; "\n";
+    std::cout &lt;&lt; "平均=" &lt;&lt; avg &lt;&lt; "\n";    // 默认 6 位有效数字
+    std::cout &lt;&lt; "最高=" &lt;&lt; hi &lt;&lt; "\n";
+
+    std::map&lt;int, int&gt; freq;               // 分数 → 出现次数
+    for (int s : scores) ++freq[s];
+    for (const auto&amp; kv : freq)            // 按 key（分数）升序输出
+        std::cout &lt;&lt; kv.first &lt;&lt; "分:" &lt;&lt; kv.second &lt;&lt; "人 ";
+    std::cout &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">总分=584
+平均=83.4286
+最高=92
+61分:1人 75分:1人 88分:3人 92分:2人</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第11行</b>：总分 584 = 61+75+88×3+92×2（排序后累加）。</li>
+        <li><b>第12行</b>：<code>static_cast&lt;double&gt;</code> 先转成 double 再除——直接写 <code>total / scores.size()</code> 是整数除法（第 1 章的坑）。584/7 = 83.428571…，<code>cout</code> 默认 6 位有效数字显示 <code>83.4286</code>。</li>
+        <li><b>第19~20行</b>：<code>++freq[s]</code> 借用 map 的“查无插入”：第一次见到某分数先插入 0，再自增——两行完成词频统计。</li>
+        <li><b>第21~22行</b>：map 按 key 升序遍历，输出 61 → 75 → 88 → 92；最后一行末尾有一个空格。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>要“从高到低”输出人数分布？把 map 换成 <code>std::map&lt;int, int, std::greater&lt;int&gt;&gt;</code>，遍历自动变成按 key 降序——不需要 sort。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>平均分写 <code>total / scores.size()</code>：整数 ÷ 无符号整数 = 整数除法，得 83——与第 1 章“7/2=3”同类错误。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 10, "vars": { "scores": "[61, 75, 88, 88, 88, 92, 92]" }, "out": "", "note": "sort 升序完成" },
+      { "line": 11, "vars": { "scores": "[61, 75, 88, 88, 88, 92, 92]", "total": "584" }, "out": "", "note": "accumulate 从初值 0 累加 7 个元素" },
+      { "line": 13, "vars": { "total": "584", "hi": "92" }, "out": "", "note": "max_element 返回迭代器，解引用取最大值" },
+      { "line": 20, "vars": { "freq": "{61:1, 75:1, 88:3, 92:2}" }, "out": "", "note": "++freq[s]：[] 自动插入 0 再自增，天然计数" },
+      { "line": 22, "vars": { "freq": "{61:1, 75:1, 88:3, 92:2}" }, "out": "61分:1人 75分:1人 88分:3人 92分:2人", "note": "map 按 key 升序遍历：61 → 75 → 88 → 92" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 8. 综合练习 ================= -->
+  <h2>7. 综合练习</h2>
+
+  <article class="example-card" id="ch10-ex-13">
+    <div class="ex-head">
+      <h3 class="ex-title">练习：把词频统计的语句排成正确顺序</h3>
+      <div class="ex-meta"><span class="tag purple">互动练习</span></div>
+    </div>
+    <p>目标：程序输出两行——<code>apple=2</code> 和 <code>pear=1</code>。下面 4 条语句被打乱了，请拖动（或用 ↑↓ 按钮）恢复正确顺序：</p>
+    <div class="widget-sort"><script type="application/json" class="sort-data">{ "items": [
+      "std::map<std::string, int> m;",
+      "std::string words[] = {\"apple\", \"pear\", \"apple\"};",
+      "for (const std::string& w : words) ++m[w];",
+      "for (const auto& kv : m) std::cout << kv.first << \"=\" << kv.second << \"\\n\";"
+    ], "hint": "先有容器和单词表，再统计，最后输出；map 会自动按 key 升序。",
+    "explain": "apple 出现 2 次、pear 出现 1 次；map 按 key 升序遍历，apple 的字典序在 pear 之前，所以先输出 apple=2 再输出 pear=1。" }</script></div>
+  </article>
+
+  <p class="small muted">常用容器操作与算法速查，见 <a href="../cheatsheets.html">速查表专区</a>。</p>
+
+  <!-- ================= 9. 常见错误 ================= -->
+  <h2>8. 常见错误</h2>
+  <div class="warn"><b>1. 模板定义写进 .cpp</b>：调用方只看到声明，实例化失败 → 链接错误 <code>undefined reference to ...</code>。修复：把模板（含类模板成员函数的定义）放<b>头文件</b>。</div>
+  <div class="ub-warning"><b>2. vector 下标越界用 []</b>：<code>v[v.size()]</code>、<code>v[100]</code> —— <code>operator[]</code> 不做检查，越界读/写是<b>未定义行为</b>：可能输出垃圾值、踩坏别的数据、崩溃或“碰巧正常”。调试期用 <code>.at()</code>（越界抛 <code>out_of_range</code>），或访问前先判下标范围。</div>
+  <div class="ub-warning"><b>3. erase 后继续使用旧迭代器</b>：<code>v.erase(it); ++it;</code> 或在 <code>for (...; ++it)</code> 中删除——自增/解引用失效迭代器是 <b>UB</b>。正确写法：<code>it = v.erase(it);</code>（示例 7）。</div>
+  <div class="warn"><b>4. map 用 [] 查询不存在的 key</b>：会静默插入默认值——size 变大、数据被污染。只查询用 <code>find</code> / <code>count</code> / <code>at()</code>。</div>
+  <div class="ub-warning"><b>5. sort 比较器写 &lt;=</b>：对相等元素返回 true，违反“严格弱序”，<code>sort</code> 内部行为未定义（可能越界崩溃）。比较器必须满足 <code>comp(a, a) == false</code>——用 <code>&lt;</code>，别用 <code>&lt;=</code>。</div>
+  <div class="warn"><b>6. 依赖 unordered_map 的遍历顺序</b>：顺序由哈希决定、不可预测。需要有序输出时换 <code>map</code>，或先把 key 拷进 vector 再 sort。</div>
+  <p>更多同类错误见 <a href="../errors.html">编译错误博物馆</a>（如 “undefined reference”“no match for operator[]”），以及 <a href="../exam-pitfalls.html">考试易错点</a> 中的“迭代器失效”专题。</p>
+
+  <!-- ================= 10. 标准差异 ================= -->
+  <h2>9. C++ 标准差异小结</h2>
+  <table class="data-table">
+    <tr><th>特性</th><th>C++98</th><th>C++11</th><th>C++17</th></tr>
+    <tr><td>STL 容器与算法（vector/map/set/sort…）</td><td>已有（STL 标准化的起点）</td><td>扩充</td><td>扩充</td></tr>
+    <tr><td><code>unordered_map</code> / <code>unordered_set</code></td><td>无（仅编译器扩展）</td><td>入标准</td><td>—</td></tr>
+    <tr><td><code>vector&lt;int&gt; v = {1, 2, 3};</code>（列表初始化）</td><td>不可用</td><td>新增</td><td>—</td></tr>
+    <tr><td>range-for 遍历</td><td>不可用</td><td>新增</td><td>—</td></tr>
+    <tr><td>lambda 自定义比较器</td><td>不可用</td><td>新增</td><td>—</td></tr>
+    <tr><td>类模板实参推导（CTAD）</td><td>—</td><td>—</td><td>新增：<code>std::pair p(1, 2.0);</code> 可自动推导</td></tr>
+  </table>
+  <div class="std-diff">模板本身从 <b>C++98</b> 起就是标准的一部分（STL 正是靠它实现的）；<b>C++11</b> 加入 unordered 容器、range-for 与 lambda；<b>C++20</b> 的 concepts 给模板参数加了“约束”，报错更友好——考试中看到“C++11 起才有 unordered_map”要能判断对错。</div>
+
+  <!-- ================= 11. 小结 ================= -->
+  <h2>本章小结</h2>
+  <div class="keypoint">模板 = 让编译器按类型“批量生成代码”的模具，实例化发生在<b>编译期</b>，定义要放<b>头文件</b>；STL = 容器 + 迭代器 + 算法。三条铁律：<code>[]</code> 不检查、<code>at()</code> 会抛异常；改容器后迭代器重新取；map 的 <code>[]</code> 查无插入。</div>
+  <ul>
+    <li>函数模板：实参推导失败（类型冲突）时显式指定 <code>myMax&lt;double&gt;(3, 4.0)</code>；多类型参数 <code>&lt;typename T, typename U&gt;</code>。</li>
+    <li>类模板 <code>Stack&lt;T&gt;</code>；默认模板参数 <code>typename Container = std::vector&lt;T&gt;</code>。</li>
+    <li>vector：push_back/pop_back、size/empty、[] vs at()、insert/erase；size 是“装了多少”，capacity 是“能装多少”。</li>
+    <li>迭代器失效：push_back 扩容全失效；删除必须 <code>it = v.erase(it)</code>；erase 返回下一个位置。</li>
+    <li>map：[] 两种含义（查无插入默认值！）、find/count 查询、按 key 升序遍历；unordered_map 哈希、平均 O(1)、顺序不确定；set 自动去重且有序。</li>
+    <li>算法：<code>sort</code>（默认升序 / <code>greater&lt;int&gt;()</code> 降序 / lambda 自定义）、<code>find</code>、<code>count</code>、<code>accumulate</code>（注意初值类型）、<code>max_element</code>。</li>
+  </ul>
+
+  <!-- ================= 12. 自测清单 ================= -->
+  <h2>自测清单</h2>
+  <ul class="checklist" data-chapter="ch10">
+    <li><label><input type="checkbox" data-check-id="ch10-c1"><span>我能写出函数模板并用实参推导，知道 <code>myMax(3, 4.0)</code> 为何编译失败、如何显式指定</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch10-c2"><span>我能解释“模板在编译期实例化”，并说出模板定义要放头文件的原因</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch10-c3"><span>我能用四种方式初始化 vector，并说清 <code>[]</code> 与 <code>.at()</code> 的区别</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch10-c4"><span>我能写出遍历 vector 的三种写法（下标 / 迭代器 / range-for）</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch10-c5"><span>我能解释迭代器为什么失效，并默写 <code>it = v.erase(it)</code> 的正确删除循环</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch10-c6"><span>我能说清 map 的 <code>[]</code> 两种含义，知道只查询该用 find/count</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch10-c7"><span>我能对比 map 与 unordered_map 的底层结构、复杂度与遍历顺序，并说清选型</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch10-c8"><span>我会用 sort/find/count/accumulate/max_element，能写自定义比较 lambda 并避免 <code>&lt;=</code> 陷阱</span></label></li>
+  </ul>
+
+  <!-- ================= 13. 随堂测验 ================= -->
+  <section class="quiz" data-source="ch10">
+    <script type="application/json" class="quiz-data">{ "title": "随堂测验：模板与 STL",
+      "questions": [
+        { "type": "mcq", "q": "<code>myMax(3, 4.0)</code>（模板只有一个类型参数 T）直接调用会怎样？",
+          "options": ["编译错误：T 被同时推导为 int 和 double", "自动把 3 转成 double，输出 4", "输出 3", "运行时抛出异常"], "answer": 0,
+          "explain": "两个实参推出不同的 T，推导失败。写成 <code>myMax&lt;double&gt;(3, 4.0)</code> 显式指定即可。" },
+        { "type": "mcq", "q": "<code>vector&lt;int&gt; v = {1, 2, 3}; v.push_back(4); v.pop_back();</code> 之后 <code>v.size()</code> 是？",
+          "options": ["2", "3", "4", "编译错误"], "answer": 1,
+          "explain": "push_back 后 4 个元素，pop_back 移除尾部又回 3 个。" },
+        { "type": "mcq", "q": "size 为 3 的 vector 调用 <code>v.at(100)</code>，结果是？",
+          "options": ["返回 0", "返回一个随机值", "抛出 std::out_of_range 异常", "程序必定立即崩溃"], "answer": 2,
+          "explain": "at 检查下标并抛 out_of_range。换成 v[100]（operator[]）则不检查，是未定义行为——任何确定的输出说法都不成立。" },
+        { "type": "mcq", "q": "<code>map&lt;string,int&gt; m;</code> 之后只执行 <code>m[\"carol\"];</code>（不赋值），此时 <code>m.size()</code> 与 <code>m[\"carol\"]</code> 的值是？",
+          "options": ["0 和编译错误", "1 和 0", "1 和未定义", "0 和 0"], "answer": 1,
+          "explain": "[] 发现 key 不存在：插入 {carol, 0}（int 默认值 0）并返回引用。只想查询要用 find/count/at。" },
+        { "type": "tf", "q": "<code>std::map</code> 的遍历顺序按 key 升序进行。",
+          "answer": true, "explain": "map 底层是红黑树，元素按 key 有序存放，遍历天然升序。" },
+        { "type": "tf", "q": "<code>std::unordered_map</code> 的遍历顺序等于插入顺序。",
+          "answer": false, "explain": "哈希表的遍历顺序由哈希布局决定，既不是插入顺序也不是排序顺序，不可依赖。" },
+        { "type": "fill", "q": "在循环中安全删除 vector 元素：<code>it = v.____(it);</code>",
+          "answer": ["erase"], "explain": "erase 返回指向被删元素下一个位置的迭代器，必须用返回值接住，否则旧迭代器已失效。" },
+        { "type": "mcq", "q": "执行 <code>auto it = v.begin(); v.push_back(42);</code> 之后再 <code>cout &lt;&lt; *it;</code>，情况是？",
+          "options": ["一定输出 42", "一定输出 v 的第一个元素", "迭代器可能失效：解引用它是未定义行为", "编译错误"], "answer": 2,
+          "explain": "push_back 可能触发扩容整体搬移，旧迭代器全部失效；解引用失效迭代器是 UB，没有可预测的结果。" },
+        { "type": "mcq", "q": "需求：元素自动去重，且遍历时按升序。选哪个容器？",
+          "options": ["vector", "set", "unordered_map", "stack"], "answer": 1,
+          "explain": "set 元素唯一且按升序存放；unordered_set 能去重但无序。" },
+        { "type": "fill", "q": "补全求和（int 元素）：<code>std::accumulate(v.begin(), v.end(), ____)</code>",
+          "answer": ["0"], "explain": "第三个参数是累加初值；求 double 和时要写 0.0，否则按整数累加。" }
+      ] }</script>
+  </section>
+
+  </main>
+
+<script src="../assets/js/highlight.js"></script>
+<script src="../assets/js/toc.js"></script>
+<script src="../assets/js/nav.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/interactive.js"></script>
+<script src="../assets/js/teacher.js"></script>
+<script src="../assets/js/mastery.js"></script>
+</body>
+</html>

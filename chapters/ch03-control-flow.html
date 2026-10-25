@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第3章 控制流 | 大学C++离线助教</title>
+<script>
+/* 主题预置：防止暗色用户看到白屏闪烁（所有页面同款） */
+(function(){try{
+  var t=localStorage.getItem("cppcourse.theme");
+  if(t)document.documentElement.setAttribute("data-theme",t);
+  var f=parseFloat(localStorage.getItem("cppcourse.fontscale"));
+  if(f>0)document.documentElement.style.fontSize=(16*f)+"px";
+}catch(e){}})();
+</script>
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<main class="container chapter">
+
+  <p class="crumbs"><a href="../index.html">首页</a> / <a href="../index.html#toc">章节目录</a> / 第3章</p>
+
+  <header>
+    <h1>第3章 控制流</h1>
+    <p class="muted"><b>控制流</b>让程序做选择（<b>if / switch</b>）和重复（<b>while / do-while / for / range-for</b>）。</p>
+  </header>
+
+  <!-- ================= 1. 学习目标 ================= -->
+  <section class="card objectives">
+    <h2 style="margin-top:0">学习目标</h2>
+    <ul>
+      <li>用 <code>if / else if / else</code> 写多分支，说出<b>悬空 else</b> 的配对规则（就近，与缩进无关）；识别 <code>if (a = 5)</code> 这类<b>把赋值当条件</b>的写法。</li>
+      <li>用 <code>switch</code>：case 必须是<b>编译期常量</b>、<b>break</b> 管住贯穿、<code>default</code> 兜底、字符串不能直接 switch。</li>
+      <li>按场景在 <code>while</code> / <code>do-while</code> / <code>for</code> 之间选择，说清 do-while“至少执行一次”。</li>
+      <li>写 <b>range-for</b> 遍历数组、<code>vector</code>、<code>string</code>，知道 <code>auto&amp;</code> 何时该用。</li>
+      <li>用 <code>break</code> / <code>continue</code>，记住 <b>break 只跳一层</b>。</li>
+      <li>识别两类经典<b>死循环</b>（unsigned 回绕、循环变量不更新）并修复。</li>
+    </ul>
+    <p class="small muted">前置知识：<a href="../chapters/ch02-operators.html">第2章 运算符与表达式</a>。</p>
+    </section>
+
+  <!-- ================= 2. if / else ================= -->
+  <h2>1. if / else 与悬空 else</h2>
+  <p><code>if (条件)</code> 里的条件按<b>布尔值</b>理解：非零为真，零为假。一个 <code>if</code> 只“拥有”紧跟的<b>一条语句</b>；想控制多条就必须用花括号包成<b>语句块</b>。悬空 else 的根源正在这里。</p>
+
+  <article class="example-card" id="ch03-ex-01">
+    <div class="ex-head">
+      <h3 class="ex-title">示例1：else 跟谁配对</h3>
+      <div class="ex-meta"><span class="tag">知识点：悬空 else</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int a = 5, b = 10;
+    if (a &gt; 3)
+        if (b &gt; 20)
+            std::cout &lt;&lt; "A\n";
+        else
+            std::cout &lt;&lt; "B\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">B</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：<code>a &gt; 3</code> 为真，进入外层 if。</li>
+        <li><b>第6行</b>：<code>b &gt; 20</code> 为假——注意外层 if 的“正文”就是这整个内层 if-else，还没完。</li>
+        <li><b>第8~9行</b>：走内层 else，打印 <code>B</code>。<b>规则：else 总是与“尚未拥有 else 的、位置上最近的 if”配对，缩进只是给人类看的</b>。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>把第 8 行的 else 故意缩进到与外层 if 对齐，语义<b>一字不改</b>——这就是“缩进欺骗”：</p>
+      <pre><code class="cpp">if (a &gt; 3)
+    if (b &gt; 20)
+        std::cout &lt;&lt; "A\n";
+else                      // 看着像属于外层 if，实际配的是内层！
+    std::cout &lt;&lt; "B\n";</code></pre>
+      <p>想表达“外层的 else”，必须用花括号把内层 if 完整包住：<code>if (a &gt; 3) { if (b &gt; 20) ... } else ...</code>。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>判断题“else 与缩进对齐的 if 配对”——<b>假</b>。遇到误导性缩进，先在心里重排成真实结构再作答。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "a": "5", "b": "10" }, "out": "", "note": "a=5，b=10" },
+      { "line": 5, "vars": { "a": "5", "b": "10" }, "out": "", "note": "a>3 为真，进入外层 if" },
+      { "line": 6, "vars": { "a": "5", "b": "10" }, "out": "", "note": "b>20 为假，跳过内层 if 的正文" },
+      { "line": 9, "vars": { "a": "5", "b": "10" }, "out": "B", "note": "else 就近配给内层 if，执行它" }
+    ] }</script>
+  </article>
+
+  <div class="compare">
+    <div class="compare-col badc">
+      <h4>❌ 靠缩进判断配对</h4>
+      <pre><code class="cpp">if (a &gt; 3)
+    if (b &gt; 20)
+        cout &lt;&lt; "A";
+    else
+        cout &lt;&lt; "B";
+// 想要外层 else？赌输了</code></pre>
+    </div>
+    <div class="compare-col good">
+      <h4>✅ 用花括号写明结构</h4>
+      <pre><code class="cpp">if (a &gt; 3) {
+    if (b &gt; 20) {
+        cout &lt;&lt; "A";
+    }
+} else {
+    cout &lt;&lt; "B";
+}
+// 结构即意图，谁也别猜</code></pre>
+    </div>
+  </div>
+
+  <!-- ================= 3. = 与 == ================= -->
+  <h2>2. 把赋值当条件：if (a = 5)</h2>
+
+  <article class="example-card" id="ch03-ex-02">
+    <div class="ex-head">
+      <h3 class="ex-title">示例2：少写一个 =，条件永远为真</h3>
+      <div class="ex-meta"><span class="tag">知识点：= 与 ==</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int a = 0;
+    if (a = 5) {                          // ⚠ 想写 == 却写成了 =
+        std::cout &lt;&lt; "条件为真, a = " &lt;&lt; a &lt;&lt; "\n";
+    }
+    std::cout &lt;&lt; "a 最终是 " &lt;&lt; a &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">条件为真, a = 5
+a 最终是 5</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：<code>a = 5</code> 是<b>赋值表达式</b>，它的值就是被赋的 5（第 2 章）；5 非零 → 条件为真。于是 a 被悄悄改掉，判断也“永远通过”。</li>
+        <li><b>第6行</b>：进入分支时 a 已经是 5。</li>
+        <li><b>第8行</b>：a 最终是 5，而不是初始值 0——数据被污染了。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>两种防范写法：① 把常量写在左边，<code>if (5 == a)</code>——手滑写成 <code>5 = a</code> 会直接<b>编译错误</b>，错在编译期总好过错在运行期；② 开编译警告 <code>-Wall</code>，编译器会提示“suggest parentheses around assignment used as truth value”。若确实想“赋值并判断”，请显式加括号：<code>if ((a = f()) != 0)</code>。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>if (a = 0)</code> 则相反：赋值表达式的值是 0，条件<b>永远为假</b>，分支成了死代码。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "a": "0" }, "out": "", "note": "a 初始化为 0" },
+      { "line": 5, "vars": { "a": "5" }, "out": "", "note": "赋值 a=5 发生了！赋值表达式的值是 5，非零 → 条件为真" },
+      { "line": 6, "vars": { "a": "5" }, "out": "条件为真, a = 5", "note": "分支被执行" },
+      { "line": 8, "vars": { "a": "5" }, "out": "a 最终是 5", "note": "a 已被污染：初始 0 被覆盖" }
+    ] }</script>
+  </article>
+
+  <div class="std-diff"><b>C++17</b> 起给 if 也加了“带初始化”的形式：<code>if (int x = f(); x &gt; 0)</code>——x 的作用域被收紧到整条 if/else 里，既防泄漏又防误用，与 switch 的同名新特性同期引入（见下一节）。</div>
+
+  <!-- ================= 4. switch ================= -->
+  <h2>3. switch 与 case 贯穿</h2>
+  <p><code>switch</code> 按<b>整数类型</b>的表达式跳转到匹配的 <code>case</code> 标签。两个铁律：<b>case 后面必须是编译期常量</b>；<b>不写 break 就一路执行到底（fallthrough，贯穿）</b>。</p>
+
+  <article class="example-card" id="ch03-ex-03">
+    <div class="ex-head">
+      <h3 class="ex-title">示例3：case 空标签分组 + break + default</h3>
+      <div class="ex-meta"><span class="tag">知识点：switch</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int level = 2;
+    switch (level) {
+        case 1:
+        case 2:
+        case 3:
+            std::cout &lt;&lt; "基础组\n";
+            break;
+        case 4:
+        case 5:
+            std::cout &lt;&lt; "进阶组\n";
+            break;
+        default:
+            std::cout &lt;&lt; "未知等级\n";
+    }
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">基础组</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：level 为 2，直接跳到 <code>case 2:</code> 标签处。</li>
+        <li><b>第6~7行</b>：<code>case 1:</code>、<code>case 2:</code> 后面没有语句，顺序“落”到第 9 行——这是<b>故意利用贯穿</b>做分组：1、2、3 共享同一段代码。</li>
+        <li><b>第9~10行</b>：打印 <code>基础组</code>，<code>break</code> 跳出 switch。没有它就会继续打印“进阶组”。</li>
+        <li><b>第15~16行</b>：<code>default</code> 兜底：所有 case 都不匹配时执行（本例不会走到）。建议总是写上，哪怕只是提示“未知”。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比：忘写 break 的贯穿</h4>
+      <pre><code class="cpp">switch (level) {          // 设 level == 1
+    case 1:
+        std::cout &lt;&lt; "一";   // 忘了 break！
+    case 2:
+        std::cout &lt;&lt; "二";
+        break;
+}
+// 实际输出：一二   ← 从 case 1 一路贯穿到 case 2</code></pre>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点：case 要常量，switch 要整数</h4>
+      <pre><code class="cpp">int n = 2;
+switch (n) {
+    case n:          // ⛔ 编译错误：case 后必须是编译期常量
+        break;
+}
+
+std::string s = "hi";
+switch (s) {         // ⛔ 编译错误：switch 条件必须是整数类型
+    case "hi":       // ⛔ 字符串不能作 case 标签
+        break;
+}</code></pre>
+      <p>要按字符串分流，用 if / else if 链（或后续章节的 <code>map</code>）。<code>case 2 + 3:</code> 合法——2+3 是常量表达式，等价于 <code>case 5:</code>。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "level": "2" }, "out": "", "note": "level = 2" },
+      { "line": 5, "vars": { "level": "2" }, "out": "", "note": "跳转到匹配的 case 2 标签" },
+      { "line": 9, "vars": { "level": "2" }, "out": "基础组", "note": "case 2 是空标签，落到这里执行" },
+      { "line": 10, "vars": { "level": "2" }, "out": "", "note": "break 跳出 switch，后面的 case 不再执行" }
+    ] }</script>
+  </article>
+
+  <div class="std-diff"><b>C++17</b> 起 switch 支持带初始化语句：<code>switch (int n = f(); n)</code>——临时变量的作用域被限制在这个 switch 内；同时新增 <code>[[fallthrough]];</code> 属性，用来显式声明“这里的贯穿是故意的”，避免编译器警告。C++98/03 只能靠注释 <code>/* fall through */</code>。</div>
+
+  <!-- ================= 5. while / do-while / for ================= -->
+  <h2>4. 三种循环：while、do-while、for</h2>
+  <p>三种循环能互相改写，差别在<b>检查时机</b>与<b>写法分布</b>：<code>while</code> 先判断后执行（可能一次不跑）；<code>do-while</code> 先执行后判断（<b>至少跑一次</b>）；<code>for</code> 把“初始化、条件、步进”三段收在一行，最适合次数已知的场合。</p>
+
+  <table class="data-table">
+    <tr><th>场景</th><th>推荐</th><th>理由</th></tr>
+    <tr><td>次数已知（循环 n 次）</td><td><code>for</code></td><td>三段式一眼看清“从哪到哪、步长多少”，不易漏更新</td></tr>
+    <tr><td>次数未知，先判断再干活</td><td><code>while</code></td><td>条件不成立时一次都不执行</td></tr>
+    <tr><td>至少要干一次（菜单、输入校验）</td><td><code>do-while</code></td><td>先执行后判断；注意结尾的<b>分号</b>不能少</td></tr>
+  </table>
+
+  <article class="example-card" id="ch03-ex-04">
+    <div class="ex-head">
+      <h3 class="ex-title">示例4：同一个求和任务的三种写法</h3>
+      <div class="ex-meta"><span class="tag">知识点：三种循环</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    // while：先判断，后执行
+    int s = 0, i = 1;
+    while (i &lt;= 5) {
+        s += i;
+        ++i;
+    }
+
+    // do-while：先执行，后判断（至少跑一次）
+    int t = 0, j = 1;
+    do {
+        t += j;
+        ++j;
+    } while (j &lt;= 5);
+
+    // for：初始化、条件、步进，三段写在一行
+    int u = 0;
+    for (int k = 1; k &lt;= 5; ++k) {
+        u += k;
+    }
+
+    std::cout &lt;&lt; s &lt;&lt; " " &lt;&lt; t &lt;&lt; " " &lt;&lt; u &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">15 15 15</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5~9行</b>：i 从 1 累加到 5，s = 1+2+3+4+5 = 15；i 到 6 时条件 <code>i &lt;= 5</code> 为假，循环结束。</li>
+        <li><b>第12~16行</b>：do-while 先做一轮再检查，结果同为 15。若初始 j 就是 6，do-while 仍会白跑一轮（t = 6），这正是“至少一次”的含义。</li>
+        <li><b>第19~22行</b>：for 的 <code>k</code> 只在循环内可见，写法最紧凑，结果同为 15。</li>
+        <li><b>第24行</b>：三种写法结果一致，输出 <code>15 15 15</code>。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>for 的三段都可以留空：<code>for (;;)</code> 是“无条件死循环”的惯用缩写（等价 <code>while (true)</code>），靠 break 退出。两个分号不能省。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>do-while 结尾的 <code>while (条件)</code> 后面<b>必须带分号</b>：<code>} while (j &lt;= 5);</code>。漏掉分号是新手高频编译错误。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 5, "vars": { "s": "0", "i": "1" }, "out": "", "note": "while：s=0，i=1" },
+      { "line": 7, "vars": { "s": "1", "i": "1" }, "out": "", "note": "第 1 轮：s += 1" },
+      { "line": 7, "vars": { "s": "3", "i": "2" }, "out": "", "note": "第 2 轮：s = 1 + 2" },
+      { "line": 9, "vars": { "s": "15", "i": "6" }, "out": "", "note": "5 轮后 s=15；i=6 时条件为假，while 结束" },
+      { "line": 14, "vars": { "s": "15", "i": "6", "t": "1", "j": "1" }, "out": "", "note": "do-while 先执行第 1 轮" },
+      { "line": 16, "vars": { "s": "15", "t": "15", "j": "6" }, "out": "", "note": "累加 5 轮后条件为假，t=15" },
+      { "line": 21, "vars": { "s": "15", "t": "15", "u": "1", "k": "1" }, "out": "", "note": "for：k 从 1 开始累加" },
+      { "line": 24, "vars": { "s": "15", "t": "15", "u": "15" }, "out": "15 15 15", "note": "三种写法结果一致" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 6. range-for ================= -->
+  <h2>5. range-for：遍历容器元素</h2>
+  <p><b>range-for</b>（C++11 起）把“从头到尾逐个元素”写成一句话：<code>for (声明 : 范围)</code>。数组、<code>std::vector</code>、<code>std::string</code> 都能直接遍历——只写“要什么”，不用管下标从 0 到几。</p>
+
+  <article class="example-card" id="ch03-ex-05">
+    <div class="ex-head">
+      <h3 class="ex-title">示例5：遍历数组、vector、string</h3>
+      <div class="ex-meta"><span class="tag">知识点：range-for</span><span class="tag">C++11</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+#include &lt;vector&gt;
+
+int main() {
+    int arr[] = {10, 20, 30};
+    for (int x : arr) {              // 遍历数组：每个元素来一遍
+        std::cout &lt;&lt; x &lt;&lt; " ";
+    }
+    std::cout &lt;&lt; "\n";
+
+    std::vector&lt;int&gt; v = {1, 2, 3};  // 遍历 vector
+    int total = 0;
+    for (int x : v) {
+        total += x;
+    }
+    std::cout &lt;&lt; total &lt;&lt; "\n";
+
+    std::string s = "abc";           // 遍历 string：逐个字符
+    for (char c : s) {
+        std::cout &lt;&lt; c &lt;&lt; "-";
+    }
+    std::cout &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">10 20 30 
+15
+a-b-c-</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第7~10行</b>：x 依次取 10、20、30，各输出一次加空格；第 10 行补换行。第一行末尾有一个空格。</li>
+        <li><b>第14~17行</b>：累加 1+2+3 = 15。range-for 里不用下标，也不用手写 <code>++i</code>。</li>
+        <li><b>第20~23行</b>：string 的每个字符是 <code>char</code>，所以循环变量声明成 <code>char c</code>；输出 <code>a-b-c-</code>（每个字符后面跟一个减号）。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比：x 是副本还是别名？</h4>
+      <pre><code class="cpp">for (int x : v)        x *= 10;   // 改的是副本，v 原封不动
+for (auto&amp; x : v)      x *= 10;   // 引用：直接改原元素
+for (const auto&amp; s : words) ...  // 大对象只读：const 引用避免拷贝</code></pre>
+      <p><code>int</code> 这类小类型拷贝无所谓；但 <code>std::string</code>、<code>std::vector</code> 等大对象逐个拷贝很浪费——<b>只读就写 <code>const auto&amp;</code>，要改就写 <code>auto&amp;</code></b>。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 遍历中修改容器：未定义行为</h4>
+      <div class="ub-warning"><pre><code class="cpp">std::vector&lt;int&gt; v = {1, 2, 3};
+for (int x : v) {
+    v.push_back(x);   // ⛔ 遍历中让 vector 扩容
+}</code></pre>
+      range-for 的底层依赖“指向元素的迭代器/指针”逐步推进；<code>push_back</code> 可能触发<b>扩容</b>（元素整体搬到新内存），使这些内部指针全部失效——之后继续遍历是<b>未定义行为</b>（崩溃、死循环、随机结果都有可能）。本课程规则：遍历容器时不增删元素；确需边遍历边改，用下标 + 手写 for 并理解代价。失效机制的完整原理留到 <b>第 10 章</b>展开。</div>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 7, "vars": { "x": "10" }, "out": "", "note": "第 1 轮：x 取到 10" },
+      { "line": 7, "vars": { "x": "20" }, "out": "", "note": "第 2 轮：x 取到 20" },
+      { "line": 7, "vars": { "x": "30" }, "out": "", "note": "第 3 轮：x 取到 30" },
+      { "line": 10, "vars": { "x": "30" }, "out": "10 20 30 ", "note": "换行收尾（行尾有一个空格）" },
+      { "line": 15, "vars": { "total": "6" }, "out": "", "note": "v 的 1+2+3 累加完成" },
+      { "line": 17, "vars": { "total": "6" }, "out": "15", "note": "输出总和" },
+      { "line": 21, "vars": { "c": "'a'" }, "out": "", "note": "依次取 'a' 'b' 'c'，各输出一次加 -" },
+      { "line": 23, "vars": { "c": "'c'" }, "out": "a-b-c-", "note": "换行收尾" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 7. break / continue ================= -->
+  <h2>6. break 与 continue</h2>
+  <p><code>break</code> 立即<b>终止</b>所在循环；<code>continue</code> 跳过本轮剩下的语句，直接进入<b>下一轮</b>（for 会先执行步进段）。两者都只对“自己所在的那一层”生效。</p>
+
+  <article class="example-card" id="ch03-ex-06">
+    <div class="ex-head">
+      <h3 class="ex-title">示例6：continue 跳过偶数，break 提前结束</h3>
+      <div class="ex-meta"><span class="tag">知识点：break / continue</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int sum = 0;
+    for (int i = 1; i &lt;= 10; ++i) {
+        if (i % 2 == 0) continue;   // 跳过偶数，回到 ++i
+        if (i &gt; 7) break;           // i = 9 时提前结束
+        sum += i;
+    }
+    std::cout &lt;&lt; sum &lt;&lt; "\n";       // 1 + 3 + 5 + 7
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">16</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第6行</b>：i 为偶数时 <code>continue</code>，跳过第 7、8 行，直接回到 <code>++i</code>——偶数不参与累加。</li>
+        <li><b>第7行</b>：奇数里一旦 i &gt; 7（i = 9），<code>break</code> 终止整个循环，第 8 行不再执行。</li>
+        <li><b>第8行</b>：实际累加的是 1、3、5、7，sum = 16。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>把 <code>break</code> 换成 <code>continue</code>：i = 9 被跳过但循环继续，i = 10 也是偶数被跳过，最终同样输出 16——但循环“白跑到头”。两个语句要分清：<b>break 终止整个循环，continue 只跳过这一轮</b>。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 5, "vars": { "sum": "0", "i": "1" }, "out": "", "note": "i=1：奇数，两个条件都不中" },
+      { "line": 8, "vars": { "sum": "1", "i": "1" }, "out": "", "note": "sum += 1" },
+      { "line": 6, "vars": { "sum": "1", "i": "2" }, "out": "", "note": "i=2：偶数，continue 跳过" },
+      { "line": 8, "vars": { "sum": "4", "i": "3" }, "out": "", "note": "i=3：sum += 3" },
+      { "line": 8, "vars": { "sum": "9", "i": "5" }, "out": "", "note": "i=5：sum += 5（i=4 已被 continue 跳过）" },
+      { "line": 8, "vars": { "sum": "16", "i": "7" }, "out": "", "note": "i=7：sum += 7；7 > 7 为假，不触发 break" },
+      { "line": 6, "vars": { "sum": "16", "i": "8" }, "out": "", "note": "i=8：偶数，跳过" },
+      { "line": 7, "vars": { "sum": "16", "i": "9" }, "out": "", "note": "i=9：9 > 7 为真，break 终止循环" },
+      { "line": 10, "vars": { "sum": "16" }, "out": "16", "note": "输出 16" }
+    ] }</script>
+  </article>
+
+  <div class="note"><b>多重循环：break 只跳一层</b>。<pre><code class="cpp">for (int i = 0; i &lt; 3; ++i) {       // 外层
+    for (int j = 0; j &lt; 3; ++j) {   // 内层
+        if (j == 1) break;          // 只跳出内层
+        std::cout &lt;&lt; i &lt;&lt; j &lt;&lt; " ";
+    }
+    std::cout &lt;&lt; "| ";
+}
+// 输出：00 | 10 | 20 |   ← 外层 3 轮照常跑完</code></pre>
+  想一次跳出所有层：① 用标志变量让每层都检查；② 把双层逻辑封装成函数用 <code>return</code> 退出；③ <code>goto</code> 能干这事，但极不推荐。</div>
+
+  <!-- ================= 8. 死循环 ================= -->
+  <h2>7. 死循环与循环变量陷阱</h2>
+  <p>循环要能停，<b>条件必须在某一轮变假</b>。下面三个片段（非完整程序，请勿真跑）各自卡死在一个点上：</p>
+
+  <article class="example-card" id="ch03-ex-07">
+    <div class="ex-head">
+      <h3 class="ex-title">示例7：三个永远停不下来的片段</h3>
+      <div class="ex-meta"><span class="tag red">死循环示范（片段）</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">// 片段 1：unsigned 的 i &gt;= 0 恒真 —— 回绕死循环
+for (unsigned i = 3; i &gt;= 0; --i) {
+    std::cout &lt;&lt; i &lt;&lt; " ";
+}
+
+// 片段 2：写的是 i + 1，不是 ++i —— i 永远停在 0
+for (int i = 0; i &lt; 10; i + 1) {
+    std::cout &lt;&lt; i &lt;&lt; " ";
+}
+
+// 片段 3：while 忘了更新循环变量
+int n = 5;
+while (n &gt; 0) {
+    std::cout &lt;&lt; n &lt;&lt; " ";   // 一直打印 5
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-explain">
+      <h4>逐段解释</h4>
+      <ul>
+        <li><b>片段 1</b>：输出 <code>3 2 1 0</code> 之后 i 减到 -1——unsigned 按 2<sup>32</sup> 取模<b>回绕</b>成 4294967295，条件 <code>i &gt;= 0</code> 对 unsigned <b>永远为真</b>，于是 <code>4294967295 4294967294 …</code> 永远打下去。注意这不是 UB（无符号回绕是定义好的行为），而是“定义好的死循环”。<b>修复</b>：改用 <code>int i</code>，或条件写 <code>i &gt; 0</code>。</li>
+        <li><b>片段 2</b>：<code>i + 1</code> 只是算出一个没人接收的临时值，<b>没有副作用</b>，i 永远是 0，条件恒真。<b>修复</b>：写成 <code>++i</code> 或 <code>i += 1</code>。</li>
+        <li><b>片段 3</b>：循环体内忘了 <code>--n;</code>，条件永远成立。<b>修复</b>：体内更新循环变量。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 死循环不总是 bug</h4>
+      <p><code>while (true)</code> 配 <code>break</code> 是合法套路（游戏主循环、菜单程序），前提是循环体内<b>确实存在出口</b>。真正的危险是“以为有出口其实没有”——写完循环先问一句：什么情况下条件会变假？</p>
+    </div>
+  </article>
+
+  <!-- ================= 9. 综合示例 ================= -->
+  <h2>8. 综合示例：嵌套循环与“未知次数”</h2>
+
+  <article class="example-card" id="ch03-ex-08">
+    <div class="ex-head">
+      <h3 class="ex-title">示例8：嵌套循环打印下三角乘法表</h3>
+      <div class="ex-meta"><span class="tag green">综合</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    for (int i = 1; i &lt;= 3; ++i) {       // 外层：行号
+        for (int j = 1; j &lt;= i; ++j) {   // 内层：列号不超过行号 → 下三角
+            std::cout &lt;&lt; j &lt;&lt; "x" &lt;&lt; i &lt;&lt; "=" &lt;&lt; j * i &lt;&lt; " ";
+        }
+        std::cout &lt;&lt; "\n";               // 每行结束换行
+    }
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">1x1=1 
+1x2=2 2x2=4 
+1x3=3 2x3=6 3x3=9 </code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：外层 i 是<b>行号</b>，从 1 到 3。</li>
+        <li><b>第5行</b>：内层 j 从 1 跑到 i（注意条件是 <code>j &lt;= i</code>）——第 i 行只打 i 项，形成下三角。</li>
+        <li><b>第6行</b>：每次打印形如 <code>2x3=6 </code>（后面跟一个空格）。</li>
+        <li><b>第8行</b>：内层跑完一行才换行——<code>\n</code> 在外层循环体里，不在内层里，位置差一行输出就全乱。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>想打完整九九表？把两处 <code>3</code> 都改成 <code>9</code> 即可，其余一字不动——这就是“外层管行、内层管列”结构的可扩展性。若把内层条件改成 <code>j &lt;= 3</code>，会打出完整的 3×3 矩阵而不是三角。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>嵌套循环的总执行次数是<b>内外轮数的乘积</b>：本例 1+2+3 = 6 次（内层次数随 i 变化）。笔试题常问“第 6 行共执行几次”，按“外层每轮内层跑几圈”逐轮相加即可。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "i": "1" }, "out": "", "note": "外层第 1 行：i=1" },
+      { "line": 6, "vars": { "i": "1", "j": "1" }, "out": "1x1=1 ", "note": "内层只跑 1 圈（j ≤ i = 1）" },
+      { "line": 4, "vars": { "i": "2" }, "out": "", "note": "外层第 2 行：i=2（第 8 行已给第 1 行换行）" },
+      { "line": 6, "vars": { "i": "2", "j": "1" }, "out": "1x2=2 ", "note": "内层第 1 圈" },
+      { "line": 5, "vars": { "i": "2", "j": "2" }, "out": "", "note": "内层第 2 圈" },
+      { "line": 6, "vars": { "i": "2", "j": "2" }, "out": "2x2=4 ", "note": "第 2 行共两项" },
+      { "line": 4, "vars": { "i": "3" }, "out": "", "note": "外层第 3 行：i=3" },
+      { "line": 6, "vars": { "i": "3", "j": "3" }, "out": "1x3=3 2x3=6 3x3=9 ", "note": "内层连跑 3 圈，拼成一行" },
+      { "line": 10, "vars": { "i": "3" }, "out": "", "note": "return 0，程序结束" }
+    ] }</script>
+  </article>
+
+  <article class="example-card" id="ch03-ex-09">
+    <div class="ex-head">
+      <h3 class="ex-title">示例9：不知道循环几次？——本金翻倍问题</h3>
+      <div class="ex-meta"><span class="tag green">综合</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    double money = 100.0;      // 本金 100 元
+    int year = 0;
+    while (money &lt; 1000.0) {   // 不知道要几年 → 未知次数用 while
+        money = money * 2;
+        ++year;
+    }
+    std::cout &lt;&lt; "第 " &lt;&lt; year &lt;&lt; " 年达到 " &lt;&lt; money &lt;&lt; " 元\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">第 4 年达到 1600 元</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第6行</b>：只要还没到 1000 就继续翻倍。“几年”无法事先算出（写在题面上的话另说），这正是 while 的主场。</li>
+        <li><b>第7~8行</b>：每年翻一倍、计数 +1。循环变量 <code>year</code> 在体内有更新，保证条件终会变假。</li>
+        <li><b>第10行</b>：100 → 200 → 400 → 800 → 1600，共翻 4 轮；1600.0 按 6 位有效数字显示为 <code>1600</code>。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>若把条件改成 <code>money &lt;= 800.0</code>，800 也算达标：100 → 200 → 400 → 800，第 3 年结束，输出 <code>第 3 年达到 800 元</code>。边界用 <code>&lt;</code> 还是 <code>&lt;=</code>，答案差一年。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "money": "100", "year": "0" }, "out": "", "note": "本金 100，第 0 年" },
+      { "line": 7, "vars": { "money": "200", "year": "1" }, "out": "", "note": "第 1 年：翻倍到 200" },
+      { "line": 7, "vars": { "money": "400", "year": "2" }, "out": "", "note": "第 2 年：400" },
+      { "line": 7, "vars": { "money": "800", "year": "3" }, "out": "", "note": "第 3 年：800，仍不到 1000，继续" },
+      { "line": 7, "vars": { "money": "1600", "year": "4" }, "out": "", "note": "第 4 年：1600，条件变假" },
+      { "line": 10, "vars": { "money": "1600", "year": "4" }, "out": "第 4 年达到 1600 元", "note": "输出年数与最终金额" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 10. 互动练习 ================= -->
+  <h2>9. 互动练习：把分支结构排回正确顺序</h2>
+
+  <article class="example-card" id="ch03-ex-10">
+    <div class="ex-head">
+      <h3 class="ex-title">练习：排出按分数评级的 if / else if / else</h3>
+      <div class="ex-meta"><span class="tag purple">互动练习</span></div>
+    </div>
+    <p>目标：<code>score</code> 为 85 时输出 <code>良好</code>。下面 8 行被打乱了，请拖动（或用 ↑↓ 按钮）恢复成结构正确、判断顺序也正确的代码：</p>
+    <div class="widget-sort"><script type="application/json" class="sort-data">{ "items": [
+      "int score = 85;",
+      "if (score >= 90) {",
+      "std::cout << \"优秀\";",
+      "} else if (score >= 80) {",
+      "std::cout << \"良好\";",
+      "} else {",
+      "std::cout << \"加油\";",
+      "}"
+    ], "hint": "分支要从高到低判断，花括号成对出现；else if 接在上一层的 } 后面。",
+    "explain": "85 先检查 >=90（假），再检查 >=80（真），输出“良好”。顺序不能反：如果先判 >=80，95 分也会被截留在“良好”。最后的 } 收住 else 分支。" }</script></div>
+  </article>
+
+  <!-- ================= 11. 常见错误 ================= -->
+  <h2>10. 常见错误</h2>
+  <div class="warn"><b>1. 把 == 误写成 =</b>：<code>if (a = 5)</code> 恒真且污染 a。修复：常量放左边 <code>5 == a</code>，并开 <code>-Wall</code>。</div>
+  <div class="warn"><b>2. 悬空 else / 多行正文不加花括号</b>：else 就近配对，缩进不作数。修复：只要分支超过一条语句就加 <code>{}</code>；拿不准时一律加。</div>
+  <div class="warn"><b>3. switch 忘 break / case 用变量或字符串</b>：忘 break 会贯穿到下一 case；<code>case n:</code>（运行期变量）和 <code>switch (字符串)</code> 直接编译错误。case 只收<b>编译期整数常量</b>。</div>
+  <div class="warn"><b>4. 两类死循环</b>：<code>for (unsigned i = 3; i &gt;= 0; --i)</code> 条件恒真（回绕）；<code>for (int i = 0; i &lt; 10; i + 1)</code> 步进无副作用。修复：有符号计数 + 确保 <code>++i</code> 真正发生。</div>
+  <div class="warn"><b>5. 以为 break 能跳出所有层</b>：嵌套循环里 break 只终结本层。要全跳：标志变量、封装成函数 return（goto 不推荐）。</div>
+  <div class="ub-warning"><b>6. range-for 遍历中修改容器</b>：在 <code>for (int x : v)</code> 里 <code>push_back</code> / <code>erase</code> 会使内部迭代器失效，是<b>未定义行为</b>，没有“正确输出”可言。遍历时不增删元素，原理详见第 10 章。</div>
+  <p>更多同类问题见 <a href="../errors.html">编译错误博物馆</a> 与 <a href="../exam-pitfalls.html">考试易错点</a> 中的“分支与循环”专题。</p>
+
+  <!-- ================= 12. 标准差异 ================= -->
+  <h2>11. C++ 标准差异小结</h2>
+  <table class="data-table">
+    <tr><th>特性</th><th>C++98</th><th>C++11</th><th>C++17</th></tr>
+    <tr><td>range-for：<code>for (x : c)</code></td><td>不可用</td><td>引入</td><td>可用</td></tr>
+    <tr><td><code>switch (init; cond)</code> 带初始化</td><td>不可用</td><td>不可用</td><td>引入</td></tr>
+    <tr><td><code>if (init; cond)</code> 带初始化</td><td>不可用</td><td>不可用</td><td>引入</td></tr>
+    <tr><td><code>[[fallthrough]]</code> 属性</td><td>不可用</td><td>不可用</td><td>引入（标注有意的贯穿）</td></tr>
+    <tr><td><code>while</code> / <code>do-while</code> / <code>for</code></td><td>可用</td><td>可用</td><td>可用</td></tr>
+  </table>
+  <div class="std-diff">判断题“range-for 在 C++98 里也能用”——<b>假</b>，它是 C++11 的新语法；考试若未注明标准版本，按现行标准（C++11 及以后）作答。</div>
+
+  <!-- ================= 13. 小结 ================= -->
+  <h2>本章小结</h2>
+  <div class="keypoint">控制流只做两件事：<b>选择</b>与<b>重复</b>。选择的核心是“条件的布尔值”（小心把 <code>==</code> 写成 <code>=</code>，else 就近配对）；重复的核心是“终止条件会不会变假”（小心 unsigned 回绕与不更新的循环变量）。</div>
+  <ul>
+    <li><code>else</code> 与最近的、尚未配对的 <code>if</code> 结合，<b>与缩进无关</b>；用花括号消除歧义。</li>
+    <li><code>if (a = 5)</code> 先赋值再拿 5 当条件，恒真；<code>if (a = 0)</code> 恒假。</li>
+    <li>switch：case 必须编译期整数常量，忘 <code>break</code> 会贯穿（有时是特性），<code>default</code> 兜底，字符串不能用 switch；C++17 支持带初始化与 <code>[[fallthrough]]</code>。</li>
+    <li><code>while</code> 先判后做，<code>do-while</code> 至少一次（结尾有分号），<code>for</code> 三段式适合已知次数。</li>
+    <li>range-for（C++11）遍历数组/vector/string；大对象用 <code>const auto&amp;</code> 避免拷贝、<code>auto&amp;</code> 就地修改；<b>遍历中增删 vector 是 UB</b>。</li>
+    <li><code>break</code> 跳出本层循环、<code>continue</code> 跳过本轮；<b>break 只跳一层</b>。</li>
+    <li>死循环三源：unsigned <code>i &gt;= 0</code> 恒真、步进写成 <code>i + 1</code>、体内忘更新变量。</li>
+  </ul>
+
+  <!-- ================= 14. 自测清单 ================= -->
+  <h2>自测清单</h2>
+  <ul class="checklist" data-chapter="ch03">
+    <li><label><input type="checkbox" data-check-id="ch03-c1"><span>我能说出 else 与哪个 if 配对（就近原则，与缩进无关）</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch03-c2"><span>我会用花括号把多分支写成无歧义的代码块，避免悬空 else</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch03-c3"><span>我能解释 if (a = 5) 为什么恒真、a 为什么被污染，并写出两种防手滑写法</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch03-c4"><span>我能说出 case 必须是编译期常量、字符串不能 switch 的原因</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch03-c5"><span>我能按场景在 while / do-while / for 中做选择，并说清 do-while 至少执行一次</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch03-c6"><span>我会写 range-for，并知道 auto& 与 const auto& 各自的用途</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch03-c7"><span>我知道 break 只跳一层，并能说出两种“跳出多层”的替代方案</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch03-c8"><span>我能识别 unsigned i &gt;= 0 恒真与 i + 1 无副作用这两类死循环并修复</span></label></li>
+  </ul>
+
+  <!-- ================= 15. 随堂测验 ================= -->
+  <section class="quiz" data-source="ch03">
+    <script type="application/json" class="quiz-data">{ "title": "随堂测验：控制流",
+      "questions": [
+        { "type": "mcq", "q": "悬空 else 的配对规则是？",
+          "options": ["与缩进上离它最近的 if 配对", "与未拥有 else 的、位置上最近的 if 配对（与缩进无关）", "与代码里第一个 if 配对", "编译错误"], "answer": 1,
+          "explain": "else 总是与“尚未拥有 else 的、位置上最近的 if”配对。缩进只影响人类阅读，不影响语法结构。" },
+        { "type": "mcq", "q": "<code>int a = 0; if (a = 5) { ... }</code> 会发生什么？",
+          "options": ["条件为假，分支不执行", "a 被赋值为 5，条件为真，分支执行", "编译错误", "未定义行为"], "answer": 1,
+          "explain": "a = 5 是赋值表达式，值是被赋的 5，非零为真；副作用是 a 被污染成 5。这不是 UB，而是语义陷阱。" },
+        { "type": "mcq", "q": "switch 中某个 case 忘写 break，执行完该 case 的语句后会？",
+          "options": ["自动跳出 switch", "继续执行下一个 case 的语句（贯穿）", "运行时崩溃", "跳到 default"], "answer": 1,
+          "explain": "没有 break 就一路向下贯穿，直到遇到 break 或 switch 结束。有时这是有意分组（空 case），有时是 bug。" },
+        { "type": "mcq", "q": "下列哪个 case 标签是合法的？",
+          "options": ["case n:（n 是 int 变量）", "case 2 + 3:", "case \"abc\":", "case 1.5:"], "answer": 1,
+          "explain": "case 必须是编译期整型常量表达式：2 + 3 合法（等价 case 5:）；运行期变量、字符串、浮点数都不行。" },
+        { "type": "tf", "q": "do-while 的循环体至少执行一次。",
+          "answer": true,
+          "explain": "do-while 先执行后判断，条件一开始就为假也白跑一轮；while 则可能一次都不执行。" },
+        { "type": "mcq", "q": "<code>for (int i = 0; i &lt; 5; ++i)</code> 的循环体执行几次？",
+          "options": ["4 次", "5 次", "6 次", "无限次"], "answer": 1,
+          "explain": "i 依次为 0、1、2、3、4，共 5 次；i 变成 5 时条件为假退出。" },
+        { "type": "mcq", "q": "<code>int sum = 0; for (int i = 1; i &lt;= 10; ++i) { if (i % 2 == 0) continue; sum += i; }</code> 结束后 sum 是？",
+          "options": ["55", "30", "25", "20"], "answer": 2,
+          "explain": "continue 跳过所有偶数，累加的是 1+3+5+7+9 = 25。" },
+        { "type": "tf", "q": "嵌套循环里，内层的 break 能同时跳出外层循环。",
+          "answer": false,
+          "explain": "break 只终结它所在的那一层。要跳出所有层需标志变量、封装成函数 return 等。" },
+        { "type": "mcq", "q": "<code>for (unsigned i = 3; i &gt;= 0; --i)</code> 会发生什么？",
+          "options": ["输出 3 2 1 0 后正常结束", "死循环：i 减到 0 以下时回绕，条件恒真", "编译错误", "只执行一次"], "answer": 1,
+          "explain": "unsigned 不可能小于 0：i 减过 0 会回绕成最大值，条件永远成立。这不是 UB，而是定义好的死循环。" },
+        { "type": "code", "q": "补全 range-for，使循环内能修改元素：<code>for (____ x : v) x *= 10;</code>",
+          "answer": ["auto&", "auto &", "int&", "int &"], "explain": "写引用（auto& 或 int&）时 x 是元素的别名，修改直接落在原容器上；不写 & 则 x 是副本，改了也白改。" }
+      ] }</script>
+  </section>
+
+  </main>
+
+<script src="../assets/js/highlight.js"></script>
+<script src="../assets/js/toc.js"></script>
+<script src="../assets/js/nav.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/interactive.js"></script>
+<script src="../assets/js/teacher.js"></script>
+<script src="../assets/js/mastery.js"></script>
+</body>
+</html>
