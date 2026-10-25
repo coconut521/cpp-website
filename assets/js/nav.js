@@ -13,24 +13,36 @@
   if (m) prefix = "../";
   var here = path.split("/").pop() || "index.html";
 
-  /* ---------- 主题 / 字号（与 head 内联脚本一致，双保险） ---------- */
-  function applyTheme(t) {
-    if (t) document.documentElement.setAttribute("data-theme", t);
-    else document.documentElement.removeAttribute("data-theme");
-  }
-  function currentTheme() {
-    return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
-  }
+  /* ---------- 主题（三态：light / dark / auto 跟随系统）与字号 ----------
+   * 判定逻辑的唯一来源是 theme-init.js（head 内同步加载，暴露 window.SiteTheme）；
+   * 此处只负责循环切换与按钮文案。 */
+  var THEME_ORDER = ["light", "dark", "auto"];
+  var THEME_LABEL = { light: "☀️ 亮色", dark: "🌙 暗色", auto: "💻 跟随系统" };
   function applyFont(scale) {
     document.documentElement.style.fontSize = (16 * scale) + "px";
   }
+  function storedTheme() {
+    return window.SiteTheme ? window.SiteTheme.stored() : "light";
+  }
+  function nextTheme(mode) {
+    return THEME_ORDER[(THEME_ORDER.indexOf(mode) + 1) % THEME_ORDER.length];
+  }
+  function refreshThemeBtn() {
+    var btn = document.querySelector("[data-role=theme-btn]");
+    if (!btn) return;
+    var mode = storedTheme();
+    var eff = window.SiteTheme ? window.SiteTheme.effective(mode) : "light";
+    btn.textContent = THEME_LABEL[mode];
+    btn.title = mode === "auto"
+      ? "跟随系统深浅色（当前为" + (eff === "dark" ? "暗色" : "亮色") + "）；点击切换到 ☀️ 亮色"
+      : "当前" + THEME_LABEL[mode] + "；点击切换到 " + THEME_LABEL[nextTheme(mode)];
+  }
   window.SiteUI = {
     toggleTheme: function () {
-      var next = currentTheme() === "dark" ? "light" : "dark";
-      applyTheme(next);
+      var next = nextTheme(storedTheme());
       try { localStorage.setItem("cppcourse.theme", next); } catch (e) {}
-      var btn = document.querySelector("[data-role=theme-btn]");
-      if (btn) btn.textContent = next === "dark" ? "🌙 暗色" : "☀️ 亮色";
+      if (window.SiteTheme) window.SiteTheme.apply();
+      refreshThemeBtn();
     },
     fontStep: function (dir) {
       var cur = parseFloat(document.documentElement.style.fontSize) / 16 || 1;
@@ -57,7 +69,6 @@
     if (p) nav += '<a href="' + prefix + p.file + '" class="' + (here === p.file ? "active" : "") + '">易错点</a>';
     nav += '<a href="' + prefix + 'index.html#toc">目录</a>';
 
-    var themeInit = currentTheme() === "dark" ? "🌙 暗色" : "☀️ 亮色";
     var html =
       '<div class="header-inner">' +
       '<a class="brand" href="' + prefix + 'index.html"><span class="logo">C++</span>大学 C++ 离线助教</a>' +
@@ -65,7 +76,7 @@
       '<div class="header-actions">' +
       '<button class="icon-btn" data-role="font-minus" title="减小字号">A－</button>' +
       '<button class="icon-btn" data-role="font-plus" title="增大字号">A＋</button>' +
-      '<button class="icon-btn" data-role="theme-btn" title="切换亮色/暗色主题">' + themeInit + '</button>' +
+      '<button class="icon-btn" data-role="theme-btn"></button>' +
       '</div></div>';
 
     var header = document.createElement("header");
@@ -76,6 +87,7 @@
     header.querySelector('[data-role=theme-btn]').addEventListener("click", window.SiteUI.toggleTheme);
     header.querySelector('[data-role=font-minus]').addEventListener("click", function () { window.SiteUI.fontStep(-1); });
     header.querySelector('[data-role=font-plus]').addEventListener("click", function () { window.SiteUI.fontStep(1); });
+    refreshThemeBtn();
   }
 
   /* ---------- 底栏 ---------- */
@@ -112,15 +124,23 @@
   }
 
   function init() {
-    try {
-      var t = null; try { t = localStorage.getItem("cppcourse.theme"); } catch (e) {}
-      applyTheme(t);
-      var fs = null; try { fs = parseFloat(localStorage.getItem("cppcourse.fontscale")); } catch (e) {}
-      if (fs) applyFont(fs);
-    } catch (e) {}
     buildHeader();
     buildFooter();
     buildPager();
+    /* 系统深浅色切换时（跟随系统模式）同步按钮文案 */
+    if (window.matchMedia) {
+      var mq = window.matchMedia("(prefers-color-scheme: dark)");
+      var onMq = function () { refreshThemeBtn(); };
+      if (mq.addEventListener) mq.addEventListener("change", onMq);
+      else if (mq.addListener) mq.addListener(onMq);
+    }
+    /* 其他标签页改了主题时同步 */
+    window.addEventListener("storage", function (e) {
+      if (e.key === "cppcourse.theme") {
+        if (window.SiteTheme) window.SiteTheme.apply();
+        refreshThemeBtn();
+      }
+    });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

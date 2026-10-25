@@ -23,6 +23,7 @@ templates/
   authoring-guide.md       页面组件写法指南（示例卡片 / 逐步执行 / 内存可视化等）
 assets/
   css/style.css            全站样式（CSS 变量、暗色模式、打印样式）
+  js/theme-init.js         主题/字号预置（head 内同步加载；light/dark/auto 跟随系统，暴露 window.SiteTheme）
   js/highlight.js          自研 C++ 语法高亮（暴露 window.CppLight）
   js/toc.js                目录数据 COURSE_TOC + 专题 SPECIAL_PAGES
   js/nav.js                顶栏 / 底栏 / 翻页 / 主题字号（暴露 window.SiteUI）
@@ -45,11 +46,12 @@ README.md / README.zh-CN.md / DEV.md
 | --- | --- |
 | 语法高亮 | `highlight.js` 扫描 `pre code.cpp`，基于关键词/字符串正则打 token；复制按钮取高亮前的原文（`data-raw`），行号由 CSS 计数器生成、`user-select:none` |
 | 导航 | `nav.js` 自动插入顶栏/底栏；章节页按 `COURSE_TOC` 生成上一章/下一章；子目录页面自动加 `../` 前缀 |
-| 搜索 | 首页加载时把 4 个数据文件拼成一个语料数组，纯 `indexOf` 匹配，无索引 |
+| 主题 | `theme-init.js`（head 内）按 `cppcourse.theme`（`light`/`dark`/`auto`）设置 `data-theme`，`auto` 跟随 `prefers-color-scheme` 并实时响应系统切换；`nav.js` 的主题按钮在三态间循环，判定逻辑统一走 `window.SiteTheme` |
+| 搜索 | 首页加载时把 5 个数据文件拼成一个语料数组，纯 `indexOf` 匹配，无索引 |
 | 教师模式 | `body.teacher` 类 + `?teacher=1` + `Ctrl+Alt+T` 三种开关；答案块靠 `body.teacher-show-answers` 显示 |
 | 学习进度 | 首页独有：勾选写入 `localStorage["cppcourse.progress"]`（JSON 数组，存章节 id）；渲染时逐卡片回显，进度条按 `已完成/总章数` 计算宽度 |
 | 知识点标记 | `mastery.js` 把各章「学习目标」「自测清单」的 li 改造成「会/不会」标记（清单 checkbox 运行时移除）；存 `localStorage["cppcourse.mastery"]`，键为条目 id（清单用 `data-check-id`，学习目标动态生成 `chXX-obj-N`），值含条目文本与章节信息，供导航栏「🎯 不会清单」面板跨页汇总 |
-| 存储 key | 统一前缀 `cppcourse.`：`theme`（light/dark）、`fontscale`（0.8~1.4）、`progress`、`mastery`（知识点会/不会标记）。所有读写都包 try/catch（`file://` 某些环境会禁存储） |
+| 存储 key | 统一前缀 `cppcourse.`：`theme`（`light`/`dark`/`auto` 跟随系统）、`fontscale`（0.8~1.4）、`progress`、`mastery`（知识点会/不会标记）。所有读写都包 try/catch（`file://` 某些环境会禁存储） |
 | HTML 注入 | 数据里的 `title` 多数渲染路径会 `esc()`；但 **`desc`、表格 `rows` 单元格、items 的 `desc` 是按 HTML 原样插入的**——想显示尖括号必须写 `&lt;` `&gt;`（详见第 5 节） |
 
 ## 4. 常见修改任务
@@ -64,7 +66,7 @@ README.md / README.zh-CN.md / DEV.md
 完成后导航、目录、搜索、翻页自动生效。章节页有硬性要求（校验器会查）：
 
 - 必须包含小节标题「学习目标」「本章小结」「自测清单」和一个 `<section class="quiz">`；
-- 必须引用 6 个公共脚本（highlight / toc / nav / quiz / interactive / teacher）；
+- 必须引用 7 个公共脚本（highlight / toc / nav / quiz / interactive / teacher / mastery），且 head 内保留 `theme-init.js`；
 - `class="example-card"` 的 `id` 不得重复；示例卡片建议 8~15 个，`ex-steps` 建议 ≥2 个。
 
 ### 4.2 新增速查表

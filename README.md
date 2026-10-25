@@ -64,7 +64,7 @@ Turn it on via any of: the 🧑‍🏫 button in the top bar / `?teacher=1` in t
 Once on: reveal all answers and outputs, expand all folded blocks, export a chapter's examples as `.cpp` files, and generate a new-chapter template.
 
 ### Look & print
-- `A－` / `A＋` changes the font size; ☀️/🌙 toggles light/dark theme (both remembered automatically).
+- `A－` / `A＋` changes the font size; the theme button cycles through **☀️ light → 🌙 dark → 💻 follow system** — "follow system" tracks the OS dark/light preference in real time (all remembered automatically).
 - Printing any page (`Ctrl+P`) hides interactive buttons and expands all outputs and folded blocks — handy for PDF handouts.
 
 ## 4. Notes
