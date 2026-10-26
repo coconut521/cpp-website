@@ -1,131 +1,134 @@
-# DEV.md —— 开发说明
+# DEV.md — Development Guide
 
-面向要**修改 / 扩充本站内容**的开发者。使用方法见 [README.zh-CN.md](README.zh-CN.md)（英文版 [README.md](README.md)）。
+For developers who want to **modify or extend** this site. For the user guide see [README.md](README.md) (Chinese: [README.zh-CN.md](README.zh-CN.md)).
 
-## 1. 技术约束（先读这个）
+## 1. Technical constraints (read this first)
 
-- **纯静态、零依赖**：HTML5 + CSS3 + 原生 JS（ES2017+，面向现代浏览器），无框架、无构建、无包管理。
-- **必须兼容 `file://` 直开**：因此*不能用* ES Module、`fetch()` 本地 JSON、CDN。所有数据都以 `window.XXX = [...]` 全局变量的形式放在 `assets/js/*-data.js` 中，页面用普通 `<script>` 顺序加载。
-- **无任何网络请求**：不引入字体、图标、图片等外部资源。
-- 站点主要文字为简体中文，文件编码 UTF-8。
+- **Pure static, zero dependencies**: HTML5 + CSS3 + vanilla JS (ES2017+, modern browsers). No framework, no build step, no package manager.
+- **Must work over `file://`**: therefore *no* ES modules, no local `fetch()` of JSON, no CDN. All data lives as `window.XXX = [...]` globals in `assets/js/*-data.js`, loaded via plain `<script>` tags in order.
+- **Zero network requests**: no external fonts, icons, or images.
+- Site copy is Simplified Chinese; files are UTF-8.
 
-## 2. 目录结构
+## 2. Layout
 
 ```text
-index.html                 首页（搜索 + 专题 + 目录 + 学习进度 + 最近更新）
-errors.html                编译错误博物馆（51 条，含 Visual Studio 2026 常见问题）
-sorting.html               排序算法专题（7 种排序 + 逐步执行 + 对比总表 + 测验）
-cheatsheets.html           速查表（19 张 + 直达按钮）
-exam-pitfalls.html         易错点（20 专题 + 随机练习）
-chapters/ch01…ch12.html    12 章讲义
+index.html                 Home (search + topics + catalog + learning progress + recent updates)
+errors.html                Compiler-error museum (51 entries, incl. Visual Studio 2026 issues)
+sorting.html               Sorting special topic (7 sorts + steppers + comparison table + quiz)
+cheatsheets.html           Cheat sheets (19 sheets + quick-jump buttons)
+exam-pitfalls.html         Exam pitfalls (20 topics + random practice)
+chapters/ch01…ch12.html    12 lecture chapters
 templates/
-  chapter-template.html    新章节模板
-  authoring-guide.md       页面组件写法指南（示例卡片 / 逐步执行 / 内存可视化等）
+  chapter-template.html    New-chapter template
+  authoring-guide.md       Component authoring guide (example cards / steppers / memory viz …)
 assets/
-  css/style.css            全站样式（CSS 变量、暗色模式、打印样式）
-  js/theme-init.js         主题/字号预置（head 内同步加载；light/dark/auto 跟随系统，暴露 window.SiteTheme）
-  js/highlight.js          自研 C++ 语法高亮（暴露 window.CppLight）
-  js/toc.js                目录数据 COURSE_TOC + 专题 SPECIAL_PAGES
-  js/nav.js                顶栏 / 底栏 / 翻页 / 主题字号（暴露 window.SiteUI）
-  js/quiz.js               测验引擎（暴露 window.Quiz）
-  js/interactive.js        示例卡片按钮、逐步执行、内存可视化、排序、自增动画（window.Interact）
-  js/teacher.js            教师模式
-  js/mastery.js            知识点标记（会/不会）+ 导航栏「不会清单」汇总面板
-  js/errors-data.js        错误博物馆数据 ERRORS_DATA
-  js/cheatsheets-data.js   速查表数据 CHEATSHEETS_DATA
-  js/pitfalls-data.js      易错点数据 PITFALLS_DATA
-tools/validate.js          全站静态校验
+  css/style.css            Site-wide styles (CSS variables, dark mode, print styles)
+  js/theme-init.js         Theme & font-size bootstrap (loaded synchronously in <head>;
+                           light/dark/auto follow-system; exposes window.SiteTheme)
+  js/highlight.js          Home-grown C++ syntax highlighting (exposes window.CppLight)
+  js/toc.js                Catalog data COURSE_TOC + topics SPECIAL_PAGES
+  js/nav.js                Top bar / footer / pager / theme & font controls (exposes window.SiteUI)
+  js/quiz.js               Quiz engine (exposes window.Quiz)
+  js/interactive.js        Example-card buttons, steppers, memory viz, drag sort,
+                           inc/dec animation (window.Interact)
+  js/teacher.js            Teacher mode
+  js/mastery.js            Knowledge-point marking (know / don't know) +
+                           top-bar "weak points" summary panel
+  js/errors-data.js        Error museum data ERRORS_DATA
+  js/cheatsheets-data.js   Cheat-sheet data CHEATSHEETS_DATA
+  js/pitfalls-data.js      Pitfalls data PITFALLS_DATA
+tools/validate.js          Site-wide static validation
 README.md / README.zh-CN.md / DEV.md
 ```
 
-每个页面只负责"骨架 + 页面私有 `<style>` + 少量组装脚本"，公共行为全部在 `assets/js/` 中。
+Every page is just "skeleton + page-local `<style>` + a bit of glue"; all shared behavior lives in `assets/js/`.
 
-## 3. 核心机制速记
+## 3. Key mechanisms (cheat sheet)
 
-| 机制 | 说明 |
+| Mechanism | Notes |
 | --- | --- |
-| 语法高亮 | `highlight.js` 扫描 `pre code.cpp`，基于关键词/字符串正则打 token；复制按钮取高亮前的原文（`data-raw`），行号由 CSS 计数器生成、`user-select:none` |
-| 导航 | `nav.js` 自动插入顶栏/底栏；章节页按 `COURSE_TOC` 生成上一章/下一章；子目录页面自动加 `../` 前缀 |
-| 主题 | `theme-init.js`（head 内）按 `cppcourse.theme`（`light`/`dark`/`auto`）设置 `data-theme`，`auto` 跟随 `prefers-color-scheme` 并实时响应系统切换；`nav.js` 的主题按钮在三态间循环，判定逻辑统一走 `window.SiteTheme` |
-| 搜索 | 首页加载时把 5 个数据文件拼成一个语料数组，纯 `indexOf` 匹配，无索引 |
-| 教师模式 | `body.teacher` 类 + `?teacher=1` + `Ctrl+Alt+T` 三种开关；答案块靠 `body.teacher-show-answers` 显示 |
-| 学习进度 | 首页独有：勾选写入 `localStorage["cppcourse.progress"]`（JSON 数组，存章节 id）；渲染时逐卡片回显，进度条按 `已完成/总章数` 计算宽度 |
-| 知识点标记 | `mastery.js` 把各章「学习目标」「自测清单」的 li 改造成「会/不会」标记（清单 checkbox 运行时移除）；存 `localStorage["cppcourse.mastery"]`，键为条目 id（清单用 `data-check-id`，学习目标动态生成 `chXX-obj-N`），值含条目文本与章节信息，供导航栏「🎯 不会清单」面板跨页汇总 |
-| 存储 key | 统一前缀 `cppcourse.`：`theme`（`light`/`dark`/`auto` 跟随系统）、`fontscale`（0.8~1.4）、`progress`、`mastery`（知识点会/不会标记）。所有读写都包 try/catch（`file://` 某些环境会禁存储） |
-| HTML 注入 | 数据里的 `title` 多数渲染路径会 `esc()`；但 **`desc`、表格 `rows` 单元格、items 的 `desc` 是按 HTML 原样插入的**——想显示尖括号必须写 `&lt;` `&gt;`（详见第 5 节） |
+| Syntax highlighting | `highlight.js` scans `pre code.cpp` and tokenizes via keyword/string regexes; copy buttons use the pre-highlight source (`data-raw`); line numbers come from CSS counters and are `user-select: none` |
+| Navigation | `nav.js` inserts the top bar and footer; chapter pages get prev/next from `COURSE_TOC`; pages in subdirectories get the `../` prefix automatically |
+| Theme | `theme-init.js` (in `<head>`) sets `data-theme` from `cppcourse.theme` (`light` / `dark` / `auto`); `auto` follows `prefers-color-scheme` and reacts to live OS switching. The nav button cycles the three states; all decisions go through `window.SiteTheme` |
+| Search | The home page builds one corpus array from the 5 data files; plain `indexOf` matching, no index |
+| Teacher mode | `body.teacher` class + `?teacher=1` + `Ctrl+Alt+T`; answers are revealed via `body.teacher-show-answers` |
+| Learning progress | Home page only: checkboxes write `localStorage["cppcourse.progress"]` (JSON array of chapter ids); the progress bar renders done/total |
+| Knowledge-point marking | `mastery.js` turns each chapter's learning-objective and self-check `li` items into "know / don't know" chips (checklist checkboxes are removed at runtime). Stored in `localStorage["cppcourse.mastery"]`, keyed by item id (`data-check-id` for checklists, generated `chXX-obj-N` for objectives); values carry the item text and chapter info so the top-bar panel can summarize across pages |
+| Storage keys | Shared prefix `cppcourse.`: `theme` (`light`/`dark`/`auto`), `fontscale` (0.8–1.4), `progress`, `mastery`. Every access is wrapped in try/catch (some `file://` environments block storage) |
+| HTML injection | `title` fields are mostly `esc()`'d on render; but **`desc`, table `rows` cells, and `items[].desc` are inserted as raw HTML** — write `&lt;` `&gt;` to show angle brackets (see §5) |
 
-## 4. 常见修改任务
+## 4. Common tasks
 
-### 4.1 新增章节
+### 4.1 Adding a chapter
 
-1. 复制 `templates/chapter-template.html` 到 `chapters/chNN-英文短名.html`。
-2. 按 `templates/authoring-guide.md` 填写组件（示例卡片、逐步执行、测验等）。
-3. 在 `assets/js/toc.js` 的 `COURSE_TOC` 追加一条（`id / title / file / desc / keywords / updated`）。
-4. 运行 `node tools/validate.js` 自检。
+1. Copy `templates/chapter-template.html` to `chapters/chNN-short-name.html`.
+2. Fill in the components per `templates/authoring-guide.md` (example cards, steppers, quiz …).
+3. Append an entry to `COURSE_TOC` in `assets/js/toc.js` (`id / title / file / desc / keywords / updated`).
+4. Run `node tools/validate.js`.
 
-完成后导航、目录、搜索、翻页自动生效。章节页有硬性要求（校验器会查）：
+Navigation, catalog, search, and the pager pick the chapter up automatically. Chapter pages have hard requirements (the validator checks them):
 
-- 必须包含小节标题「学习目标」「本章小结」「自测清单」和一个 `<section class="quiz">`；
-- 必须引用 7 个公共脚本（highlight / toc / nav / quiz / interactive / teacher / mastery），且 head 内保留 `theme-init.js`；
-- `class="example-card"` 的 `id` 不得重复；示例卡片建议 8~15 个，`ex-steps` 建议 ≥2 个。
+- Must contain the section headings 「学习目标」 (objectives), 「本章小结」 (summary), 「自测清单」 (self-check) — literal Chinese, the validator greps for them — plus one `<section class="quiz">`;
+- Must reference the 7 shared scripts (highlight / toc / nav / quiz / interactive / teacher / mastery) and keep `theme-init.js` in `<head>`;
+- `class="example-card"` ids must be unique; aim for 8–15 example cards and ≥2 `ex-steps`.
 
-### 4.2 新增速查表
+### 4.2 Adding a cheat sheet
 
-在 `assets/js/cheatsheets-data.js` 追加对象，常用字段：
+Append an object to `assets/js/cheatsheets-data.js`. Common fields:
 
 ```js
 {
-  id: "cs-xxx",            // 页内锚点，需唯一；建议 cs- 前缀
-  title: "表名",           // 会被 esc() 后显示
-  category: "分类名",       // 决定分类筛选按钮；新分类会自动出现新按钮
-  short: "短名",           // 「直达」按钮上的文字；省略则用 title
-  desc: "一句话说明",       // 按 HTML 原样插入，尖括号写实体
+  id: "cs-xxx",            // in-page anchor, must be unique; prefer the cs- prefix
+  title: "Sheet title",    // escaped with esc() on render
+  category: "Category",    // drives the category filter chips; new categories appear automatically
+  short: "Short label",    // text on the quick-jump button; falls back to title
+  desc: "One-line blurb",  // inserted as raw HTML — use entities for angle brackets
   type: "table" | "code" | "items",
   // table  →  header: [...], rows: [[...], ...]
   // code   →  code: `...`,  notes: ["...", ...]
   // items  →  items: [{ code: "...", desc: "..." }, ...]
-  tip: "底部绿色提示条"      // 可选
+  tip: "Green tip box at the bottom"   // optional
 }
 ```
 
-数组顺序即页面显示顺序与「直达」按钮顺序。改完跑 `node tools/validate.js`（会做 JS 语法检查）。
+Array order = page order = quick-jump button order. Run `node tools/validate.js` afterwards (it syntax-checks the JS).
 
-### 4.3 新增错误条目 / 易错点
+### 4.3 Adding error / pitfall entries
 
-分别在 `errors-data.js`、`pitfalls-data.js` 追加对象，字段**以文件内注释和既有条目为准**（错误条目至少含 `id/title/message/cause/bad`，易错点至少含 `id/title/tags/why/examQ`）。首页全局搜索会自动覆盖新条目。
+Append objects to `errors-data.js` / `pitfalls-data.js` respectively. Fields **follow the in-file comments and existing entries** (an error entry needs at least `id/title/message/cause/bad`; a pitfall at least `id/title/tags/why/examQ`). The home-page search picks up new entries automatically.
 
-### 4.4 改样式
+### 4.4 Styling
 
-- 全站变量、暗色主题在 `style.css` 的 `:root` / `html[data-theme="dark"]`；新增颜色请走 CSS 变量，不要写死。
-- 页面专属样式放在该页 `<head>` 的 `<style>` 里（如速查表页的直达按钮、首页的进度条）。
-- 打印样式：全局规则在 `style.css` 的 `@media print`；页面私有的打印隐藏也写在页面 `<style>` 里。
+- Site-wide variables and the dark theme live in `style.css` under `:root` / `html[data-theme="dark"]`; add colors via CSS variables, never hard-code them.
+- Page-specific styles go in that page's `<style>` block (e.g. the cheat-sheet quick-jump row, the home progress bar).
+- Print styles: global rules in `style.css` under `@media print`; page-specific print hiding goes in the page's own `<style>`.
 
-## 5. 编码约定（校验器与踩坑总结）
+## 5. Coding conventions (validator rules + lessons learned)
 
-1. **`<pre><code>` 内容必须转义**：`<` → `&lt;`、`&` → `&amp;`（`validate.js` 会报错）。行内的 `>` 可不转。
-2. **数据文件的 HTML 字段**（`desc`、`rows` 单元格、`items[].desc`）按原样注入页面：写 `&lt;string&gt;` 而不是 `<string>`，否则浏览器会把它当未知标签吞掉。
-3. **未定义行为（UB）一律用 `.ub-warning` 红色标注**，且不得作为"预测输出"考题——这是本站的教学原则。
-4. 示例"输出"是预置结果，卡片上已有免责说明；新增示例请保持一致，不要声称是实时编译。
-5. `id` 全页唯一（示例卡片、速查表锚点、目录卡片 `toc-chNN` 等）。
-6. 所有 `localStorage` 访问包 `try/catch`；新增存储项沿用 `cppcourse.` 前缀。
-7. 兼容 `file://`：不要引入 ES Module / fetch / worker；新 JS 继续用 IIFE + `window` 全局暴露的模式。
-8. 中文文案与注释保持现有风格；教学语气面向大一学生。
+1. **Escape `<pre><code>` contents**: `<` → `&lt;`, `&` → `&amp;` (`validate.js` enforces this). A bare `>` inline is fine.
+2. **HTML fields in data files** (`desc`, `rows` cells, `items[].desc`) are injected raw: write `&lt;string&gt;`, not `<string>` — otherwise the browser swallows it as an unknown tag.
+3. **Undefined behavior (UB) is always flagged in red (`.ub-warning`)** and never used as a "predict the output" exam question — a teaching principle of this site.
+4. Example "output" is pre-baked; cards already carry the disclaimer. Keep that consistent in new examples — never claim real in-browser compilation.
+5. `id`s must be unique per page (example cards, cheat-sheet anchors, catalog cards `toc-chNN`, …).
+6. Wrap every `localStorage` access in try/catch; new keys reuse the `cppcourse.` prefix.
+7. `file://` compatibility: no ES modules / fetch / workers; new JS keeps the IIFE + `window` global pattern.
+8. Keep copy and comments in the existing style; the tone targets first-year students.
 
-## 6. 校验
+## 6. Validation
 
 ```bash
-node tools/validate.js                              # 全站（HTML + JS + toc 一致性）
-node tools/validate.js chapters/ch07-classes.html   # 单页
+node tools/validate.js                              # whole site (HTML + JS + toc consistency)
+node tools/validate.js chapters/ch07-classes.html   # single page
 ```
 
-校验项：本地链接 404、`<pre><code>` 转义、未知标签白名单、JSON 数据块（quiz-data / ex-steps / mem-data / sort-data）可解析、quiz schema、同页/跨页锚点、重复 id、章节页必需小节与脚本、`toc.js` 与 `chapters/` 一致性、所有 `assets/js/*.js` 的 `node --check`。
+Checks: local link 404s, `<pre><code>` escaping, unknown-tag whitelist, strict parsing of JSON blocks (quiz-data / ex-steps / mem-data / sort-data), quiz schema, same-page/cross-page anchors, duplicate ids, chapter required sections & scripts, `toc.js` ↔ `chapters/` consistency, and `node --check` on every `assets/js/*.js`.
 
-退出码非 0 即有错误；**提交前请保证 0 错误 0 警告**。
+A non-zero exit code means errors; **keep it at 0 errors, 0 warnings before committing**.
 
-## 7. 手动测试建议
+## 7. Manual testing tips
 
-校验器只做静态检查，交互改动请再用浏览器过一遍：
+The validator is static only — re-check interactions in a browser after behavioral changes:
 
-- 双击 `index.html`（`file://`），或在根目录起本地服务器（如 `python -m http.server` / `npx serve`）。
-- 重点回归：主题与字号切换后刷新仍生效、首页勾选进度后刷新恢复、速查表直达按钮在搜索过滤状态下点击能清筛选并滚动高亮、教师模式三种开关、`Ctrl+P` 打印预览。
-- 学习进度存在浏览器里，改完代码记得清一次 `localStorage["cppcourse.progress"]` 再测。
+- Double-click `index.html` (`file://`), or serve the root directory locally (`python -m http.server` / `npx serve`).
+- Key regressions: theme (all three states) and font size survive a reload; home progress checkboxes survive a reload; cheat-sheet quick-jump clears filters, scrolls and flashes while a search filter is active; teacher mode's three switches; `Ctrl+P` print preview.
+- Learning progress lives in the browser — clear `localStorage["cppcourse.progress"]` before re-testing it.
