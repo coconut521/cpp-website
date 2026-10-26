@@ -11,8 +11,6 @@
  *   - 显示/隐藏所有示例输出
  *   - 导出本章全部 .cpp 代码
  *   - 生成新章节 HTML 模板（下载）
- *   - 查看本机学习统计
- *   - 重置学习进度 / 错题本
  * ============================================================ */
 (function () {
   "use strict";
@@ -43,7 +41,7 @@
   /* ---------- 新章节模板内容 ---------- */
   function templateHTML() {
     var boot = '(function(){try{var t=localStorage.getItem("cppcourse.theme");if(t)document.documentElement.setAttribute("data-theme",t);var f=parseFloat(localStorage.getItem("cppcourse.fontscale"));if(f>0)document.documentElement.style.fontSize=(16*f)+"px";}catch(e){}})();';
-    var js = ["highlight.js", "toc.js", "nav.js", "progress.js", "quiz.js", "interactive.js", "teacher.js"]
+    var js = ["highlight.js", "toc.js", "nav.js", "quiz.js", "interactive.js", "teacher.js", "mastery.js", "bughunt-data.js", "bug-hunt.js", "present.js"]
       .map(function (n) { return '<script src="../assets/js/' + n + '"><\/script>'; }).join("\n");
     return "<!DOCTYPE html>\n" +
 "<html lang=\"zh-CN\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>第N章 章节标题 | 大学C++离线助教</title>\n" +

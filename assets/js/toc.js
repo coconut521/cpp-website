@@ -107,6 +107,6 @@ window.SPECIAL_PAGES = [
   { id: "errors", title: "编译错误博物馆", file: "errors.html", desc: "51 条常见错误（含 Visual Studio 2026 高频问题）的报错原文、原因、修复与预防", icon: "🏛️", cls: "sc-red" },
   { id: "cheatsheets", title: "速查表", file: "cheatsheets.html", desc: "优先级、string/vector/map、指针引用、迭代器失效、智能指针、Lambda 等 19 张表", icon: "📋", cls: "sc-green" },
   { id: "sorting", title: "排序算法专题", file: "sorting.html", desc: "冒泡/选择/插入/希尔/快排/归并/堆排 7 种常考排序，逐步执行 + 对比总表 + 随堂测验", icon: "📊", cls: "sc-blue" },
-  { id: "exam-pitfalls", title: "易错点", file: "exam-pitfalls.html", desc: "20 个经典陷阱专题，附随机练习", icon: "🎯", cls: "sc-amber" },
+  { id: "exam-pitfalls", title: "易错点", file: "exam-pitfalls.html", desc: "20 个经典陷阱专题，附随机练习与「火眼金睛」找错训练", icon: "🎯", cls: "sc-amber" },
   { id: "teacher", title: "教师模式", file: null, desc: "右上角开关 / ?teacher=1 / Ctrl+Alt+T：显隐答案、导出代码", icon: "🧑‍🏫", cls: "sc-purple" }
 ];

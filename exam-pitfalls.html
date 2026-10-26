@@ -29,6 +29,13 @@
     <button class="btn" id="practice-close">关闭练习</button>
   </section>
 
+  <section id="bughunt" class="card">
+    <h2 style="margin-top:0">🔥 火眼金睛：找 Bug 练习</h2>
+    <p class="muted" style="margin-top:-4px">每段代码都藏着一个问题（编译错误、逻辑错误或未定义行为）。先通读代码，点击你认为<b>出问题的那一行</b>，再点「提交判断」看解析。可按章节筛选，也可打乱顺序练。</p>
+    <div class="bh-filter" id="bh-filter"></div>
+    <section class="bug-hunt" id="bh-all" data-ch="all" data-shuffle="1"></section>
+  </section>
+
   <div id="list"></div>
   <div id="empty" hidden class="card center muted">没有匹配的专题。</div>
 
@@ -42,6 +49,8 @@
 <script src="assets/js/teacher.js"></script>
 <script src="assets/js/mastery.js"></script>
 <script src="assets/js/pitfalls-data.js"></script>
+<script src="assets/js/bughunt-data.js"></script>
+<script src="assets/js/bug-hunt.js"></script>
 <script>
 (function () {
   "use strict";
@@ -144,6 +153,28 @@
     document.getElementById("practice").hidden = true;
   });
 
+  /* 火眼金睛：章节筛选按钮（引擎渲染见 bug-hunt.js） */
+  (function buildBugHuntFilter() {
+    var box = document.getElementById("bh-filter");
+    var sec = document.getElementById("bh-all");
+    if (!box || !sec || !window.BugHunt) return;
+    var chips = [{ id: "all", label: "全部" }].concat(
+      (window.COURSE_TOC || []).map(function (c) { return { id: c.id, label: c.title }; })
+    );
+    chips.forEach(function (cp) {
+      var b = document.createElement("button");
+      b.className = "filter-chip" + (cp.id === "all" ? " active" : "");
+      b.textContent = cp.label;
+      b.addEventListener("click", function () {
+        sec.setAttribute("data-ch", cp.id);
+        box.querySelectorAll(".filter-chip").forEach(function (x) { x.classList.remove("active"); });
+        b.classList.add("active");
+        window.BugHunt.renderOne(sec);
+      });
+      box.appendChild(b);
+    });
+  })();
+
   apply();
 
   if (location.hash) {
@@ -152,5 +183,9 @@
   }
 })();
 </script>
+<script src="assets/js/present.js"></script>
+<script src="assets/js/glossary-data.js"></script>
+<script src="assets/js/glossary.js"></script>
+<script src="assets/js/page-toc.js"></script>
 </body>
 </html>

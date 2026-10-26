@@ -316,6 +316,106 @@ details > .details-body { padding: 4px 16px 12px; border-top: 1px dashed var(--b
 body.teacher .quiz-teacher-answer { display: block; }
 .quiz-summary { font-weight: 600; }
 
+/* ---------- 火眼金睛（找 Bug 练习） ---------- */
+.bug-hunt { margin: 18px 0; }
+.bh-card {
+  background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--warn);
+  border-radius: var(--radius); padding: 14px 18px; margin: 14px 0; box-shadow: var(--shadow);
+}
+.bh-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.bh-head .bh-no { color: var(--warn); font-weight: 700; }
+.bh-head .bh-title { font-weight: 700; }
+pre.bh-code code { cursor: pointer; user-select: none; }
+pre.bh-code code.bh-done { cursor: default; }
+pre.bh-code .ln:hover { background: var(--surface-2); border-radius: 3px; }
+pre.bh-code code.bh-done .ln:hover { background: transparent; }
+pre.bh-code .ln.bh-sel { background: var(--primary-soft); box-shadow: inset 0 0 0 1px var(--primary); border-radius: 3px; }
+pre.bh-code .ln.bh-hit { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); border-radius: 3px; }
+pre.bh-code .ln.bh-miss { background: var(--danger-soft); box-shadow: inset 0 0 0 1px var(--danger); border-radius: 3px; }
+.bh-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.bh-feedback { margin-top: 10px; border-radius: var(--radius-sm); padding: 10px 14px; font-size: .95rem; display: none; }
+.bh-feedback.show { display: block; }
+.bh-feedback.ok { background: var(--accent-soft); border: 1px solid var(--accent); }
+.bh-feedback.bad { background: var(--danger-soft); border: 1px solid var(--danger); }
+.bh-why { margin-top: 6px; }
+.bh-hint { margin-top: 10px; font-size: .92rem; color: var(--warn); background: var(--warn-soft); border: 1px solid var(--warn); border-radius: var(--radius-sm); padding: 8px 12px; display: none; }
+.bh-hint.show { display: block; }
+.bh-teacher-answer { display: none; margin-top: 8px; font-size: .9rem; color: var(--warn); }
+body.teacher .bh-teacher-answer { display: block; }
+.bh-summary { font-weight: 600; }
+.bh-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
+
+/* ---------- 投屏演示模式 ---------- */
+/* 进入后 body.present：隐藏页框与浮层，按 data-pslide 逐屏显示。
+   内容分屏由 present.js 在进入时完成，退出时移除全部标记。 */
+body.present .site-header,
+body.present .site-footer,
+body.present .pager,
+body.present #teacher-fab,
+body.present .weak-panel,
+body.present .teacher-panel { display: none !important; }
+body.present .container { max-width: none; padding: 40px 6vw 130px; }
+body.present main.container > [data-pslide]:not(.p-cur) { display: none !important; }
+.present-hud {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 20px; z-index: 300;
+  display: none; align-items: center; gap: 8px;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: 999px; box-shadow: var(--shadow); padding: 8px 16px;
+}
+body.present .present-hud { display: flex; }
+.present-hud .ph-num {
+  font-size: .92rem; font-weight: 700; color: var(--primary);
+  min-width: 96px; text-align: center; font-variant-numeric: tabular-nums;
+}
+.present-hud .btn { padding: 4px 12px; }
+
+/* ---------- 术语悬停解释 ---------- */
+.term {
+  border-bottom: 1px dashed var(--primary);
+  cursor: help; text-decoration: none; color: inherit;
+}
+a.term:hover { color: var(--primary); text-decoration: none; }
+.term:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; border-radius: 2px; }
+.term-tip {
+  position: absolute; z-index: 400; max-width: 380px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border-strong); border-left: 4px solid var(--primary);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow);
+  padding: 10px 14px; font-size: .9rem; line-height: 1.65;
+}
+.term-tip .tt-term { font-weight: 700; color: var(--primary); margin-bottom: 3px; }
+.term-tip .tt-more { margin-top: 5px; font-size: .8rem; color: var(--text-muted); }
+
+/* ---------- 悬浮页内目录 ---------- */
+.page-toc {
+  position: fixed; left: 12px; top: 50%; transform: translateY(-50%);
+  z-index: 150; display: none;
+}
+.page-toc.ready { display: block; }
+.page-toc-tab {
+  writing-mode: vertical-rl; letter-spacing: .3em;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-muted);
+  border-radius: 999px; padding: 14px 6px; cursor: pointer; font-size: .84rem; font-family: inherit;
+  box-shadow: var(--shadow);
+}
+.page-toc-tab:hover { color: var(--primary); border-color: var(--primary); }
+.page-toc-panel {
+  position: absolute; left: 42px; top: 50%; transform: translateY(-50%);
+  width: 260px; max-height: 72vh; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 10px 12px;
+  display: none;
+}
+.page-toc.open .page-toc-panel { display: block; }
+.page-toc-panel .pt-title { font-weight: 700; font-size: .9rem; color: var(--primary); margin: 2px 4px 8px; }
+.page-toc-panel a {
+  display: block; padding: 5px 10px; border-radius: var(--radius-sm);
+  color: var(--text); font-size: .88rem; line-height: 1.5;
+}
+.page-toc-panel a:hover { background: var(--surface-2); text-decoration: none; }
+.page-toc-panel a.cur { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+body.present .page-toc { display: none !important; }
+
 /* ---------- 逐步执行器 ---------- */
 .stepper { margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
 .stepper-controls {
@@ -636,6 +736,17 @@ body.teacher-show-answers .quiz-teacher-answer { display: block; }
   a { color: #000; text-decoration: underline; }
   h2 { break-after: avoid-page; }
   .mk-chips, .weak-btn, .weak-badge, .weak-panel { display: none !important; }
+  .bh-actions, .bh-hint, .bh-teacher-answer { display: none !important; }
+  .bh-feedback { display: block; }
+  pre.bh-code code { user-select: text; }
+  /* 打印时退出投屏分屏状态：所有屏恢复自然显示 */
+  body.present main.container > [data-pslide] { display: revert !important; }
+  .present-hud { display: none !important; }
+  /* 术语：打印时去下划线、隐藏气泡 */
+  .term { border-bottom: none; }
+  .term-tip { display: none !important; }
+  /* 悬浮目录：打印时隐藏 */
+  .page-toc { display: none !important; }
 }
 
 /* ---------- 响应式 ---------- */

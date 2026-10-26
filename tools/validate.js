@@ -156,26 +156,42 @@ function checkHtml(file) {
 
 /* ---------- 跨页锚点（第二轮） ---------- */
 const crossPageAnchors = [];
-/* 三个数据驱动页面的条目 id 由 JS 在运行时写入 DOM（如 cheatsheets.html 的 cs-xxx），
- * 静态 HTML 里不存在但真实可跳转——从对应数据文件补齐合法锚点集合 */
-const DYNAMIC_ID_PAGES = {
-  "cheatsheets.html": ["cheatsheets-data.js", "CHEATSHEETS_DATA"],
-  "errors.html": ["errors-data.js", "ERRORS_DATA"],
-  "exam-pitfalls.html": ["pitfalls-data.js", "PITFALLS_DATA"]
+/* 数据驱动页面的条目 id 由 JS 在运行时写入 DOM（如 cheatsheets.html 的 cs-xxx），
+ * 静态 HTML 里不存在但真实可跳转——从对应数据文件补齐合法锚点集合。
+ * require 只允许字面量路径（静态可审计）：经此白名单分发 */
+const DATA_REQUIRE_WHITELIST = {
+  "../assets/js/cheatsheets-data.js": () => require("../assets/js/cheatsheets-data.js"),
+  "../assets/js/errors-data.js": () => require("../assets/js/errors-data.js"),
+  "../assets/js/pitfalls-data.js": () => require("../assets/js/pitfalls-data.js"),
+  "../assets/js/bughunt-data.js": () => require("../assets/js/bughunt-data.js")
 };
+const DYNAMIC_ID_PAGES = {
+  "cheatsheets.html": [["../assets/js/cheatsheets-data.js", "CHEATSHEETS_DATA"]],
+  "errors.html": [["../assets/js/errors-data.js", "ERRORS_DATA"]],
+  "exam-pitfalls.html": [
+    ["../assets/js/pitfalls-data.js", "PITFALLS_DATA"],
+    ["../assets/js/bughunt-data.js", "BUGHUNT_DATA"]
+  ]
+};
+function loadModule(rel) {
+  const loader = DATA_REQUIRE_WHITELIST[rel];
+  if (!loader) return null;
+  global.window = global.window || {};   /* 数据文件以 window.XXX 形式挂载 */
+  delete require.cache[require.resolve(rel)];
+  return loader();
+}
 function dynamicIdsFor(file) {
   const base = path.basename(file);
-  if (!DYNAMIC_ID_PAGES[base]) return null;
-  const [jsFile, dataKey] = DYNAMIC_ID_PAGES[base];
-  const jsPath = path.join(ROOT, "assets", "js", jsFile);
-  if (!fs.existsSync(jsPath)) return null;
-  try {
-    global.window = global.window || {};
-    delete require.cache[require.resolve(jsPath)];
-    require(jsPath);
-    const data = global.window[dataKey] || [];
-    return new Set(data.map(d => d.id).filter(Boolean));
-  } catch (e) { return null; }
+  const sources = DYNAMIC_ID_PAGES[base];
+  if (!sources) return null;
+  const ids = new Set();
+  for (const [rel, dataKey] of sources) {
+    try {
+      const data = (loadModule(rel) && global.window[dataKey]) || [];
+      for (const d of data) if (d && d.id) ids.add(d.id);
+    } catch (e) { /* 数据文件损坏时跳过该来源，不阻断其余校验 */ }
+  }
+  return ids;
 }
 function verifyCrossPageAnchors(allFiles) {
   const idMap = {};
@@ -199,9 +215,9 @@ function verifyCrossPageAnchors(allFiles) {
 function checkToc() {
   const tocFile = path.join(ROOT, "assets", "js", "toc.js");
   if (!fs.existsSync(tocFile)) { err(tocFile, 0, "缺少 assets/js/toc.js"); return; }
-  delete require.cache[require.resolve(tocFile)];
+  delete require.cache[require.resolve("../assets/js/toc.js")];
   global.window = {};
-  try { require(tocFile); } catch (e) { err(tocFile, 0, `toc.js 执行失败：${e.message}`); return; }
+  try { require("../assets/js/toc.js"); } catch (e) { err(tocFile, 0, `toc.js 执行失败：${e.message}`); return; }
   const toc = global.window.COURSE_TOC || [];
   for (const item of toc) {
     if (!item.id || !item.title || !item.file) { err(tocFile, 0, `目录项缺少 id/title/file：${JSON.stringify(item).slice(0, 80)}`); continue; }

@@ -11,3 +11,6 @@ desktop.ini
 # Node (tools/)
 node_modules/
 *.log
+
+# Local tool state
+.mimosa/

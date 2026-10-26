@@ -34,6 +34,17 @@ assets/
   js/teacher.js            Teacher mode
   js/mastery.js            Knowledge-point marking (know / don't know) +
                            top-bar "weak points" summary panel
+  js/bughunt-data.js       Bug-hunt exercise bank BUGHUNT_DATA (window.BugHunt)
+  js/bug-hunt.js           "Bug hunt" find-the-error widget; auto-inserts a per-chapter
+                           section on chapter pages (exposes window.BugHunt)
+  js/present.js            Presentation mode: section-per-slide projection, HUD,
+                           keyboard paging, fullscreen (exposes window.Present)
+  js/glossary-data.js      Glossary terms GLOSSARY_DATA
+  js/glossary.js           Glossary tooltips: marks first occurrence per term in prose,
+                           hover explanation, click-through (exposes window.Glossary)
+  js/page-toc.js           Floating in-page TOC: h2 sections of main, left-edge tab,
+                           click-to-scroll + scrollspy; hidden < 1200px / in
+                           presentation mode / in print (exposes window.PageToc)
   js/errors-data.js        Error museum data ERRORS_DATA
   js/cheatsheets-data.js   Cheat-sheet data CHEATSHEETS_DATA
   js/pitfalls-data.js      Pitfalls data PITFALLS_DATA
@@ -54,6 +65,10 @@ Every page is just "skeleton + page-local `<style>` + a bit of glue"; all shared
 | Teacher mode | `body.teacher` class + `?teacher=1` + `Ctrl+Alt+T`; answers are revealed via `body.teacher-show-answers` |
 | Learning progress | Home page only: checkboxes write `localStorage["cppcourse.progress"]` (JSON array of chapter ids); the progress bar renders done/total |
 | Knowledge-point marking | `mastery.js` turns each chapter's learning-objective and self-check `li` items into "know / don't know" chips (checklist checkboxes are removed at runtime). Stored in `localStorage["cppcourse.mastery"]`, keyed by item id (`data-check-id` for checklists, generated `chXX-obj-N` for objectives); values carry the item text and chapter info so the top-bar panel can summarize across pages |
+| Bug hunt | Data lives in `bughunt-data.js`; the engine renders `<section class="bug-hunt" data-ch="chNN">` blocks (data-ch omitted = all). On `/chapters/` pages it auto-inserts a "火眼金睛" section before the quiz when the current chapter has exercises (skipped if a manual block exists). Code lines are highlighted via `CppLight.highlight`, so each line carries `.ln[data-n]`; judging marks the picked line `.bh-miss` and the bug line `.bh-hit`. `data-shuffle="1"` adds a shuffle button that re-reads cards from the DOM (never from a cached array — redo replaces nodes) |
+| Presentation mode | `present.js` groups `main.container`'s direct children into slides at `h2` / `.section-head` boundaries and tags them `data-pslide`; only the current slide's group keeps `.p-cur` (CSS hides the rest, nothing is moved). Entering scales `html` font-size ×1.15 and restores it on exit; `Esc` leaves fullscreen first when in fullscreen, then exits the mode. `?present=1` enters without fullscreen |
+| Glossary tooltips | `glossary.js` walks text nodes under `main` (skipping `pre/code/a/h1/buttons/.mk-chips/...`), wraps the first occurrence of each term per page as `.term` (an `<a>` when the entry has `href`), and shows one shared `.term-tip` bubble. Matching is longest-first (so 纯虚函数 wins over 虚函数) with word-boundary checks for ASCII aliases (UB / RAII / lambda) |
+| Floating page TOC | `page-toc.js` collects the `h2` headings of `main.container` (auto-id `ptoc-N`, hidden headings excluded), renders a left-edge vertical tab + panel, scrolls via `scrollIntoView` (global `scroll-padding-top` keeps the sticky header clear) and highlights the current section on scroll (rAF-throttled, bottom-clamped). Shows only with ≥3 sections, window ≥1200px, and outside presentation mode (watched via a body-class MutationObserver) |
 | Storage keys | Shared prefix `cppcourse.`: `theme` (`light`/`dark`/`auto`), `fontscale` (0.8–1.4), `progress`, `mastery`. Every access is wrapped in try/catch (some `file://` environments block storage) |
 | HTML injection | `title` fields are mostly `esc()`'d on render; but **`desc`, table `rows` cells, and `items[].desc` are inserted as raw HTML** — write `&lt;` `&gt;` to show angle brackets (see §5) |
 
@@ -97,7 +112,12 @@ Array order = page order = quick-jump button order. Run `node tools/validate.js`
 
 Append objects to `errors-data.js` / `pitfalls-data.js` respectively. Fields **follow the in-file comments and existing entries** (an error entry needs at least `id/title/message/cause/bad`; a pitfall at least `id/title/tags/why/examQ`). The home-page search picks up new entries automatically.
 
-### 4.4 Styling
+### 4.4 Adding bug-hunt exercises / glossary terms
+
+- **Bug hunt**: append an object to `assets/js/bughunt-data.js` — `{ id: "bh-chNN-NN" (unique, used as page anchor), ch, title, kind: "compile" | "logic" | "ub", code: [one string per line, raw text], bugLine (1-based), hint?, why (raw HTML) }`. Chapter pages pick it up automatically on the next load; the pitfalls page and home search too. Keep the teaching principle: UB questions never imply a deterministic output.
+- **Glossary**: append `{ term, aliases?, detail (raw HTML), href? }` to `assets/js/glossary-data.js`. Terms appear as tooltips on every page (first occurrence only); entries with `href` are also searchable on the home page. Mind the per-term length interplay: a new term that contains an existing one (e.g. adding 迭代器失效 next to 迭代器) is matched longest-first automatically.
+
+### 4.5 Styling
 
 - Site-wide variables and the dark theme live in `style.css` under `:root` / `html[data-theme="dark"]`; add colors via CSS variables, never hard-code them.
 - Page-specific styles go in that page's `<style>` block (e.g. the cheat-sheet quick-jump row, the home progress bar).

@@ -186,6 +186,19 @@ int main() {
 - 题干 `q` 里可以写 HTML（如 `<code>x</code>`），但代码里的 `<` 同样要转义。
 - **测验题目不得以 UB 行为为标准答案。**
 
+### 3.9 火眼金睛（找错练习）
+
+一般**不需要在章节里写任何东西**：只要 `assets/js/bughunt-data.js` 里有本章（`ch` 字段）的题目，`bug-hunt.js` 会在随堂测验前自动插入「🔥 火眼金睛：本章找错」一节。想手动控制位置时再显式放置：
+
+```html
+<section class="bug-hunt" data-ch="ch02"></section>
+```
+
+- `data-ch` 为章节 id；省略或写 `all` 表示全部题目；加 `data-shuffle="1"` 提供打乱顺序按钮。
+- 题目数据字段见 `bughunt-data.js` 头注释：`id / ch / title / kind("compile"|"logic"|"ub") / code(逐行原文) / bugLine / hint? / why`。
+- 代码行是**原文**（引擎负责转义与高亮），`why` 是原始 HTML（尖括号写实体）。
+- 同样的教学原则：**UB 题不问"确定输出"**，`why` 里解释原因即可。
+
 ## 4. 文字与排版习惯
 
 - 章节标题层级：`<h2>` 小节 → `<h3>` 示例卡片标题（卡片内已含）。

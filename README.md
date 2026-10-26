@@ -25,7 +25,7 @@ You can also serve it locally (identical behavior): run `python -m http.server` 
 | `errors.html` | Compiler-error museum: 51 common errors with the exact message, cause, fix, and prevention (including frequent Visual Studio 2026 issues) |
 | `sorting.html` | Sorting special topic: bubble/selection/insertion/shell/quick/merge/heap — 7 classic sorts with steppers, a complexity/stability table, and a quiz |
 | `cheatsheets.html` | Cheat sheets: 19 searchable, copyable, printable reference tables |
-| `exam-pitfalls.html` | Exam pitfalls: 20 classic trap topics + random practice |
+| `exam-pitfalls.html` | Exam pitfalls: 20 classic trap topics + random practice + the "Bug Hunt" find-the-bug trainer |
 
 ## 3. Features
 
@@ -33,6 +33,9 @@ You can also serve it locally (identical behavior): run `python -m http.server` 
 - **Example code cards**: one-click copy, download as `.cpp`, show the pre-baked output, or run the **step-by-step stepper** (current-line highlight + variable table + console).
 - **Interactive widgets**: memory visualization, `i++` / `++i` animation, drag-to-sort, side-by-side comparisons, collapsible answers.
 - **Quizzes**: multiple choice, true/false, fill-in, and code fill-in with instant grading and explanations; the self-check list supports per-item "know it / don't know" marking.
+- **Bug Hunt (find-the-bug)**: every chapter ends with an auto-inserted "🔥 火眼金睛：本章找错" section — read a snippet hiding one defect, click the offending line, submit, and get instant verdict plus an explanation (compile errors / logic errors / undefined behavior).
+- **Glossary tooltips**: 49 terms in the prose (pointers, polymorphism, iterator invalidation, …) get a dashed underline automatically; hovering pops a plain-language explanation, clicking jumps to the covering chapter. Only the first occurrence per term per page is marked.
+- **Floating page TOC**: on wide windows a vertical "目录" tab sits at the left edge; open it to jump to any section of the chapter, with the current section highlighted as you scroll. It hides itself on narrow windows, in presentation mode, and when printing.
 - **Weak-point list**: click "don't know" on any item in a chapter's learning objectives or self-check list, and the 🎯 button in the top bar collects weak points from all chapters, each linking back to its chapter.
 - Previous/next chapter navigation is generated automatically at the bottom of every chapter.
 
@@ -51,17 +54,21 @@ You can also serve it locally (identical behavior): run `python -m http.server` 
 
 ### Exam pitfalls (exam-pitfalls.html)
 - 20 topics, each with the wrong code, why it's wrong, the correct version, and a typical exam question; "random practice" draws 10 questions from the bank.
+- The "🔥 Bug Hunt" trainer: 21 snippets hiding a bug (1–2 per chapter); click the suspicious line to submit, filter by chapter, or shuffle the order.
 
 ### Learning progress (home page)
 - Each chapter card has a **"completed"** checkbox; the progress bar above the catalog shows "x / 12 chapters" in real time.
 - Progress is stored in the browser's `localStorage`, **only on this machine and in this browser** — switching computers/browsers or clearing site data loses it. "Reset" clears everything.
 
 ### Global search (home page)
-Covers chapters, error entries, cheat-sheet entries, and pitfalls at once. Results appear as you type and link straight to the content.
+Covers chapters, error entries, cheat-sheet entries, pitfalls, bug-hunt exercises, and glossary terms at once. Results appear as you type and link straight to the content.
 
 ### Teacher mode
 Turn it on via any of: the 🧑‍🏫 button in the top bar / `?teacher=1` in the URL / `Ctrl+Alt+T`.
 Once on: reveal all answers and outputs, expand all folded blocks, export a chapter's examples as `.cpp` files, and generate a new-chapter template.
+
+### Presentation mode
+Click the 🖥 button in the top bar (or press `Ctrl+Alt+P`): the page is split into one "slide" per section — navigate with `←` `→` / Space, exit with `Esc`. Entering also tries fullscreen and scales the font up, made for projecting lectures. `?present=1` in the URL enters directly.
 
 ### Look & print
 - `A－` / `A＋` changes the font size; the theme button cycles through **☀️ light → 🌙 dark → 💻 follow system** — "follow system" tracks the OS dark/light preference in real time (all remembered automatically).
