@@ -702,20 +702,20 @@
   function polishHeaderButtons() {
     var teacher = document.getElementById("teacher-toggle");
     if (teacher) {
-      teacher.innerHTML = icon("book");
+      teacher.innerHTML = icon("book") + '<span class="v2-action-label">教师</span>';
       teacher.title = "教师模式";
       teacher.setAttribute("aria-label", "教师模式");
     }
     var present = document.querySelector("[data-role=present-btn]");
     if (present) {
-      present.innerHTML = icon("play");
+      present.innerHTML = icon("play") + '<span class="v2-action-label">投屏</span>';
       present.title = "投屏演示模式";
       present.setAttribute("aria-label", "投屏演示模式");
     }
     var weak = document.getElementById("weak-btn");
     if (weak) {
       var badge = weak.querySelector("#weak-badge");
-      weak.innerHTML = icon("mine");
+      weak.innerHTML = icon("mine") + '<span class="v2-action-label">弱项</span>';
       if (badge) weak.appendChild(badge);
       weak.title = "汇总各章标记为「不会」的知识点";
       weak.setAttribute("aria-label", "不会清单");

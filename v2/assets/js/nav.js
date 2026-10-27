@@ -12,7 +12,8 @@
   var inChapter = /\/chapters\/[^/]*$/.test(path);
 
   var THEME_ORDER = ["light", "dark", "auto"];
-  var THEME_LABEL = { light: "亮色", dark: "暗色", auto: "跟随系统" };
+  var THEME_LABEL = { light: "亮色", dark: "暗色", auto: "自动" };
+  var THEME_FULL = { light: "亮色", dark: "暗色", auto: "跟随系统" };
 
   function esc(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -35,9 +36,10 @@
     var mode = storedTheme();
     var eff = window.SiteTheme ? window.SiteTheme.effective(mode) : "light";
     btn.innerHTML = icon("theme") + '<span class="v2-action-label">' + THEME_LABEL[mode] + "</span>";
+    btn.setAttribute("aria-label", "切换主题，当前" + THEME_FULL[mode]);
     btn.title = mode === "auto"
       ? "跟随系统深浅色（当前为" + (eff === "dark" ? "暗色" : "亮色") + "）；点击切换到亮色"
-      : "当前" + THEME_LABEL[mode] + "；点击切换到 " + THEME_LABEL[nextTheme(mode)];
+      : "当前" + THEME_FULL[mode] + "；点击切换到 " + THEME_FULL[nextTheme(mode)];
   }
 
   window.SiteUI = {
@@ -73,12 +75,13 @@
           '<a href="' + prefix + 'exam-pitfalls.html"' + (here === "exam-pitfalls.html" ? ' class="active"' : "") + '>易错</a>' +
         "</nav>" +
         '<div class="header-actions v2-header-actions">' +
-          '<button class="v2-palette-btn" type="button" data-v2-palette title="搜索全站（Ctrl+K）">' +
+          '<button class="v2-palette-btn" type="button" data-v2-palette title="搜索全站（Ctrl+K）" aria-label="搜索全站">' +
             icon("search") + '<span>搜索</span><kbd>Ctrl K</kbd>' +
           "</button>" +
+          '<span class="v2-action-caption" aria-hidden="true">字号</span>' +
           '<button class="icon-btn v2-icon-btn" data-role="font-minus" title="减小字号" aria-label="减小字号">A−</button>' +
           '<button class="icon-btn v2-icon-btn" data-role="font-plus" title="增大字号" aria-label="增大字号">A+</button>' +
-          '<button class="icon-btn v2-icon-btn" data-role="theme-btn" title="切换主题"></button>' +
+          '<button class="icon-btn v2-icon-btn" data-role="theme-btn" title="切换主题" aria-label="切换主题"></button>' +
         "</div>" +
         '<button class="v2-menu-btn" type="button" data-v2-menu aria-label="打开菜单">' + icon("menu") + "</button>" +
       "</div>";
