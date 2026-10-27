@@ -19,6 +19,7 @@ window.BUGHUNT_DATA = [
     ch: "ch01",
     title: "找错：十月的天数怎么变成 8 了",
     kind: "logic",
+    difficulty: "medium",
     code: [
       '#include <iostream>',
       'int main() {',
@@ -36,6 +37,7 @@ window.BUGHUNT_DATA = [
     ch: "ch01",
     title: "找错：给 char 赋“姓名首字母”",
     kind: "compile",
+    difficulty: "easy",
     code: [
       '#include <iostream>',
       'int main() {',
@@ -55,6 +57,7 @@ window.BUGHUNT_DATA = [
     ch: "ch02",
     title: "找错：平均分 87.5 怎么算成了 87",
     kind: "logic",
+    difficulty: "easy",
     code: [
       '#include <iostream>',
       'int main() {',
@@ -73,6 +76,7 @@ window.BUGHUNT_DATA = [
     ch: "ch02",
     title: "找错：想判断满分，结果人人满分",
     kind: "logic",
+    difficulty: "easy",
     code: [
       '#include <iostream>',
       'int main() {',
@@ -95,6 +99,7 @@ window.BUGHUNT_DATA = [
     ch: "ch03",
     title: "找错：多打印一次的循环",
     kind: "ub",
+    difficulty: "easy",
     code: [
       '#include <iostream>',
       'int main() {',
@@ -114,6 +119,7 @@ window.BUGHUNT_DATA = [
     ch: "ch03",
     title: "找错：switch 一次输出三行",
     kind: "logic",
+    difficulty: "medium",
     code: [
       '#include <iostream>',
       'int main() {',
@@ -137,6 +143,7 @@ window.BUGHUNT_DATA = [
     ch: "ch04",
     title: "找错：返回“较大的那个”的引用",
     kind: "ub",
+    difficulty: "hard",
     code: [
       '#include <iostream>',
       'int& bigger(int& a, int& b) {',
@@ -158,6 +165,7 @@ window.BUGHUNT_DATA = [
     ch: "ch04",
     title: "找错：写了交换函数，两个数却没换",
     kind: "logic",
+    difficulty: "easy",
     code: [
       '#include <iostream>',
       'void mySwap(int a, int b) {',
@@ -181,6 +189,7 @@ window.BUGHUNT_DATA = [
     ch: "ch05",
     title: "找错：delete 之后还想看一眼",
     kind: "ub",
+    difficulty: "medium",
     code: [
       '#include <iostream>',
       'int main() {',
@@ -199,6 +208,7 @@ window.BUGHUNT_DATA = [
     ch: "ch05",
     title: "找错：没初始化的指针直接用",
     kind: "ub",
+    difficulty: "medium",
     code: [
       '#include <iostream>',
       'int main() {',
@@ -219,6 +229,7 @@ window.BUGHUNT_DATA = [
     ch: "ch06",
     title: "找错：自己拼的“C++”打印出乱码",
     kind: "ub",
+    difficulty: "medium",
     code: [
       '#include <iostream>',
       'int main() {',
@@ -236,6 +247,7 @@ window.BUGHUNT_DATA = [
     ch: "ch06",
     title: "找错：取“第 9 个字符”",
     kind: "ub",
+    difficulty: "easy",
     code: [
       '#include <iostream>',
       '#include <string>',
@@ -257,6 +269,7 @@ window.BUGHUNT_DATA = [
     ch: "ch07",
     title: "找错：复制 Buffer，程序却崩了",
     kind: "ub",
+    difficulty: "hard",
     code: [
       '#include <iostream>',
       'class Buffer {',
@@ -285,6 +298,7 @@ window.BUGHUNT_DATA = [
     ch: "ch07",
     title: "找错：构造函数里赋值，成员却是默认值",
     kind: "logic",
+    difficulty: "medium",
     code: [
       '#include <iostream>',
       '#include <string>',
@@ -316,6 +330,7 @@ window.BUGHUNT_DATA = [
     ch: "ch08",
     title: "找错：猫传进函数，叫声变了",
     kind: "logic",
+    difficulty: "medium",
     code: [
       '#include <iostream>',
       'class Animal {',
@@ -342,6 +357,7 @@ window.BUGHUNT_DATA = [
     ch: "ch08",
     title: "找错：delete 基类指针，派生类析构没跑",
     kind: "ub",
+    difficulty: "hard",
     code: [
       '#include <iostream>',
       'class Base {',
@@ -369,6 +385,7 @@ window.BUGHUNT_DATA = [
     ch: "ch09",
     title: "找错：想再要一个 unique_ptr",
     kind: "compile",
+    difficulty: "easy",
     code: [
       '#include <iostream>',
       '#include <memory>',
@@ -388,6 +405,7 @@ window.BUGHUNT_DATA = [
     ch: "ch09",
     title: "找错：双向引用，析构函数从不执行",
     kind: "logic",
+    difficulty: "hard",
     code: [
       '#include <iostream>',
       '#include <memory>',
@@ -416,6 +434,7 @@ window.BUGHUNT_DATA = [
     ch: "ch10",
     title: "找错：边遍历边删除偶数",
     kind: "ub",
+    difficulty: "hard",
     code: [
       '#include <iostream>',
       '#include <vector>',
@@ -439,6 +458,7 @@ window.BUGHUNT_DATA = [
     ch: "ch11",
     title: "找错：专门的异常分支永远接不到",
     kind: "logic",
+    difficulty: "medium",
     code: [
       '#include <iostream>',
       '#include <stdexcept>',
@@ -464,6 +484,7 @@ window.BUGHUNT_DATA = [
     ch: "ch12",
     title: "找错：返回的计数器一调用就出错",
     kind: "ub",
+    difficulty: "hard",
     code: [
       '#include <iostream>',
       '#include <functional>',

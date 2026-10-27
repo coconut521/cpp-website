@@ -597,8 +597,9 @@ int main() {
       <h3 class="ex-title">练习：排出按分数评级的 if / else if / else</h3>
       <div class="ex-meta"><span class="tag purple">互动练习</span></div>
     </div>
-    <p>目标：<code>score</code> 为 85 时输出 <code>良好</code>。下面 8 行被打乱了，请拖动（或用 ↑↓ 按钮）恢复成结构正确、判断顺序也正确的代码：</p>
-    <div class="widget-sort"><script type="application/json" class="sort-data">{ "items": [
+    <p>目标：<code>score</code> 为 85 时输出 <code>良好</code>。下面 8 行被打乱了，请把它们拖入右侧「程序区」，恢复成结构正确、判断顺序也正确的代码：</p>
+    <div class="widget-parsons"><script type="application/json" class="parsons-data">{ "title": "拼回按分数评级的 if / else if / else",
+      "items": [
       "int score = 85;",
       "if (score >= 90) {",
       "std::cout << \"优秀\";",
@@ -607,7 +608,7 @@ int main() {
       "} else {",
       "std::cout << \"加油\";",
       "}"
-    ], "hint": "分支要从高到低判断，花括号成对出现；else if 接在上一层的 } 后面。",
+      ], "hint": "分支要从高到低判断，花括号成对出现；else if 接在上一层的 } 后面。",
     "explain": "85 先检查 >=90（假），再检查 >=80（真），输出“良好”。顺序不能反：如果先判 >=80，95 分也会被截留在“良好”。最后的 } 收住 else 分支。" }</script></div>
   </article>
 

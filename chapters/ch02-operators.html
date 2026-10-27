@@ -639,6 +639,10 @@ int main() {
   <section class="quiz" data-source="ch02">
     <script type="application/json" class="quiz-data">{ "title": "随堂测验：运算符与表达式",
       "questions": [
+        { "type": "mfill", "q": "补全“借助临时变量交换 a、b”的三行经典写法（变量 <code>t</code> 已定义）。",
+          "code": "int t = a;\na = ____;\nb = ____;",
+          "blanks": [ { "answer": "b" }, { "answer": "t" } ],
+          "explain": "先把 a 存进 t，再把 b 覆盖给 a，最后把 t（a 的旧值）给 b。第二空填 a 就把刚覆盖过的值又抄回去，交换失败。" },
         { "type": "mcq", "q": "<code>int i = 3; std::cout &lt;&lt; i++;</code> 输出？",
           "options": ["3", "4", "编译错误", "输出值不确定"], "answer": 0,
           "explain": "i++ 作为表达式的值取旧值 3，打印 3；随后 i 才自增为 4。" },

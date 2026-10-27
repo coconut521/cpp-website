@@ -8,6 +8,7 @@ window.PITFALLS_DATA = [
 
   {
     id: "pf-incdec",
+    difficulty: "medium",
     title: "i++ 与 ++i：先取值还是先自增",
     tags: ["运算符", "表达式求值"],
     bad: `int i = 5;
@@ -40,6 +41,7 @@ int y = 2 * (++i);`,
 
   {
     id: "pf-seq-multiple-modify",
+    difficulty: "hard",
     title: "同一表达式多次修改变量（序列点）",
     tags: ["运算符", "未定义行为"],
     bad: `int i = 1;
@@ -63,6 +65,7 @@ int r = a + i;   // 每一步语义都确定`,
 
   {
     id: "pf-shortcircuit",
+    difficulty: "easy",
     title: "短路求值会跳过右侧副作用",
     tags: ["逻辑运算符", "表达式求值"],
     bad: `int calls = 0;
@@ -95,6 +98,7 @@ if (p != nullptr && *p > 0) { /* 安全 */ }`,
 
   {
     id: "pf-intdiv",
+    difficulty: "easy",
     title: "整数除法与取余：向零截断",
     tags: ["运算符", "数值"],
     bad: `double avg = 7 / 2;        // 3，不是 3.5！
@@ -121,6 +125,7 @@ int r = -7 % 2;            // -1`,
 
   {
     id: "pf-overflow",
+    difficulty: "medium",
     title: "有符号溢出是 UB，无符号回绕是定义",
     tags: ["数值", "未定义行为"],
     bad: `int big = 2147483647;
@@ -150,6 +155,7 @@ unsigned w = u - 1;   // 4294967295（有定义）`,
 
   {
     id: "pf-floatcmp",
+    difficulty: "medium",
     title: "浮点数不要用 == 直接比较",
     tags: ["数值", "浮点"],
     bad: `double a = 0.1 + 0.2;
@@ -176,6 +182,7 @@ if (std::fabs(a - 0.3) < EPS)       // 用绝对误差阈值
 
   {
     id: "pf-arraybound",
+    difficulty: "easy",
     title: "数组越界：编译器不替你把关",
     tags: ["数组", "未定义行为"],
     bad: `int a[5] = {1, 2, 3, 4, 5};
@@ -205,6 +212,7 @@ cout << v.at(5);   // 真要访问时用 at()，越界抛异常而非 UB`,
 
   {
     id: "pf-ptr-ref",
+    difficulty: "medium",
     title: "指针与引用：解引用忘 * 、引用当指针用",
     tags: ["指针", "引用"],
     bad: `int a = 10;
@@ -239,6 +247,7 @@ r = b;           // 等价于 a = b（不是重绑！）`,
 
   {
     id: "pf-shallowcopy",
+    difficulty: "hard",
     title: "浅拷贝与深拷贝（双重释放）",
     tags: ["类", "拷贝控制"],
     bad: `class Buf {
@@ -290,6 +299,7 @@ private:
 
   {
     id: "pf-virtualdtor",
+    difficulty: "hard",
     title: "虚析构：基类指针 delete 派生类对象",
     tags: ["继承", "多态"],
     bad: `struct Base {
@@ -327,6 +337,7 @@ delete p;    // 只调用 ~Base！buf 泄漏，行为未定义`,
 
   {
     id: "pf-overload-default",
+    difficulty: "medium",
     title: "重载与默认参数的二义性",
     tags: ["函数", "重载"],
     bad: `void f(int a, int b = 10);
@@ -353,6 +364,7 @@ void g(int a, int b);   // 两个实参才能调到第二个`,
 
   {
     id: "pf-template-deduce",
+    difficulty: "hard",
     title: "模板实参推导：auto 与引用/const 的游戏",
     tags: ["模板", "auto"],
     bad: `template <typename T>
@@ -386,6 +398,7 @@ const auto& w = 42;     // 绑定右值，合法`,
 
   {
     id: "pf-iter-invalid",
+    difficulty: "hard",
     title: "迭代器失效：边遍历边改容器",
     tags: ["STL", "迭代器"],
     bad: `std::vector<int> v{1, 2, 3, 4};
@@ -419,6 +432,7 @@ for (auto it = v.begin(); it != v.end(); ) {
 
   {
     id: "pf-exception-raii",
+    difficulty: "hard",
     title: "异常路径上的资源泄漏与 RAII",
     tags: ["异常", "RAII"],
     bad: `void f() {
@@ -449,6 +463,7 @@ for (auto it = v.begin(); it != v.end(); ) {
 
   {
     id: "pf-eqeq",
+    difficulty: "easy",
     title: "= 与 == 混用",
     tags: ["运算符", "控制流"],
     bad: `int a = 0;
@@ -475,6 +490,7 @@ if (is_ready) { }            // 而不是 if (is_ready == true)`,
 
   {
     id: "pf-unsigned-loop",
+    difficulty: "hard",
     title: "unsigned 循环：条件恒真与下溢回绕",
     tags: ["循环", "无符号"],
     bad: `for (unsigned i = 4; i >= 0; --i)   // ⛔ 死循环
@@ -501,6 +517,7 @@ for (std::size_t i = 0; i < v.size(); ++i)`,
 
   {
     id: "pf-cstr-cmp",
+    difficulty: "medium",
     title: "C 字符串用 == 比较（比的是地址）",
     tags: ["字符串", "指针"],
     bad: `char s1[] = "abc";
@@ -534,6 +551,7 @@ if (a == b)                     // C++ 风格：== 按内容比较
 
   {
     id: "pf-return-local",
+    difficulty: "medium",
     title: "返回局部变量的引用或地址",
     tags: ["函数", "生命周期"],
     bad: `int& bad() {
@@ -568,6 +586,7 @@ int& okStatic() { return g; }                    // 静态存储期，安全`,
 
   {
     id: "pf-narrowing",
+    difficulty: "easy",
     title: "隐式窄化：悄悄丢掉的精度与符号",
     tags: ["类型转换", "数值"],
     bad: `int n = 3.99;          // n == 3（截断，无提示编译）
@@ -596,6 +615,7 @@ char c{65};                     // 65 在 char 范围内才放行
 
   {
     id: "pf-switch-nobreak",
+    difficulty: "easy",
     title: "switch 忘写 break：贯穿执行",
     tags: ["控制流", "switch"],
     bad: `switch (grade) {

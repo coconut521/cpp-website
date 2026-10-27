@@ -1,0 +1,25 @@
+{
+  "name": "cpp_website",
+  "version": "1.0.0",
+  "description": "**语言 / Language**：[简体中文](README.zh-CN.md) | [English](README.md) ｜ 开发说明 / Dev Guide: [DEV.md](DEV.md)",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "build:cpprun": "npx asc tools/cpprun-src/interpreter.ts -O3 --runtime minimal --outFile assets/wasm/cpprun.wasm && node tools/gen-embed.mjs",
+    "test:cpprun": "node tools/test-cpprun.mjs",
+    "validate": "node tools/validate.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coconut521/cpp-website.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/coconut521/cpp-website/issues"
+  },
+  "homepage": "https://github.com/coconut521/cpp-website#readme",
+  "devDependencies": {
+    "assemblyscript": "^0.27.29"
+  }
+}

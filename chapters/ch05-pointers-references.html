@@ -96,6 +96,21 @@ int* b;</code></pre>
     ],
     "note": "箭头语义：p 指向 a。*p 就是顺着箭头读写 a 本尊；地址每次运行可能不同，但“p 里存着 a 的地址”这层关系不变。" }</script></div>
 
+  <p>点「下一步」跟着箭头走一遍：赋地址、两个指针、重新赋值、置空——每一步只有 <b>p 里存的地址</b>在变，对象本身不动：</p>
+  <div class="widget-ptrviz"><script type="application/json" class="ptrviz-data">{ "title": "指针的指向：赋地址 → 双指针 → 重新赋值 → 置空",
+    "vars": [
+      { "name": "a", "type": "int", "value": "42" },
+      { "name": "b", "type": "int", "value": "7" },
+      { "name": "p", "type": "int*" },
+      { "name": "q", "type": "int*" }
+    ],
+    "frames": [
+      { "ptrs": { "p": "a" }, "note": "int* p = &a;：p 里存的是 a 的地址——箭头从 p 出发，落到 a 上。*p 就是顺着箭头找到的 a 本尊。" },
+      { "ptrs": { "p": "a", "q": "b" }, "note": "int* q = &b;：两个指针各指各的对象。*p 是 42，*q 是 7。" },
+      { "ptrs": { "p": "b", "q": "b" }, "note": "p = q;：把 q 里存的地址抄给 p——两个箭头都指向 b。注意 a 的值纹丝不动，变的只是 p 里存的地址。" },
+      { "ptrs": { "p": "null", "q": "b" }, "note": "p = nullptr;：空指针不指向任何对象（∅）。解引用前必须判空：if (p != nullptr)。" }
+    ] }</script></div>
+
   <!-- ================= 3. 空指针与野指针 ================= -->
   <h2>2. 空指针：nullptr、NULL 与 0</h2>
   <p>指针必须“有所指”才能解引用。表示“什么都不指”用<b>空指针</b>：<b>C++11 起一律写 <code>nullptr</code></b>。</p>
@@ -406,6 +421,21 @@ int main() {
       <div class="ub-warning"><b>悬空指针</b>指向的对象已经销毁。解引用悬空指针是<b>未定义行为</b>：可能崩溃、可能读到垃圾、可能“碰巧”正常——因此本例不给出任何预期输出，考试也不允许以它的结果为答案。三种典型来源：① 返回局部变量的地址（第 5 行，g++ <code>-Wall</code> 会报 <code>warning: address of local variable 'local' returned [-Wreturn-local-addr]</code>）；② <code>delete</code> 之后继续解引用；③ <code>delete</code> 之后再 <code>delete</code>（双重释放，可能破坏堆结构）。注意：<code>delete</code> 一个空指针是<b>安全</b>的（定义好的空操作），所以第 16 行“delete 后置空”是好习惯——但置空防不住“别的指针也指向同一块内存”的情况，根治靠设计。</div>
     </div>
   </article>
+
+  <p>下面的分步图把「悬空」画了出来：<b>对象销毁后，指向它的箭头还在，但落点已经打了叉</b>——这就是悬空的图形含义（红色虚线箭头 = 悬空，解引用是 UB）：</p>
+  <div class="widget-ptrviz"><script type="application/json" class="ptrviz-data">{ "title": "悬空指针：对象没了，箭头还在",
+    "vars": [
+      { "name": "local", "type": "int" },
+      { "name": "heap",  "type": "int" },
+      { "name": "p",     "type": "int*" },
+      { "name": "q",     "type": "int*" }
+    ],
+    "frames": [
+      { "ptrs": { "p": "local", "q": "heap" }, "note": "p 指向局部变量 local，q 指向堆上 new 出来的 int。此刻两条箭头都是安全的。" },
+      { "ptrs": { "p": "local", "q": "heap" }, "freed": ["local"], "note": "函数返回：local 销毁（盒子打叉）。p 的箭头还在，但落点已经没了——p 悬空，*p 是未定义行为。" },
+      { "ptrs": { "p": "local", "q": "heap" }, "freed": ["local", "heap"], "note": "delete q; 之后 heap 也销毁：q 同样悬空。三种来源：返回局部地址 / delete 后使用 / 双重 delete。根治：delete 后立刻置空，或干脆用智能指针（第 9 章）。" },
+      { "ptrs": { "p": "null", "q": "null" }, "freed": ["local", "heap"], "note": "p = nullptr; q = nullptr;：箭头收起、换成 ∅ 空指针徽标——置空后解引用前判空即可，不再悬空。" }
+    ] }</script></div>
 
   <!-- ================= 8. 引用 ================= -->
   <h2>7. 引用：对象的别名</h2>

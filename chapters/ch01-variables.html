@@ -646,6 +646,10 @@ int main() {
   <section class="quiz" data-source="ch01">
     <script type="application/json" class="quiz-data">{ "title": "随堂测验：变量与基本类型",
       "questions": [
+        { "type": "mfill", "q": "补全代码：定义常量 <code>k</code> 表示班级人数 42，并输出它（每空一个词）。",
+          "code": "____ int k = 42;\nstd::cout << ____ << \"\\n\";",
+          "blanks": [ { "answer": ["const", "constexpr"] }, { "answer": "k" } ],
+          "explain": "不会变的量用 const（或编译期常量 constexpr）修饰；输出变量直接写名字 k，不加引号——加了引号输出的就是字母 k 本身。" },
         { "type": "mcq", "q": "函数内 <code>int x;</code> 之后立刻 <code>cout &lt;&lt; x;</code>，结果是？",
           "options": ["一定输出 0", "一定输出随机值", "未定义行为，什么结果都可能", "编译错误"], "answer": 2,
           "explain": "读取未初始化局部变量是 UB。输出 0、垃圾值、或被优化掉都有可能，因此任何“确定的输出”都不对。" },

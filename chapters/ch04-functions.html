@@ -669,16 +669,16 @@ int main() {
       <p>写第 5 行时不必在脑中展开每一层，只需相信 <code>factorial(n-1)</code> 会正确返回 (n-1)!，再乘 n 即可。</p>
     </div>
     <script type="application/json" class="ex-steps">{ "steps": [
-      { "line": 9, "vars": { "调用": "factorial(4)" }, "out": "", "note": "main 调用 factorial(4)，第 1 个栈帧压入" },
-      { "line": 4, "vars": { "调用": "factorial(4)", "n": "4" }, "out": "", "note": "n = 4 > 1，不是基准情形" },
-      { "line": 5, "vars": { "调用": "factorial(4)→factorial(3)", "n": "4" }, "out": "", "note": "计算 4 × factorial(3)：先调用 factorial(3)，第 2 个栈帧压入" },
-      { "line": 5, "vars": { "调用": "…→factorial(2)", "n": "3" }, "out": "", "note": "factorial(3) 计算 3 × factorial(2)，再压一层" },
-      { "line": 5, "vars": { "调用": "…→factorial(1)", "n": "2" }, "out": "", "note": "factorial(2) 计算 2 × factorial(1)，再压一层" },
-      { "line": 4, "vars": { "调用": "…→factorial(1)", "n": "1" }, "out": "", "note": "n <= 1 命中基准情形，返回 1，递归到底" },
-      { "line": 5, "vars": { "调用": "回溯中", "n": "2" }, "out": "", "note": "factorial(2) = 2 × 1 = 2，弹出栈帧" },
-      { "line": 5, "vars": { "调用": "回溯中", "n": "3" }, "out": "", "note": "factorial(3) = 3 × 2 = 6，弹出栈帧" },
-      { "line": 5, "vars": { "调用": "回溯中", "n": "4" }, "out": "", "note": "factorial(4) = 4 × 6 = 24，弹出栈帧" },
-      { "line": 9, "vars": {}, "out": "4! = 24", "note": "回到 main，输出 24" }
+      { "line": 9, "vars": { "调用": "factorial(4)" }, "stack": ["main", "factorial(4)  n=4"], "out": "", "note": "main 调用 factorial(4)，第 1 个栈帧压入" },
+      { "line": 4, "vars": { "调用": "factorial(4)", "n": "4" }, "stack": ["main", "factorial(4)  n=4"], "out": "", "note": "n = 4 > 1，不是基准情形" },
+      { "line": 5, "vars": { "调用": "factorial(4)→factorial(3)", "n": "4" }, "stack": ["main", "factorial(4)  n=4", "factorial(3)  n=3"], "out": "", "note": "计算 4 × factorial(3)：先调用 factorial(3)，第 2 个栈帧压入" },
+      { "line": 5, "vars": { "调用": "…→factorial(2)", "n": "3" }, "stack": ["main", "factorial(4)  n=4", "factorial(3)  n=3", "factorial(2)  n=2"], "out": "", "note": "factorial(3) 计算 3 × factorial(2)，再压一层" },
+      { "line": 5, "vars": { "调用": "…→factorial(1)", "n": "2" }, "stack": ["main", "factorial(4)  n=4", "factorial(3)  n=3", "factorial(2)  n=2", "factorial(1)  n=1"], "out": "", "note": "factorial(2) 计算 2 × factorial(1)，再压一层" },
+      { "line": 4, "vars": { "调用": "…→factorial(1)", "n": "1" }, "stack": ["main", "factorial(4)  n=4", "factorial(3)  n=3", "factorial(2)  n=2", "factorial(1)  n=1"], "out": "", "note": "n <= 1 命中基准情形，返回 1，递归到底" },
+      { "line": 5, "vars": { "调用": "回溯中", "n": "2" }, "stack": ["main", "factorial(4)  n=4", "factorial(3)  n=3", "factorial(2)  n=2"], "out": "", "note": "factorial(2) = 2 × 1 = 2，弹出栈帧" },
+      { "line": 5, "vars": { "调用": "回溯中", "n": "3" }, "stack": ["main", "factorial(4)  n=4", "factorial(3)  n=3"], "out": "", "note": "factorial(3) = 3 × 2 = 6，弹出栈帧" },
+      { "line": 5, "vars": { "调用": "回溯中", "n": "4" }, "stack": ["main", "factorial(4)  n=4"], "out": "", "note": "factorial(4) = 4 × 6 = 24，弹出栈帧" },
+      { "line": 9, "vars": {}, "stack": ["main"], "out": "4! = 24", "note": "回到 main，输出 24" }
     ] }</script>
   </article>
 

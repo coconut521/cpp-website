@@ -314,6 +314,20 @@ int main() {
     ] }</script>
   </article>
 
+  <p>学到这里，试着把一个<b>完整的封装类骨架</b>拼回来——公开的构造与接口在前、私有的数据成员在后：</p>
+  <div class="widget-parsons"><script type="application/json" class="parsons-data">{ "title": "拼回 Student 类的封装骨架",
+    "items": [
+    "class Student {",
+    "public:",
+    "Student(std::string n, int a) : name_(n), age_(a) {}",
+    "void show() const { std::cout << name_ << \" \" << age_ << \"\\n\"; }",
+    "private:",
+    "std::string name_;",
+    "int age_;",
+    "};"
+    ], "hint": "类的常规布局：public 段放构造函数和对外接口，private 段放数据成员；类体结束后分号不能少。",
+  "explain": "封装的典型骨架：public 在前（使用者关心的部分），private 数据成员收在后面。构造函数用初始化列表按声明顺序初始化 name_、age_；注意 class 定义的右花括号后必须有分号——这是新手最常忘的一个字符。" }</script></div>
+
   <!-- ================= 6. 委托构造与类内初始化 ================= -->
   <h2>5. 委托构造与类内默认成员初始化（C++11）</h2>
 

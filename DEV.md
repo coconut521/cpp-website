@@ -45,10 +45,18 @@ assets/
   js/page-toc.js           Floating in-page TOC: h2 sections of main, left-edge tab,
                            click-to-scroll + scrollspy; hidden < 1200px / in
                            presentation mode / in print (exposes window.PageToc)
+  js/quizbank-data.js      跨章题库 QUIZBANK_DATA（随机组卷数据源之一；题目含 difficulty）
   js/errors-data.js        Error museum data ERRORS_DATA
   js/cheatsheets-data.js   Cheat-sheet data CHEATSHEETS_DATA
   js/pitfalls-data.js      Pitfalls data PITFALLS_DATA
+  js/cpp-run.js            在线运行入口（window.CppRun）：双协议加载 WASM +
+                           canRun 启发式 + run()；由 interactive.js 按需动态注入
+  js/cpprun-wasm-embed.js  cpprun.wasm 的 base64 内嵌版（tools/gen-embed.mjs 生成，勿手改）
+  assets/wasm/cpprun.wasm  教学子集解释器（AssemblyScript 编译产物）
 tools/validate.js          Site-wide static validation
+tools/cpprun-src/interpreter.ts   WASM 解释器源码（AssemblyScript）
+tools/gen-embed.mjs        生成 cpprun-wasm-embed.js（npm run build:cpprun 的后半步）
+tools/test-cpprun.mjs      解释器 node 直测（npm run test:cpprun，22 例）
 README.md / README.zh-CN.md / DEV.md
 ```
 
@@ -68,6 +76,12 @@ Every page is just "skeleton + page-local `<style>` + a bit of glue"; all shared
 | Bug hunt | Data lives in `bughunt-data.js`; the engine renders `<section class="bug-hunt" data-ch="chNN">` blocks (data-ch omitted = all). On `/chapters/` pages it auto-inserts a "火眼金睛" section before the quiz when the current chapter has exercises (skipped if a manual block exists). Code lines are highlighted via `CppLight.highlight`, so each line carries `.ln[data-n]`; judging marks the picked line `.bh-miss` and the bug line `.bh-hit`. `data-shuffle="1"` adds a shuffle button that re-reads cards from the DOM (never from a cached array — redo replaces nodes) |
 | Presentation mode | `present.js` groups `main.container`'s direct children into slides at `h2` / `.section-head` boundaries and tags them `data-pslide`; only the current slide's group keeps `.p-cur` (CSS hides the rest, nothing is moved). Entering scales `html` font-size ×1.15 and restores it on exit; `Esc` leaves fullscreen first when in fullscreen, then exits the mode. `?present=1` enters without fullscreen |
 | Glossary tooltips | `glossary.js` walks text nodes under `main` (skipping `pre/code/a/h1/buttons/.mk-chips/...`), wraps the first occurrence of each term per page as `.term` (an `<a>` when the entry has `href`), and shows one shared `.term-tip` bubble. Matching is longest-first (so 纯虚函数 wins over 虚函数) with word-boundary checks for ASCII aliases (UB / RAII / lambda) |
+| Stepper（增强） | `interactive.js` 扫描 `pre code.cpp` 逐步执行；除行高亮/变量表/控制台外，还支持：**▶ 自动播放 + 速度档**（控件行）、**调用栈侧栏**（`step.stack`：字符串数组，底→顶）、**柱状图**（`step.vars` 里键名以 `[]` 结尾、值为空格分隔数字的项；`step.cmp` 橙色标比较下标、`step.pivot` 红色标基准下标） |
+| Parsons 问题 | `.widget-parsons` + `script.parsons-data`（`items` 正确顺序的代码行 / `hint` / `explain`）。双栏：左「代码块（打乱）」右「程序区」，拖拽或 ↑↓✕ 按钮；「检查顺序」从第一个错行开始定位。渲染用 `esc()`，行内容为纯文本（`white-space: pre` 保留缩进） |
+| 多空代码填空 | quiz 题型 `mfill`：`code`（多行代码，空位写成 `____`，≥4 个下划线）+ `blanks:[{answer, ci?}]`（按出现顺序对应每个空）。判分逐空进行、绿/红边框标对错；validate.js 校验 `____` 数量与 blanks 数量一致 |
+| 指针指向图 | `.widget-ptrviz` + `script.ptrviz-data`（`vars` 变量盒 + `frames` 每步 `ptrs`/`freed`/`note`；字段名避开 `steps`——validate.js 对 ex-steps 的 `steps` 有 line 校验）。SVG 箭头从指针盒顶部弧线到目标盒顶部；`"null"` 画 ∅ 徽标；`freed` 盒子打删除线、指向它的箭头变红虚线（悬空）。箭头用 stroke-dashoffset 生长动画（虚线箭头除外） |
+| 随机组卷 | 教师面板「📑 随机组卷」：题源 = `QUIZBANK_DATA`（quizbank-data.js）+ `PITFALLS_DATA[].quiz` + `BUGHUNT_DATA`，三者均支持可选 `difficulty: "easy"/"medium"/"hard"`（pitfalls 小题继承其专题的难度）。按 题数/难度/题型/章节 随机抽取，全屏浮层渲染试卷与答案页；`@media print` 下 `body.exam-open` 只打印浮层。数据文件按需动态注入 `<script>`（file:// 可用） |
+| 在线运行 | 示例卡通过启发式（含 `int main`、无 class/vector/string/cin 等）显示「▶ 在线运行」；点击时动态注入 `cpp-run.js`，其 `CppRun.ensure` 按协议加载 WASM：**https/http → fetch `assets/wasm/cpprun.wasm`（分离文件）**，**file: → 注入 `cpprun-wasm-embed.js`（base64 内嵌版）**，https 失败也回退内嵌版。解释器为教学子集（AssemblyScript，源码 `tools/cpprun-src/interpreter.ts`），UB（未初始化读取/有符号溢出/整除零/数组越界/递归过深）会警告或报错停止。构建：`npm run build:cpprun`；测试：`npm run test:cpprun`（node 直测，22 例） |
 | Floating page TOC | `page-toc.js` collects the `h2` headings of `main.container` (auto-id `ptoc-N`, hidden headings excluded), renders a left-edge vertical tab + panel, scrolls via `scrollIntoView` (global `scroll-padding-top` keeps the sticky header clear) and highlights the current section on scroll (rAF-throttled, bottom-clamped). Shows only with ≥3 sections, window ≥1200px, and outside presentation mode (watched via a body-class MutationObserver) |
 | Storage keys | Shared prefix `cppcourse.`: `theme` (`light`/`dark`/`auto`), `fontscale` (0.8–1.4), `progress`, `mastery`. Every access is wrapped in try/catch (some `file://` environments block storage) |
 | HTML injection | `title` fields are mostly `esc()`'d on render; but **`desc`, table `rows` cells, and `items[].desc` are inserted as raw HTML** — write `&lt;` `&gt;` to show angle brackets (see §5) |
@@ -122,6 +136,19 @@ Append objects to `errors-data.js` / `pitfalls-data.js` respectively. Fields **f
 - Site-wide variables and the dark theme live in `style.css` under `:root` / `html[data-theme="dark"]`; add colors via CSS variables, never hard-code them.
 - Page-specific styles go in that page's `<style>` block (e.g. the cheat-sheet quick-jump row, the home progress bar).
 - Print styles: global rules in `style.css` under `@media print`; page-specific print hiding goes in the page's own `<style>`.
+
+### 4.6 随机组卷（教师）
+
+- 题源三处：`quizbank-data.js`（每题 `{ id: "qb-…", ch, type, q, options?, answer, explain, difficulty, tags }`）、`pitfalls-data.js` 各专题的 `quiz` 小题（难度继承所在专题）、`bughunt-data.js` 找错题。给任一来源补题只需按各自格式追加；`difficulty` 缺省按中等处理。
+- 生成流程不需要改任何页面：teacher.js 会按需动态注入缺失的数据 `<script>`，任何页面（含 file://）都能组卷。
+- 出卷/答案页的打印走 `body.exam-open` 的 `@media print` 规则（只打印浮层）；若改打印样式，注意别破坏该规则。
+
+### 4.7 在线运行（WASM C++ 子集解释器）
+
+- 解释器源码在 `tools/cpprun-src/interpreter.ts`（AssemblyScript），产物 `assets/wasm/cpprun.wasm` + 内嵌版 `assets/js/cpprun-wasm-embed.js`。改完解释器：`npm run build:cpprun` 重新生成两个文件，再 `npm run test:cpprun` 跑 22 例直测（保持全绿）。
+- 加载策略见 `cpp-run.js`：https/http 走 fetch 分离 wasm；file: 与加载失败时回退 base64 内嵌版。**改 wasm 后两个文件必须同时重新生成**，否则 file:// 与 https 行为不一致。
+- 示例卡是否显示「▶ 在线运行」由 `interactive.js` 的轻量启发式决定（含 `int main`、无 class/vector/string/cin/switch 等）；解释器内部另有完整语法检查，误放行只会得到友好报错，不会产生错误输出。
+- 教学原则不变：UB 示例（越界、未初始化、溢出、除零、递归过深）在运行器里会**警告或报错停止**，绝不给出“确定输出”。
 
 ## 5. Coding conventions (validator rules + lessons learned)
 

@@ -6,10 +6,13 @@
  *     <script type="application/json" class="quiz-data">{ "questions":[ ... ] }</script>
  *   </section>
  * 题型：
- *   mcq  : { type:"mcq", q:"题干", options:["A","B","C","D"], answer:2, explain:"解析" }
- *   tf   : { type:"tf",  q:"题干", answer:true, explain:"解析" }
- *   fill : { type:"fill",q:"题干", answer:["2"," 2 "], explain:"解析", ci:false }
- *   code : { type:"code",q:"题干（含 ____ 空位）", answer:"n++", explain:"解析" }
+ *   mcq   : { type:"mcq", q:"题干", options:["A","B","C","D"], answer:2, explain:"解析" }
+ *   tf    : { type:"tf",  q:"题干", answer:true, explain:"解析" }
+ *   fill  : { type:"fill",q:"题干", answer:["2"," 2 "], explain:"解析", ci:false }
+ *   code  : { type:"code",q:"题干（含 ____ 空位）", answer:"n++", explain:"解析" }
+ *   mfill : { type:"mfill", q:"题干", code:"多行代码，空位写成 ____（4 个及以上下划线）",
+ *             blanks:[{ answer:"b", ci:false }, ...], explain:"解析" }
+ *             每个 ____ 按出现顺序对应 blanks[i]；answer 可为字符串或数组（多个可接受答案）
  * fill/code 的 answer 可为字符串（唯一答案）或数组（多个可接受答案）；
  * 默认区分大小写且先去首尾空格；ci:true 表示不区分大小写。
  * ============================================================ */
@@ -54,6 +57,12 @@
       return opt === undefined ? "?" : String.fromCharCode(65 + q.answer) + ". " + esc(opt);
     }
     if (q.type === "tf") return q.answer ? "正确" : "错误";
+    if (q.type === "mfill") {
+      return (q.blanks || []).map(function (b, i) {
+        var list = Array.isArray(b.answer) ? b.answer : [b.answer];
+        return "空" + (i + 1) + "：" + list.map(function (a) { return "<code>" + esc(a) + "</code>"; }).join(" 或 ");
+      }).join("；");
+    }
     var list = Array.isArray(q.answer) ? q.answer : [q.answer];
     return list.map(function (a) { return "<code>" + esc(a) + "</code>"; }).join(" 或 ");
   }
@@ -129,6 +138,61 @@
         showFeedback(ok, !ok);
         record(ok, q.type === "mcq" ? String.fromCharCode(65 + chosen) + ". " + opts[chosen] : opts[chosen]);
       });
+    } else if (q.type === "mfill") { // 多空代码填空：code 中的 ____ 按顺序对应 blanks[]
+      var blanks = q.blanks || [];
+      var codeWrap = document.createElement("div");
+      codeWrap.className = "mfill-code";
+      var parts = String(q.code || "").split(/_{4,}/);
+      var mfInputs = [];
+      var frag = document.createDocumentFragment();
+      for (var bi = 0; bi < blanks.length; bi++) {
+        if (parts[bi]) {
+          var seg = document.createElement("span");
+          seg.textContent = parts[bi];
+          frag.appendChild(seg);
+        }
+        var mfIn = document.createElement("input");
+        mfIn.type = "text";
+        mfIn.className = "mfill-input";
+        mfIn.setAttribute("autocomplete", "off");
+        mfIn.setAttribute("spellcheck", "false");
+        var ansList = Array.isArray(blanks[bi].answer) ? blanks[bi].answer : [blanks[bi].answer];
+        var maxLen = 4;
+        for (var ai = 0; ai < ansList.length; ai++) {
+          if (String(ansList[ai]).length > maxLen) maxLen = String(ansList[ai]).length;
+        }
+        mfIn.size = Math.max(6, maxLen + 2);
+        frag.appendChild(mfIn);
+        mfInputs.push(mfIn);
+      }
+      if (parts[blanks.length]) {
+        var tailSeg = document.createElement("span");
+        tailSeg.textContent = parts[blanks.length];
+        frag.appendChild(tailSeg);
+      }
+      codeWrap.appendChild(frag);
+      card.appendChild(codeWrap);
+
+      submitBtn.className = "btn btn-primary btn-small";
+      submitBtn.textContent = "提交答案";
+      submitBtn.addEventListener("click", function () {
+        var allOk = true;
+        var wrongNos = [];
+        for (var i = 0; i < blanks.length; i++) {
+          var ok = checkFill(blanks[i], mfInputs[i].value);
+          mfInputs[i].disabled = true;
+          mfInputs[i].classList.add(ok ? "ok" : "bad");
+          if (!ok) { allOk = false; wrongNos.push(i + 1); }
+        }
+        submitBtn.disabled = true;
+        showFeedback(allOk, !allOk);
+        record(allOk, "");
+      });
+      mfInputs.forEach(function (m) {
+        m.addEventListener("keydown", function (ev) {
+          if (ev.key === "Enter" && !submitBtn.disabled) submitBtn.click();
+        });
+      });
     } else { // fill / code
       var inputWrap = document.createElement("div");
       inputWrap.className = "quiz-input";
@@ -165,7 +229,8 @@
     resetBtn.textContent = "重做本题";
     resetBtn.addEventListener("click", function () {
       var fresh = buildQuestionCard(source, q, qi, qs, summary);
-      block.insertBefore(fresh, card.nextSibling);
+      var parent = card.parentNode;   /* 用实时父节点插入：block 不在本函数作用域（旧实现引用它会静默报错） */
+      parent.insertBefore(fresh, card.nextSibling);
       card.remove();
     });
     actions.appendChild(resetBtn);

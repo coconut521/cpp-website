@@ -30,9 +30,10 @@ You can also serve it locally (identical behavior): run `python -m http.server` 
 ## 3. Features
 
 ### Lecture chapters
-- **Example code cards**: one-click copy, download as `.cpp`, show the pre-baked output, or run the **step-by-step stepper** (current-line highlight + variable table + console).
-- **Interactive widgets**: memory visualization, `i++` / `++i` animation, drag-to-sort, side-by-side comparisons, collapsible answers.
-- **Quizzes**: multiple choice, true/false, fill-in, and code fill-in with instant grading and explanations; the self-check list supports per-item "know it / don't know" marking.
+- **Example code cards**: one-click copy, download as `.cpp`, show the pre-baked output, run the **step-by-step stepper** (current-line highlight + variable table + console), or hit **▶ Run online** — a teaching-subset C++ interpreter compiled to WebAssembly runs simple examples for real, right in the page (works from `file://` too; undefined behavior stops with an explanation instead of a made-up output).
+- **Interactive widgets**: memory visualization, pointer-arrow diagrams (SVG, step through pointer reassignment / nullptr / dangling), `i++` / `++i` animation, drag-to-sort, **Parsons problems** (drag shuffled code lines back into a working program), side-by-side comparisons, collapsible answers.
+- **Stepper extras**: auto-play with speed control, a **call-stack side panel** for recursion (watch frames push and pop), and bar-chart visualization for sorting code.
+- **Quizzes**: multiple choice, true/false, fill-in, code fill-in, and **multi-blank code fill-in** (each `____` graded separately) with instant grading and explanations; the self-check list supports per-item "know it / don't know" marking.
 - **Bug Hunt (find-the-bug)**: every chapter ends with an auto-inserted "🔥 火眼金睛：本章找错" section — read a snippet hiding one defect, click the offending line, submit, and get instant verdict plus an explanation (compile errors / logic errors / undefined behavior).
 - **Glossary tooltips**: 49 terms in the prose (pointers, polymorphism, iterator invalidation, …) get a dashed underline automatically; hovering pops a plain-language explanation, clicking jumps to the covering chapter. Only the first occurrence per term per page is marked.
 - **Floating page TOC**: on wide windows a vertical "目录" tab sits at the left edge; open it to jump to any section of the chapter, with the current section highlighted as you scroll. It hides itself on narrow windows, in presentation mode, and when printing.
@@ -65,7 +66,7 @@ Covers chapters, error entries, cheat-sheet entries, pitfalls, bug-hunt exercise
 
 ### Teacher mode
 Turn it on via any of: the 🧑‍🏫 button in the top bar / `?teacher=1` in the URL / `Ctrl+Alt+T`.
-Once on: reveal all answers and outputs, expand all folded blocks, export a chapter's examples as `.cpp` files, and generate a new-chapter template.
+Once on: reveal all answers and outputs, expand all folded blocks, export a chapter's examples as `.cpp` files, generate a new-chapter template, and **build a random exam paper** — pick a question count, difficulty, type, and chapter range from the cross-chapter question bank, then print the paper or its separate answer page (`Ctrl+P`; only the paper prints, site chrome hides).
 
 ### Presentation mode
 Click the 🖥 button in the top bar (or press `Ctrl+Alt+P`): the page is split into one "slide" per section — navigate with `←` `→` / Space, exit with `Esc`. Entering also tries fullscreen and scales the font up, made for projecting lectures. `?present=1` in the URL enters directly.
@@ -76,8 +77,9 @@ Click the 🖥 button in the top bar (or press `Ctrl+Alt+P`): the page is split 
 
 ## 4. Notes
 
-- Example "run results" are pre-baked for teaching; they are not compiled in the browser. Undefined behavior (UB) is always marked in red and is **never** used as a "predict the output" exam question.
-- The site makes zero network requests — safe for offline labs and exam rooms.
+- Most example "run results" are pre-baked for teaching. The new **Run online** button executes a *teaching-subset* interpreter (WebAssembly) covering chapters 1–4-style code — real output for supported syntax, and a clear stop-with-explanation on undefined behavior or unsupported syntax. Pre-baked outputs and the red UB markings remain the source of truth for everything else.
+- Undefined behavior (UB) is always marked in red and is **never** used as a "predict the output" exam question.
+- The site makes zero network requests — safe for offline labs and exam rooms. (The WASM interpreter ships inside the folder: browsers fetch the separate `.wasm` over `http(s)`, or fall back to the embedded base64 copy on `file://`.)
 - Want to contribute content (new chapters, new sheets, styling)? See [DEV.md](DEV.md).
 
 ## Copyright

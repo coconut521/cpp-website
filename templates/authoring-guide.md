@@ -199,6 +199,54 @@ int main() {
 - 代码行是**原文**（引擎负责转义与高亮），`why` 是原始 HTML（尖括号写实体）。
 - 同样的教学原则：**UB 题不问"确定输出"**，`why` 里解释原因即可。
 
+### 3.10 Parsons 问题（拖拽组代码）
+
+数据块 + 引擎自动渲染（interactive.js 已加载即生效，无需额外脚本）：
+
+```html
+<div class="widget-parsons"><script type="application/json" class="parsons-data">{ "title": "拼回 …的骨架",
+  "items": [
+  "class Foo {",
+  "public:",
+  "…"
+  ], "hint": "可先给一个提示", "explain": "答对后展示的解析" }</script></div>
+```
+
+- `items` 是**正确顺序**的代码行（纯文本，引擎转义；缩进用空格保留）。
+- 交互：左「代码块（打乱）」→ 拖入右「程序区」；区内可拖动排序 / ↑↓ 微调 / ✕ 放回；「检查顺序」从第一个错行开始报错。
+- 建议 5~10 行；两行内容相同也没问题（引擎按位置判分）。
+
+### 3.11 指针指向图（widget-ptrviz）
+
+```html
+<div class="widget-ptrviz"><script type="application/json" class="ptrviz-data">{ "title": "…",
+  "vars": [ { "name": "a", "type": "int", "value": "42" }, { "name": "p", "type": "int*" } ],
+  "frames": [
+    { "ptrs": { "p": "a" }, "note": "p 指向 a" },
+    { "ptrs": { "p": "null" }, "note": "置空" },
+    { "ptrs": { "p": "local" }, "freed": ["local"], "note": "local 销毁：p 悬空（红虚线）" }
+  ] }</script></div>
+```
+
+- `vars` 是变量盒（横向排列，>6 个换行）；`frames` 每步三件套：`ptrs`（指针名 → 目标名或 `"null"`）、`freed`（本步已销毁的名字，画删除线）、`note`。
+- **字段名必须是 `frames`**（不是 steps——校验器把 ex-steps 的 `steps` 当逐步执行数据检查 line 字段）。
+- 适合讲：赋地址、双指针、重新赋值、置空、悬空（配 `freed`）。
+
+### 3.12 随堂测验补充：多空代码填空（mfill）
+
+在 3.8 的四种题型之外，还有一种多空题型：
+
+```html
+{ "type": "mfill", "q": "补全…",
+  "code": "int t = a;\na = ____;\nb = ____;",
+  "blanks": [ { "answer": "b" }, { "answer": "t" } ],
+  "explain": "…" }
+```
+
+- `code` 里每个 `____`（4 个及以上下划线）按出现顺序对应 `blanks[i]`；数量必须一致（validate.js 会查）。
+- 每空 `answer` 可为字符串或数组（多答案）；`ci: true` 不区分大小写。判分逐空进行，绿/红边框标对错。
+- 示例卡若想让学生「真跑」代码：无需任何标记——含 `int main` 且不含 class/vector/string/cin 等超纲语法的卡片会自动出现「▶ 在线运行」按钮（教学子集解释器，UB 会报错停止而非给出误导输出）。
+
 ## 4. 文字与排版习惯
 
 - 章节标题层级：`<h2>` 小节 → `<h3>` 示例卡片标题（卡片内已含）。

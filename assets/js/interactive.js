@@ -3,9 +3,13 @@
  * 暴露：window.Interact
  * 自动增强：
  *   1) .example-card          → 复制 / 下载 .cpp / 显示输出 / 逐步执行 按钮
- *   2) .ex-steps (JSON)       → 逐步执行器（行高亮 + 变量表 + 控制台）
+ *   2) .ex-steps (JSON)       → 逐步执行器（行高亮 + 变量表 + 控制台；
+ *                                可选：▶ 自动播放与速度档、调用栈侧栏 step.stack、
+ *                                柱状图 vars["a[]"] 与 step.cmp / step.pivot 高亮）
  *   3) .mem-data  (JSON)      → 内存可视化表格
  *   4) .widget-sort (JSON)    → 拖拽排序练习
+ *   4b) .widget-parsons (JSON)→ Parsons 问题：打乱代码行拖回正确程序
+ *   4c) .widget-ptrviz (JSON) → 指针/引用 SVG 箭头图（指向、置空、悬空分步演示）
  *   5) .widget-incdec         → 自增自减动画
  *   6) .checklist             → 自测清单打勾存档
  *   7) beforeprint            → 打印时展开全部输出与折叠块
@@ -115,13 +119,91 @@
       bStep.addEventListener("click", function () { Interact.startStepper(card); });
       bar.appendChild(bStep);
     }
+
+    // 在线运行（轻量启发式通过才显示）
+    if (cppLikelyRunnable(raw)) {
+      var bRun = document.createElement("button");
+      bRun.className = "btn btn-small"; bRun.textContent = "▶ 在线运行";
+      bRun.addEventListener("click", function () { Interact.runCard(card); });
+      bar.appendChild(bRun);
+    }
   }
 
   function sanitizeFile(s) {
     return String(s).replace(/[^\w.-]+/g, "_").slice(0, 60) || "code";
   }
 
-  /* ---------------- 逐步执行器 ---------------- */
+  /* ---------------- 在线运行（WASM 子集解释器） ----------------
+     按钮在 enhanceCard 里按轻量启发式添加；点击时按需注入
+     cpp-run.js，再按协议加载 wasm（https 分离文件 / file 内嵌版）。 */
+  function cppLikelyRunnable(code) {
+    if (typeof window.CppRun !== "undefined" && window.CppRun.canRun) {
+      return window.CppRun.canRun(code);
+    }
+    if (typeof code !== "string" || code.length === 0 || code.length > 20000) return false;
+    if (!/int\s+main\s*\(/.test(code)) return false;
+    if (/\bclass\b|\bstruct\b|\btemplate\b|\bvector\b|\bstd::string\b|\bstring\s+\w+|\bcin\b|\bprintf\b|\bnew\b|\bdelete\b|\btry\b|\bthrow\b|\bswitch\b|->|for\s*\([^;]*:[^;]*\)/.test(code)) return false;
+    return true;
+  }
+
+  var cppRunLoading = false;
+
+  Interact.runCard = function (card) {
+    var box = card.querySelector(".run-box");
+    if (box) { box.scrollIntoView({ behavior: "smooth", block: "nearest" }); return; }
+    box = document.createElement("div");
+    box.className = "run-box";
+    box.innerHTML = '<div class="run-head">⏳ 正在准备运行器…</div>';
+    var bar = card.querySelector(".ex-btns");
+    if (bar) bar.parentNode.insertBefore(box, bar.nextSibling);
+    else card.appendChild(box);
+
+    function loadEngine(cb) {
+      if (window.CppRun) { cb(); return; }
+      if (cppRunLoading) { var t = setInterval(function () { if (window.CppRun) { clearInterval(t); cb(); } }, 80); return; }
+      cppRunLoading = true;
+      var s = document.createElement("script");
+      s.src = (/\/chapters\//.test(decodeURIComponent(location.pathname)) ? "../" : "") + "assets/js/cpp-run.js";
+      s.onload = function () { cb(); };
+      s.onerror = function () {
+        box.querySelector(".run-head").textContent = "❌ 无法加载运行器（assets/js/cpp-run.js）";
+      };
+      document.head.appendChild(s);
+    }
+
+    loadEngine(function () {
+      window.CppRun.ensure(function (ok) {
+        var head = box.querySelector(".run-head");
+        if (!ok) {
+          head.textContent = "❌ 运行器加载失败：" + (window.CppRun ? window.CppRun.failReason : "未知原因");
+          return;
+        }
+        var codeEl = card.querySelector("pre.ex-code code, .ex-code-wrap code");
+        var raw = codeEl ? (codeEl.getAttribute("data-raw") || codeEl.textContent) : "";
+        var r = window.CppRun.run(raw);
+        var html = '<div class="run-head">▶ 在线运行结果</div>';
+        html += '<pre class="run-out">' + escHtml(r.out.length ? r.out : "（无输出）") + "</pre>";
+        if (r.warn) {
+          r.warn.split("\n").forEach(function (w) {
+            html += '<div class="run-warn">⚠ ' + escHtml(w) + "</div>";
+          });
+        }
+        if (!r.ok) {
+          html += '<div class="run-err">✖ ' + escHtml(r.err) + "</div>";
+        }
+        html += '<div class="run-note">教学子集解释器：只覆盖课程常用语法；未定义行为会在发生处停止并说明。输出与真实编译器可能存在细节差异。</div>';
+        box.innerHTML = html;
+        box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    });
+  };
+
+  /* ---------------- 逐步执行器 ----------------
+     可选数据字段（都是增强，缺省不影响原有行为）：
+       step.stack : 字符串数组，调用栈快照（首元素=栈底，末元素=当前帧）
+       step.vars  : 键名以 "[]" 结尾且值为空格分隔数字的项 → 自动渲染柱状图
+       step.cmp   : 本步正在比较的下标数组（柱子标橙色）
+       step.pivot : 基准下标（柱子标红色） */
   Interact.startStepper = function (card) {
     // 已存在则聚焦
     var exist = card.querySelector(".stepper");
@@ -137,6 +219,8 @@
     var steps = data.steps || [];
     if (!steps.length) return;
 
+    var hasStack = steps.some(function (s) { return s && Array.isArray(s.stack) && s.stack.length > 0; });
+
     var pre = card.querySelector("pre.ex-code");
     var codeEl = pre.querySelector("code");
 
@@ -148,19 +232,168 @@
       '<button class="btn btn-small" data-act="prev">⬅ 上一步</button>' +
       '<button class="btn btn-small btn-primary" data-act="next">下一步 ➡</button>' +
       '<button class="btn btn-small" data-act="end">⏭ 末尾</button>' +
+      '<button class="btn btn-small" data-act="play" title="自动播放：按选定速度逐步前进">▶ 自动</button>' +
+      '<select class="stepper-speed" data-act="speed" title="自动播放速度">' +
+      '<option value="2000">慢</option>' +
+      '<option value="1000" selected>中</option>' +
+      '<option value="450">快</option>' +
+      "</select>" +
       '<button class="btn btn-small" data-act="close">✖ 关闭</button>' +
       '<span class="stepper-progress"></span>' +
       "</div>" +
       '<div class="stepper-note"></div>' +
       '<div class="stepper-grid">' +
+      '<div class="stepper-bars" hidden><canvas></canvas></div>' +
       '<div class="stepper-code"></div>' +
       '<div class="stepper-vars"><h5>变量表（当前步快照）</h5><div class="vars-body"></div></div>' +
+      (hasStack ? '<div class="stepper-stack"><h5>调用栈（底 → 顶）</h5><div class="stk-body"></div></div>' : "") +
       '<div class="stepper-console"><h5>控制台输出</h5><pre class="console-out">（尚无输出）</pre></div>' +
       "</div>";
+    if (hasStack) box.classList.add("has-stack");
     pre.parentNode.insertBefore(box, pre.nextSibling);
 
     var pos = -1;
     var consoleLines = [];
+
+    /* ---------- 自动播放 ---------- */
+    var playing = false;
+    var playTimer = null;
+    var playMs = 1000;
+    function stopPlay() {
+      playing = false;
+      if (playTimer) { clearInterval(playTimer); playTimer = null; }
+      var b = box.querySelector('[data-act="play"]');
+      if (b) { b.textContent = "▶ 自动"; b.classList.remove("toggled"); }
+    }
+    function setPlaying(on) {
+      stopPlay();
+      if (!on) return;
+      playing = true;
+      playMs = parseInt(box.querySelector(".stepper-speed").value, 10) || 1000;
+      playTimer = setInterval(function () {
+        if (pos >= steps.length - 1) { stopPlay(); return; }
+        go(1);
+      }, playMs);
+      var b = box.querySelector('[data-act="play"]');
+      if (b) { b.textContent = "⏸ 暂停"; b.classList.add("toggled"); }
+      go(1);
+    }
+
+    /* ---------- 柱状图（数据驱动：vars 里键名以 [] 结尾的数字序列） ---------- */
+    function stepArr(step) {
+      if (!step || !step.vars) return null;
+      var keys = Object.keys(step.vars);
+      for (var i = 0; i < keys.length; i++) {
+        var k = keys[i];
+        if (k.slice(-2) !== "[]") continue;
+        var parts = String(step.vars[k]).trim().split(/\s+/);
+        var vals = [];
+        var ok = parts.length > 0;
+        for (var j = 0; j < parts.length; j++) {
+          var v = parseFloat(parts[j]);
+          if (isNaN(v)) { ok = false; break; }
+          vals.push(v);
+        }
+        if (ok && vals.length) return vals;
+      }
+      return null;
+    }
+    var barLast = null;      // 上一次的数组值（用于本步未改动时灰显 + 补间动画起点）
+    var barRaf = null;
+    function cssVar(name, fallback) {
+      var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return v || fallback;
+    }
+    function drawBars(vals, stale) {
+      var wrap = box.querySelector(".stepper-bars");
+      var cv = wrap && wrap.querySelector("canvas");
+      if (!cv) return;
+      var dpr = window.devicePixelRatio || 1;
+      var w = cv.clientWidth || wrap.clientWidth - 28;
+      var h = cv.clientHeight || 150;
+      if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+        cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+      }
+      var ctx = cv.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      var step = pos >= 0 ? steps[pos] : null;
+      var cmp = (step && step.cmp) || [];
+      var pivot = (step && typeof step.pivot === "number") ? step.pivot : -1;
+      var max = 1;
+      for (var i = 0; i < vals.length; i++) if (vals[i] > max) max = vals[i];
+      var n = vals.length;
+      var gap = n > 24 ? 2 : 6;
+      var barW = Math.max(6, (w - gap * (n - 1) - 8) / n);
+      var baseY = h - 18;
+      var plotH = baseY - 22;
+      var cBar = cssVar("--primary", "#7e0c6e");
+      var cCmp = cssVar("--warn", "#b45309");
+      var cPivot = cssVar("--danger", "#dc2626");
+      var cText = cssVar("--text-muted", "#6b5d70");
+      if (stale) ctx.globalAlpha = 0.4;
+      for (var i2 = 0; i2 < n; i2++) {
+        var bh = Math.max(2, vals[i2] / max * plotH);
+        var x = 4 + i2 * (barW + gap);
+        var y = baseY - bh;
+        ctx.fillStyle = (i2 === pivot) ? cPivot : (cmp.indexOf(i2) !== -1 ? cCmp : cBar);
+        ctx.fillRect(x, y, barW, bh);
+        ctx.fillStyle = cText;
+        ctx.font = "11px " + cssVar("--font-mono", "monospace");
+        ctx.textAlign = "center";
+        if (barW >= 18) ctx.fillText(String(vals[i2]), x + barW / 2, y - 4);
+        if (n <= 20) ctx.fillText(String(i2), x + barW / 2, baseY + 12);
+      }
+      ctx.globalAlpha = 1;
+    }
+    function renderBars() {
+      var wrap = box.querySelector(".stepper-bars");
+      if (!wrap) return;
+      var step = pos >= 0 ? steps[pos] : null;
+      var vals = stepArr(step);
+      if (vals) {
+        barLast = vals;
+        wrap.hidden = false;
+        if (barRaf) cancelAnimationFrame(barRaf);
+        var from = barPrevVals ? barPrevVals.slice() : vals.slice();
+        var t0 = null;
+        var dur = 180;
+        function anim(ts) {
+          if (t0 === null) t0 = ts;
+          var k = Math.min(1, (ts - t0) / dur);
+          var cur = vals.map(function (v, i) { return from[i] + (v - from[i]) * k; });
+          drawBars(cur, false);
+          if (k < 1) barRaf = requestAnimationFrame(anim);
+        }
+        barRaf = requestAnimationFrame(anim);
+        barPrevVals = vals.slice();
+      } else if (barLast) {
+        /* 本步没有数组：保留上一步的数组，灰显提示“本步未改动数组” */
+        wrap.hidden = false;
+        drawBars(barLast, true);
+        barPrevVals = barLast.slice();
+      } else {
+        wrap.hidden = true;
+      }
+    }
+    var barPrevVals = null;
+
+    /* ---------- 调用栈 ---------- */
+    function renderStack(step) {
+      var el = box.querySelector(".stk-body");
+      if (!el) return;
+      var fr = (step && Array.isArray(step.stack)) ? step.stack : [];
+      if (!fr.length) {
+        el.innerHTML = '<span class="muted small">（空栈）</span>';
+        return;
+      }
+      var html = "";
+      for (var i = 0; i < fr.length; i++) {
+        html += '<div class="stk-frame' + (i === fr.length - 1 ? " stk-top" : "") + '">' +
+          escHtml(String(fr[i])) + "</div>";
+      }
+      el.innerHTML = html;
+    }
 
     function render() {
       var step = pos >= 0 ? steps[pos] : null;
@@ -189,6 +422,9 @@
       var con = box.querySelector(".console-out");
       con.textContent = consoleLines.length ? consoleLines.join("\n") : "（尚无输出）";
       if (step && step.out) con.textContent = consoleLines.join("\n");
+      // 增强：调用栈 + 柱状图
+      renderStack(step);
+      renderBars();
     }
 
     function escHtml(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
@@ -212,18 +448,35 @@
         if (pos >= steps.length - 1) { flash(ev.target, "已到末尾"); return; }
         go(1);
       } else if (act === "prev") {
+        stopPlay();
         if (pos >= 0 && steps[pos] && steps[pos].out) consoleLines.pop();
         go(-1);
       } else if (act === "first") {
+        stopPlay();
         consoleLines = []; go(0, -1);
       } else if (act === "end") {
+        stopPlay();
         for (var i = pos + 1; i < steps.length; i++) { if (steps[i].out) consoleLines.push(steps[i].out); }
         go(0, steps.length - 1);
+      } else if (act === "play") {
+        setPlaying(!playing);
       } else if (act === "close") {
+        stopPlay();
+        if (barRaf) cancelAnimationFrame(barRaf);
+        window.removeEventListener("resize", onResize);
         codeEl.querySelectorAll(".ln").forEach(function (ln) { ln.classList.remove("cur-line", "done-line"); });
         box.remove();
       }
     });
+    /* 播放中改速度：立即按新速度重启计时 */
+    box.addEventListener("change", function (ev) {
+      if (ev.target.classList && ev.target.classList.contains("stepper-speed") && playing) setPlaying(true);
+    });
+    /* 窗口尺寸变化时重绘柱状图（关闭时解绑） */
+    function onResize() {
+      if (document.body.contains(box) && barLast) drawBars(barLast, false);
+    }
+    window.addEventListener("resize", onResize);
 
     function flash(btn, txt) {
       var old = btn.textContent; btn.textContent = txt;
@@ -341,6 +594,189 @@
     host.appendChild(fb);
   }
 
+  /* ---------------- Parsons 问题：拖拽组代码 ----------------
+     数据（script.parsons-data，JSON）：
+       items   正确顺序的代码行（字符串数组，引擎渲染时转义）
+       hint    可选提示
+       explain 可选：检查正确后展示的解析
+     交互：从「代码块」拖入「程序区」组出正确程序；
+     程序区内可拖动排序 / ↑↓ 微调 / ✕ 放回；「检查顺序」逐行判分。 */
+  function initParsons(host) {
+    if (host.getAttribute("data-rendered") === "1") return;
+    host.setAttribute("data-rendered", "1");
+    var dataEl = host.querySelector("script.parsons-data");
+    if (!dataEl) return;
+    var data;
+    try { data = JSON.parse(dataEl.textContent); }
+    catch (e) { host.innerHTML = '<div class="warn">Parsons 数据 JSON 解析失败：' + escHtml(e.message) + "</div>"; return; }
+    var items = data.items || [];
+    if (!items.length) return;
+
+    var shuffled = Quiz
+      ? Quiz.shuffle(items.map(function (_, i) { return i; }))
+      : items.map(function (_, i) { return i; }).reverse();
+    var target = [];          // 程序区：物品下标，按当前顺序
+
+    host.innerHTML =
+      '<div class="parsons-title">' + escHtml(data.title || "把代码行拖回正确顺序") + "</div>" +
+      '<div class="parsons-cols">' +
+      '<div class="parsons-col"><h5>🧩 代码块（打乱）<span class="parsons-count"></span></h5>' +
+      '<ol class="parsons-pool"></ol></div>' +
+      '<div class="parsons-col"><h5>📦 程序区（按正确顺序排列）<span class="parsons-count"></span></h5>' +
+      '<ol class="parsons-target"></ol></div>' +
+      "</div>" +
+      '<div class="sort-btns">' +
+      '<button class="btn btn-small btn-primary" data-pa="check">✅ 检查顺序</button>' +
+      '<button class="btn btn-small" data-pa="reset">🔀 重新打乱</button>' +
+      "</div>" +
+      '<div class="quiz-feedback"></div>';
+
+    var poolEl = host.querySelector(".parsons-pool");
+    var targetEl = host.querySelector(".parsons-target");
+    var fb = host.querySelector(".quiz-feedback");
+
+    function codeLine(text) {
+      return '<code class="parsons-code">' + escHtml(text) + "</code>";
+    }
+
+    function render() {
+      poolEl.innerHTML = "";
+      targetEl.innerHTML = "";
+      var inTarget = {};
+      target.forEach(function (i) { inTarget[i] = true; });
+      shuffled.forEach(function (idx) {
+        if (inTarget[idx]) return;
+        var li = document.createElement("li");
+        li.className = "parsons-item";
+        li.draggable = true;
+        li.setAttribute("data-idx", String(idx));
+        li.innerHTML = codeLine(items[idx]);
+        li.addEventListener("dragstart", function (ev) {
+          li.classList.add("dragging");
+          ev.dataTransfer.setData("text/plain", "pool:" + idx);
+          ev.dataTransfer.effectAllowed = "move";
+        });
+        li.addEventListener("dragend", function () { li.classList.remove("dragging"); });
+        poolEl.appendChild(li);
+      });
+      target.forEach(function (idx, pos) {
+        var li = document.createElement("li");
+        li.className = "parsons-item in-target";
+        li.draggable = true;
+        li.setAttribute("data-pos", String(pos));
+        li.innerHTML =
+          '<span class="sort-num">' + (pos + 1) + '.</span>' + codeLine(items[idx]) +
+          '<span class="parsons-btns">' +
+          '<button class="btn btn-small sort-arrow-btn" data-dir="-1" title="上移">↑</button>' +
+          '<button class="btn btn-small sort-arrow-btn" data-dir="1" title="下移">↓</button>' +
+          '<button class="btn btn-small sort-arrow-btn" data-out="1" title="放回代码块">✕</button>' +
+          "</span>";
+        li.addEventListener("dragstart", function (ev) {
+          li.classList.add("dragging");
+          ev.dataTransfer.setData("text/plain", "target:" + pos);
+          ev.dataTransfer.effectAllowed = "move";
+        });
+        li.addEventListener("dragend", function () { li.classList.remove("dragging"); });
+        /* 放到这一行上 = 插到该行之前 */
+        li.addEventListener("dragover", function (ev) { ev.preventDefault(); });
+        li.addEventListener("drop", function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          var d = String(ev.dataTransfer.getData("text/plain") || "");
+          if (d.indexOf("pool:") === 0) {
+            moveToTarget(parseInt(d.slice(5), 10), pos);
+          } else if (d.indexOf("target:") === 0) {
+            var from = parseInt(d.slice(7), 10);
+            if (!isNaN(from) && from !== pos) {
+              var m = target.splice(from, 1)[0];
+              target.splice(from < pos ? pos - 1 : pos, 0, m);
+              render();
+            }
+          }
+        });
+        targetEl.appendChild(li);
+      });
+      host.querySelectorAll(".parsons-count").forEach(function (c) {
+        c.textContent = "（" + target.length + " / " + items.length + " 行）";
+      });
+    }
+
+    function moveToTarget(idx, atPos) {
+      var t = target.indexOf(idx);
+      if (t !== -1) target.splice(t, 1);
+      if (typeof atPos === "number") target.splice(Math.max(0, Math.min(target.length, atPos)), 0, idx);
+      else target.push(idx);
+      render();
+    }
+    function backToPool(idx) {
+      var t = target.indexOf(idx);
+      if (t !== -1) target.splice(t, 1);
+      render();
+    }
+
+    /* 拖到程序区空白处：追加到末尾（放到具体行上则插到该行前，见行级 drop） */
+    targetEl.addEventListener("dragover", function (ev) { ev.preventDefault(); });
+    targetEl.addEventListener("drop", function (ev) {
+      ev.preventDefault();
+      var d = String(ev.dataTransfer.getData("text/plain") || "");
+      if (d.indexOf("pool:") === 0) {
+        moveToTarget(parseInt(d.slice(5), 10), target.length);
+      } else if (d.indexOf("target:") === 0) {
+        var from = parseInt(d.slice(7), 10);
+        if (!isNaN(from)) { var moved = target.splice(from, 1)[0]; target.push(moved); render(); }
+      }
+    });
+    targetEl.addEventListener("click", function (ev) {
+      var li = ev.target.closest ? ev.target.closest(".parsons-item") : null;
+      if (!li) return;
+      var pos = parseInt(li.getAttribute("data-pos"), 10);
+      if (isNaN(pos)) return;
+      var dir = ev.target.getAttribute && ev.target.getAttribute("data-dir");
+      var out = ev.target.getAttribute && ev.target.getAttribute("data-out");
+      if (dir === "-1" && pos > 0) { var t1 = target[pos - 1]; target[pos - 1] = target[pos]; target[pos] = t1; render(); }
+      else if (dir === "1" && pos < target.length - 1) { var t2 = target[pos + 1]; target[pos + 1] = target[pos]; target[pos] = t2; render(); }
+      else if (out) { backToPool(target[pos]); }
+    });
+
+    poolEl.addEventListener("dragover", function (ev) { ev.preventDefault(); });
+    poolEl.addEventListener("drop", function (ev) {
+      ev.preventDefault();
+      var d = String(ev.dataTransfer.getData("text/plain") || "");
+      if (d.indexOf("target:") === 0) {
+        var from = parseInt(d.slice(7), 10);
+        if (!isNaN(from)) backToPool(target[from]);
+      }
+    });
+
+    host.querySelector('[data-pa="check"]').addEventListener("click", function () {
+      var ok = target.length === items.length && target.every(function (v, i) { return v === i; });
+      fb.className = "quiz-feedback " + (ok ? "ok" : "bad");
+      if (ok) {
+        fb.innerHTML = "✔ 程序正确！" + (data.explain ? '<div class="small">' + data.explain + "</div>" : "");
+      } else if (target.length < items.length) {
+        fb.innerHTML = "✘ 还有 " + (items.length - target.length) + " 行没放进程序区。" +
+          (data.hint ? '<div class="small">提示：' + data.hint + "</div>" : "");
+      } else {
+        /* 逐行给出第一个错误位置 */
+        var firstBad = -1;
+        for (var i = 0; i < target.length; i++) { if (target[i] !== i) { firstBad = i; break; } }
+        fb.innerHTML = "✘ 顺序还不对：从第 " + (firstBad + 1) + " 行开始就错了。" +
+          (data.hint ? '<div class="small">提示：' + data.hint + "</div>" : "");
+      }
+    });
+    host.querySelector('[data-pa="reset"]').addEventListener("click", function () {
+      shuffled = Quiz
+        ? Quiz.shuffle(items.map(function (_, i) { return i; }))
+        : items.map(function (_, i) { return i; }).reverse();
+      target = [];
+      fb.className = "";
+      fb.textContent = "已重新打乱，把代码行拖入右侧程序区";
+      render();
+    });
+
+    render();
+  }
+
   /* ---------------- 自增自减动画 ---------------- */
   function initIncDec(host) {
     if (host.getAttribute("data-rendered") === "1") return;
@@ -397,6 +833,189 @@
     host.querySelectorAll("[data-op]").forEach(function (b) {
       b.addEventListener("click", function () { run(b.getAttribute("data-op")); });
     });
+  }
+
+  /* ---------------- 指针/引用 SVG 箭头图 ----------------
+     数据（script.ptrviz-data，JSON）：
+       vars  变量盒：[{ name, type, value? }, ...]（横向排列，>6 个自动换行）
+       frames 每步状态：
+         ptrs   { 指针名: 目标变量名 | "null" }（缺省的指针本步不画箭头）
+         freed  本步已销毁的变量名数组（盒子画删除线、指向它的箭头变红虚线）
+         note   本步讲解（纯文本）
+     交互：⏮ 上一步 / 下一步 ⏭ 逐步切换，箭头端点用 rAF 补间动画过渡。 */
+  function initPtrviz(host) {
+    if (host.getAttribute("data-rendered") === "1") return;
+    host.setAttribute("data-rendered", "1");
+    var dataEl = host.querySelector("script.ptrviz-data");
+    if (!dataEl) return;
+    var data;
+    try { data = JSON.parse(dataEl.textContent); }
+    catch (e) { host.innerHTML = '<div class="warn">指针图数据 JSON 解析失败：' + escHtml(e.message) + "</div>"; return; }
+    var vars = data.vars || [];
+    var steps = data.frames || [];   /* 字段名用 frames：避开校验器对 ex-steps 的 steps/line 检查 */
+    if (!vars.length || !steps.length) return;
+
+    host.innerHTML =
+      '<div class="ptrviz-title">' + escHtml(data.title || "指针指向图") + "</div>" +
+      '<div class="ptrviz-canvas"><svg></svg></div>' +
+      '<div class="ptrviz-controls">' +
+      '<button class="btn btn-small" data-pv="first">⏮</button>' +
+      '<button class="btn btn-small" data-pv="prev">⬅ 上一步</button>' +
+      '<span class="ptrviz-progress"></span>' +
+      '<button class="btn btn-small btn-primary" data-pv="next">下一步 ➡</button>' +
+      '<button class="btn btn-small" data-pv="end">⏭</button>' +
+      "</div>" +
+      '<div class="ptrviz-note"></div>';
+
+    var svg = host.querySelector("svg");
+    var noteEl = host.querySelector(".ptrviz-note");
+    var progEl = host.querySelector(".ptrviz-progress");
+    var cur = 0;
+    var raf = null;
+
+    var BOX_W = 96, BOX_H = 52, GAP = 22, PAD = 10, ROW_H = 86;
+    var HEADROOM = 104;              /* 箭头在盒子上方走线需要的净空 */
+    var perRow = Math.min(vars.length, 6);
+    var rows = Math.ceil(vars.length / 6);
+    var W = Math.max(320, perRow * (BOX_W + GAP) - GAP + PAD * 2);
+    var H = PAD + HEADROOM + rows * ROW_H + 46;   /* 底部留 ∅ 徽标的悬挂空间 */
+
+    function boxRect(i) {
+      var row = Math.floor(i / 6), col = i % 6;
+      return { x: PAD + col * (BOX_W + GAP), y: PAD + HEADROOM + row * ROW_H };
+    }
+    var idxByName = {};
+    vars.forEach(function (v, i) { idxByName[v.name] = i; });
+
+    var svgNS = "http://www.w3.org/2000/svg";
+    function el(tag, attrs) {
+      var n = document.createElementNS(svgNS, tag);
+      for (var k in attrs) n.setAttribute(k, attrs[k]);
+      return n;
+    }
+
+    function drawStatic() {
+      svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+      svg.setAttribute("width", "100%");
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+      var defs = el("defs", {});
+      var mk = el("marker", { id: "pv-arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+      mk.appendChild(el("path", { d: "M 0 0 L 10 5 L 0 10 z", "class": "pv-mk-normal" }));
+      var mkBad = el("marker", { id: "pv-arrow-bad", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+      mkBad.appendChild(el("path", { d: "M 0 0 L 10 5 L 0 10 z", "class": "pv-mk-bad" }));
+      defs.appendChild(mk); defs.appendChild(mkBad);
+      svg.appendChild(defs);
+
+      vars.forEach(function (v, i) {
+        var r = boxRect(i);
+        var g = el("g", {});
+        g.appendChild(el("rect", { x: r.x, y: r.y, width: BOX_W, height: BOX_H, rx: 8,
+          class: "pv-box" + (String(v.type || "").indexOf("*") !== -1 ? " pv-box-ptr" : "") }));
+        var name = el("text", { x: r.x + 10, y: r.y + 20, class: "pv-name" });
+        name.textContent = v.name;
+        g.appendChild(name);
+        var sub = el("text", { x: r.x + 10, y: r.y + 38, class: "pv-sub" });
+        sub.textContent = (v.type || "") + (v.value !== undefined && v.value !== "" ? " = " + v.value : "");
+        g.appendChild(sub);
+        svg.appendChild(g);
+      });
+      /* 箭头层（每步重建） */
+      svg.appendChild(el("g", { class: "pv-arrows" }));
+      /* nullptr 徽标层 */
+      svg.appendChild(el("g", { class: "pv-nulls" }));
+    }
+
+    function arrowPath(x1, y1, x2, y2) {
+      /* 从指针盒顶部出发，弧线走在盒子上方净空里，落回目标盒顶部；
+         抬升量随水平距离增大，避免长箭头压到中间的盒子 */
+      var lift = Math.min(96, 34 + Math.abs(x2 - x1) * 0.22);
+      var c1y = y1 - lift, c2y = y2 - lift;
+      return "M " + x1 + " " + y1 +
+        " C " + x1 + " " + c1y + ", " + x2 + " " + c2y + ", " + x2 + " " + (y2 - 3);
+    }
+
+    function stepState(si) {
+      var s = steps[si] || {};
+      return { ptrs: s.ptrs || {}, freed: s.freed || [] };
+    }
+
+    function render() {
+      var st = stepState(cur);
+      progEl.textContent = (cur + 1) + " / " + steps.length;
+      noteEl.textContent = steps[cur] && steps[cur].note ? steps[cur].note : "";
+      /* 盒子状态：freed 加删除线类 */
+      vars.forEach(function (v, i) {
+        var box = svg.querySelectorAll(".pv-box")[i];
+        if (box) box.classList.toggle("pv-freed", st.freed.indexOf(v.name) !== -1);
+      });
+
+      var arrowsG = svg.querySelector(".pv-arrows");
+      var nullsG = svg.querySelector(".pv-nulls");
+      while (arrowsG.firstChild) arrowsG.removeChild(arrowsG.firstChild);
+      while (nullsG.firstChild) nullsG.removeChild(nullsG.firstChild);
+
+      var targets = [];
+      Object.keys(st.ptrs).forEach(function (pname) {
+        var pi = idxByName[pname];
+        if (pi === undefined) return;
+        var from = boxRect(pi);
+        var x1 = from.x + BOX_W / 2, y1 = from.y;          /* 指针盒顶部出发 */
+        var tgt = st.ptrs[pname];
+        if (tgt === "null") {
+          var badge = el("g", { class: "pv-null-badge" });
+          badge.appendChild(el("circle", { cx: x1, cy: from.y + BOX_H + 26, r: 12, class: "pv-null-circle" }));
+          var t = el("text", { x: x1, y: from.y + BOX_H + 30, class: "pv-null-text" });
+          t.textContent = "∅";
+          badge.appendChild(t);
+          nullsG.appendChild(badge);
+          targets.push({ x1: x1, y1: from.y + BOX_H, x2: x1, y2: from.y + BOX_H + 14, bad: false });
+          return;
+        }
+        var ti = idxByName[tgt];
+        if (ti === undefined) return;
+        var to = boxRect(ti);
+        var bad = st.freed.indexOf(tgt) !== -1;
+        targets.push({ x1: x1, y1: y1, x2: to.x + BOX_W / 2, y2: to.y, bad: bad });
+      });
+
+      targets.forEach(function (t) {
+        var p = el("path", {
+          d: arrowPath(t.x1, t.y1, t.x2, t.y2),
+          class: "pv-arrow" + (t.bad ? " pv-arrow-bad" : ""),
+          "marker-end": t.bad ? "url(#pv-arrow-bad)" : "url(#pv-arrow)"
+        });
+        arrowsG.appendChild(p);
+      });
+
+      /* 箭头生长动画：从起点向终点展开（stroke-dashoffset 过渡）；
+         悬空虚线箭头不做生长动画——内联 dasharray 会覆盖虚线图案 */
+      arrowsG.querySelectorAll(".pv-arrow").forEach(function (p) {
+        if (p.classList.contains("pv-arrow-bad")) return;
+        try {
+          var len = p.getTotalLength();
+          p.style.strokeDasharray = len;
+          p.style.strokeDashoffset = len;
+          p.getBoundingClientRect();      /* 强制布局后再清零，触发过渡 */
+          p.style.transition = "stroke-dashoffset .35s ease";
+          p.style.strokeDashoffset = "0";
+        } catch (e) { /* getTotalLength 不可用时直接显示 */ }
+      });
+    }
+
+    host.addEventListener("click", function (ev) {
+      var act = ev.target.getAttribute && ev.target.getAttribute("data-pv");
+      if (!act) return;
+      if (act === "prev") cur = Math.max(0, cur - 1);
+      else if (act === "next") cur = Math.min(steps.length - 1, cur + 1);
+      else if (act === "first") cur = 0;
+      else if (act === "end") cur = steps.length - 1;
+      else return;
+      if (raf) cancelAnimationFrame(raf);
+      render();
+    });
+
+    drawStatic();
+    render();
   }
 
   /* ---------------- 自测清单 ----------------
@@ -456,6 +1075,8 @@
     document.querySelectorAll(".example-card").forEach(enhanceCard);
     document.querySelectorAll(".memviz").forEach(renderMemory);
     document.querySelectorAll(".widget-sort").forEach(initSort);
+    document.querySelectorAll(".widget-parsons").forEach(initParsons);
+    document.querySelectorAll(".widget-ptrviz").forEach(initPtrviz);
     document.querySelectorAll(".widget-incdec").forEach(initIncDec);
   }
 

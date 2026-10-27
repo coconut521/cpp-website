@@ -101,6 +101,20 @@ function checkHtml(file) {
           const a = q.answer;
           const ok = typeof a === "string" ? a.length > 0 : Array.isArray(a) && a.length > 0;
           if (!ok) err(file, 0, `quiz ${at} ${q.type} 缺少 answer`);
+        } else if (q.type === "mfill") {
+          if (typeof q.code !== "string" || !q.code) err(file, 0, `quiz ${at} mfill 缺少 code`);
+          const nSlots = (typeof q.code === "string" ? q.code : "").split(/_{4,}/).length - 1;
+          if (!Array.isArray(q.blanks) || q.blanks.length === 0) {
+            err(file, 0, `quiz ${at} mfill 缺少 blanks 数组`);
+          } else if (nSlots !== q.blanks.length) {
+            err(file, 0, `quiz ${at} mfill：code 中有 ${nSlots} 个 ____，blanks 有 ${q.blanks.length} 项，数量不一致`);
+          } else {
+            q.blanks.forEach((b, bi) => {
+              const a = b && b.answer;
+              const ok = typeof a === "string" ? a.length > 0 : Array.isArray(a) && a.length > 0;
+              if (!ok) err(file, 0, `quiz ${at} mfill 第${bi + 1}空缺少 answer`);
+            });
+          }
         } else {
           err(file, 0, `quiz ${at} 未知题型 "${q.type}"`);
         }

@@ -70,6 +70,7 @@
       "<button class='btn' data-t='outputs'>▶ 显示 / 隐藏所有示例输出</button>" +
       "<button class='btn' data-t='details'>📂 展开 / 折叠所有报错·修复·折叠块</button>" +
       "</div><div class='tp-group'>" +
+      "<button class='btn' data-t='exam'>📑 随机组卷（跨章题库）</button>" +
       "<button class='btn' data-t='export'>💾 导出本章全部 .cpp 代码</button>" +
       "<button class='btn' data-t='template'>📝 生成新章节 HTML 模板（下载）</button>" +
       "</div><div id='tp-extra'></div>" +
@@ -83,6 +84,9 @@
         var show = !document.body.classList.contains("teacher-show-answers");
         document.body.classList.toggle("teacher-show-answers", show);
         if (show) document.querySelectorAll("details.fold-answer").forEach(function (d) { d.setAttribute("open", ""); });
+      } else if (t === "exam") {
+        panel.classList.remove("open");
+        openExamBuilder();
       } else if (t === "outputs") {
         // 按当前强制显示状态切换所有示例输出
         document.querySelectorAll(".example-card .ex-output").forEach(function (o) {
@@ -128,6 +132,219 @@
       });
       actions.appendChild(btn);
     }
+  }
+
+  /* ---------- 随机组卷 ----------
+     题源：quizbank-data.js（QUIZBANK_DATA）+ pitfalls-data.js 内嵌 quiz +
+     bughunt-data.js（找错题）。三个数据文件按需动态注入 <script>（file:// 可用）。
+     生成 → 全屏试卷浮层；「打印」走 @media print 专用规则（只打印浮层）；
+     「答案页」切换为答案视图，可单独打印。 */
+  var EXAM_KEYMAP = {
+    "quizbank-data.js": "QUIZBANK_DATA",
+    "pitfalls-data.js": "PITFALLS_DATA",
+    "bughunt-data.js": "BUGHUNT_DATA"
+  };
+  function examPrefix() {
+    return /\/chapters\//.test(decodeURIComponent(location.pathname)) ? "../" : "";
+  }
+  function ensureExamData(cb) {
+    var need = Object.keys(EXAM_KEYMAP).filter(function (n) { return !window[EXAM_KEYMAP[n]]; });
+    if (!need.length) { cb(true); return; }
+    var left = need.length, failed = [];
+    need.forEach(function (n) {
+      var s = document.createElement("script");
+      s.src = examPrefix() + "assets/js/" + n;
+      s.onload = s.onerror = function (ev) {
+        if (ev && ev.type === "error") failed.push(n);
+        if (--left === 0) cb(failed.length === 0);
+      };
+      document.head.appendChild(s);
+    });
+  }
+
+  function buildExamPool() {
+    var pool = [];
+    (window.QUIZBANK_DATA || []).forEach(function (q) {
+      pool.push({ id: q.id, ch: q.ch, type: q.type, q: q.q, options: q.options, answer: q.answer,
+        explain: q.explain, difficulty: q.difficulty || "medium", tags: q.tags || [], src: "题库" });
+    });
+    (window.PITFALLS_DATA || []).forEach(function (p) {
+      (p.quiz || []).forEach(function (q, i) {
+        pool.push({ id: p.id + "-q" + (i + 1), ch: (p.related && p.related[0]) || null, type: q.type, q: q.q,
+          options: q.options, answer: q.answer, ci: q.ci, explain: q.explain,
+          difficulty: q.difficulty || p.difficulty || "medium", tags: p.tags || [], src: "易错点" });
+      });
+    });
+    (window.BUGHUNT_DATA || []).forEach(function (b) {
+      pool.push({ id: b.id, ch: b.ch, type: "bughunt", title: b.title, code: b.code, bugLine: b.bugLine,
+        kind: b.kind, why: b.why, difficulty: b.difficulty || "medium", tags: [], src: "找Bug" });
+    });
+    return pool;
+  }
+
+  var EXAM_TYPE_LABEL = { mcq: "选择", tf: "判断", fill: "填空", code: "代码", mfill: "多空", bughunt: "找错" };
+  var EXAM_DIFF_LABEL = { easy: "简单", medium: "中等", hard: "困难" };
+  var EXAM_KIND_LABEL = { compile: "编译错误", logic: "逻辑错误", ub: "未定义行为" };
+
+  function examEsc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+
+  function examAnswerText(item) {
+    if (item.type === "mcq") return String.fromCharCode(65 + item.answer) + ". " + examEsc(item.options[item.answer]);
+    if (item.type === "tf") return item.answer ? "正确" : "错误";
+    if (item.type === "bughunt") {
+      return "第 " + item.bugLine + " 行（" + (EXAM_KIND_LABEL[item.kind] || item.kind) + "）" +
+        (item.why ? "：" + item.why : "");
+    }
+    var list = Array.isArray(item.answer) ? item.answer : [item.answer];
+    return list.map(function (a) { return "<code>" + examEsc(a) + "</code>"; }).join(" 或 ");
+  }
+
+  function examRenderItem(item, no, forAnswer) {
+    var badges = '<span class="exam-badge">' + (EXAM_TYPE_LABEL[item.type] || item.type) + "</span>" +
+      '<span class="exam-badge d-' + item.difficulty + '">' + (EXAM_DIFF_LABEL[item.difficulty] || item.difficulty) + "</span>" +
+      (item.ch ? '<span class="exam-badge muted">' + examEsc(item.ch) + "</span>" : "");
+    var html = '<div class="exam-item"><div class="exam-item-head"><span class="exam-no">' + no + '.</span>' + badges + "</div>";
+    if (item.type === "bughunt") {
+      html += '<div class="exam-q">' + examEsc(item.title) + "：找出有问题的那一行</div>";
+      var src = item.code.join("\n");
+      html += '<pre class="exam-code">' +
+        (window.CppLight ? window.CppLight.highlight(src) : examEsc(src)) + "</pre>";
+      if (forAnswer) {
+        html += '<div class="exam-answer"><b>答案：</b>' + examAnswerText(item) + "</div>";
+      } else {
+        html += '<div class="exam-blank">有问题的行号：第 ________ 行</div>';
+      }
+    } else {
+      html += '<div class="exam-q">' + item.q + "</div>";
+      if (item.type === "mcq") {
+        html += '<div class="exam-options">';
+        item.options.forEach(function (opt, oi) {
+          html += '<div class="exam-option">' + String.fromCharCode(65 + oi) + ". " +
+            (forAnswer && oi === item.answer ? '<span class="exam-correct">' : "") +
+            examEsc(opt) +
+            (forAnswer && oi === item.answer ? "</span>" : "") + "</div>";
+        });
+        html += "</div>";
+      } else if (item.type === "tf") {
+        html += '<div class="exam-tf">（&nbsp;&nbsp;&nbsp;&nbsp;）正确&nbsp;&nbsp;&nbsp;&nbsp;（&nbsp;&nbsp;&nbsp;&nbsp;）错误</div>';
+      } else if (item.type === "mfill") {
+        html += '<pre class="exam-code">' + examEsc(item.code) + "</pre>";
+      }
+      if (forAnswer) {
+        html += '<div class="exam-answer"><b>答案：</b>' + examAnswerText(item) +
+          (item.explain ? '<div class="exam-explain">' + item.explain + "</div>" : "") + "</div>";
+      } else {
+        html += '<div class="exam-blank">答：________________________________________</div>';
+      }
+    }
+    return html + "</div>";
+  }
+
+  var examPool = [];
+  var examMode = "config";   /* config | paper | answers */
+
+  function examClose() {
+    var ov = document.getElementById("exam-overlay");
+    if (ov) ov.remove();
+    document.body.classList.remove("exam-open");
+  }
+
+  function examToolbarButtons() {
+    return '<button class="btn btn-small" data-exam="config">⚙ 重新配置</button>' +
+      (examMode === "answers"
+        ? '<button class="btn btn-small" data-exam="paper">📝 回到试卷</button>'
+        : '<button class="btn btn-small" data-exam="answers">📄 答案页</button>') +
+      '<button class="btn btn-small btn-primary" data-exam="print">🖨 打印本页</button>' +
+      '<button class="btn btn-small" data-exam="close">✖ 关闭</button>';
+  }
+
+  function examShow(mode) {
+    examMode = mode;
+    var ov = document.getElementById("exam-overlay");
+    if (!ov) return;
+    var body = ov.querySelector(".exam-body");
+    if (mode === "config") {
+      ov.querySelector(".exam-toolbar").innerHTML =
+        '<b>📑 随机组卷</b>' + examToolbarButtons().replace('data-exam="config"', 'data-exam="close" hidden');
+      body.innerHTML = examConfigHtml();
+      body.querySelector(".exam-go").addEventListener("click", examGenerate);
+      return;
+    }
+    ov.querySelector(".exam-toolbar").innerHTML =
+      '<b>📑 随机组卷（' + examPool.length + " 题）</b>" + examToolbarButtons();
+    var html = "";
+    if (mode === "paper") {
+      html += '<div class="exam-paper-head"><h2>大学 C++ 随堂练习卷</h2>' +
+        '<div class="exam-meta">班级__________　姓名__________　得分__________</div>' +
+        '<div class="exam-meta small muted">共 ' + examPool.length + " 题 · 生成于 " + new Date().toLocaleDateString() + "</div></div>";
+      examPool.forEach(function (item, i) { html += examRenderItem(item, i + 1, false); });
+    } else {
+      html += '<div class="exam-paper-head"><h2>答案页（共 ' + examPool.length + " 题）</h2></div>";
+      examPool.forEach(function (item, i) { html += examRenderItem(item, i + 1, true); });
+    }
+    body.innerHTML = html;
+  }
+
+  function examConfigHtml() {
+    var chOptions = '<option value="all">全部章节</option>';
+    (window.COURSE_TOC || []).forEach(function (c) {
+      chOptions += '<option value="' + c.id + '">' + examEsc(c.title) + "</option>";
+    });
+    return '<div class="exam-config">' +
+      "<h3>组卷设置</h3>" +
+      "<label>题数 <select id='exam-n'><option>5</option><option selected>10</option><option>15</option><option>20</option></select></label>" +
+      "<label>难度 <select id='exam-diff'><option value='all'>全部</option><option value='easy'>简单</option><option value='medium'>中等</option><option value='hard'>困难</option></select></label>" +
+      "<label>题型 <select id='exam-type'><option value='all'>全部</option><option value='mcq'>选择</option><option value='tf'>判断</option><option value='fill'>填空</option><option value='code'>代码</option><option value='mfill'>多空填空</option><option value='bughunt'>找错</option></select></label>" +
+      "<label>范围 <select id='exam-ch'>" + chOptions + "</select></label>" +
+      "<div class='exam-config-tip small muted'>题源：跨章题库 + 易错点小题 + 找错题。池中题不足时按实际数量出卷。</div>" +
+      "<button class='btn btn-primary exam-go'>📑 生成试卷</button>" +
+      "</div>";
+  }
+
+  function examGenerate() {
+    var ov = document.getElementById("exam-overlay");
+    var n = parseInt(ov.querySelector("#exam-n").value, 10) || 10;
+    var diff = ov.querySelector("#exam-diff").value;
+    var type = ov.querySelector("#exam-type").value;
+    var ch = ov.querySelector("#exam-ch").value;
+    var pool = buildExamPool().filter(function (item) {
+      if (diff !== "all" && item.difficulty !== diff) return false;
+      if (type !== "all" && item.type !== type) return false;
+      if (ch !== "all" && item.ch !== ch) return false;
+      return true;
+    });
+    /* 打乱后取 N 题，再按章节排序让卷面按章分组 */
+    for (var i = pool.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+    }
+    examPool = pool.slice(0, n).sort(function (a, b) {
+      return (a.ch || "").localeCompare(b.ch || "") || (a.type || "").localeCompare(b.type || "");
+    });
+    examShow("paper");
+  }
+
+  function openExamBuilder() {
+    ensureExamData(function (ok) {
+      if (!ok) { alert("题库数据加载失败：请确认 assets/js 下的 quizbank / pitfalls / bughunt 数据文件完整。"); return; }
+      if (document.getElementById("exam-overlay")) return;
+      var ov = document.createElement("div");
+      ov.id = "exam-overlay";
+      ov.className = "exam-overlay";
+      ov.innerHTML = '<div class="exam-toolbar"></div><div class="exam-body"></div>';
+      document.body.appendChild(ov);
+      document.body.classList.add("exam-open");
+      ov.addEventListener("click", function (ev) {
+        var act = ev.target.getAttribute && ev.target.getAttribute("data-exam");
+        if (!act) return;
+        if (act === "close") examClose();
+        else if (act === "print") window.print();
+        else if (act === "config") examShow("config");
+        else if (act === "paper") examShow("paper");
+        else if (act === "answers") examShow("answers");
+      });
+      examShow("config");
+    });
   }
 
   function init() {
