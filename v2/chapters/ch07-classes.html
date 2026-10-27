@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第7章 类与对象 | 大学C++离线助教</title>
+<script src="../assets/js/theme-init.js"></script>
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/v2.css">
+</head>
+<body>
+<main class="container chapter">
+
+  <p class="crumbs"><a href="../index.html">首页</a> / <a href="../index.html#toc">章节目录</a> / 第7章</p>
+
+  <header>
+    <h1>第7章 类与对象</h1>
+    <p class="muted">类把<b>数据</b>和操作这些数据的<b>函数</b>封装成自定义类型。构造、析构、拷贝构造是本章重点，也是理解继承与智能指针的基础。</p>
+  </header>
+
+  <!-- ================= 1. 学习目标 ================= -->
+  <section class="card objectives">
+    <h2 style="margin-top:0">学习目标</h2>
+    <ul>
+      <li>说出 <code>class</code> 与 <code>struct</code> 的<b>唯一默认区别</b>（默认 private / 默认 public）。</li>
+      <li>用 <code>public</code> / <code>private</code> / <code>protected</code> 划分接口与实现，写 <b>const 成员函数</b>。</li>
+      <li>写<b>成员初始化列表</b>，说清 const 成员、引用成员为什么<b>只能</b>用它；记住<b>成员初始化顺序 = 声明顺序</b>。</li>
+      <li>说出构造、析构、拷贝构造的触发时机，以及<b>析构顺序与构造相反</b>。</li>
+      <li>区分<b>浅拷贝与深拷贝</b>，为带指针成员的类写全 Rule of Three（三大件）。</li>
+      <li>使用 <code>static</code> 成员（类外定义）与 <code>=default</code> / <code>=delete</code>（C++11）。</li>
+    </ul>
+    <p class="small muted">前置知识：<a href="../chapters/ch01-variables.html">第1章 变量与基本类型</a>。示例 8、9 会用到 <code>new</code>/<code>delete</code>（第 5 章的主题）。</p>
+    </section>
+
+  <!-- ================= 2. class vs struct ================= -->
+  <h2>1. 从 struct 到 class：封装的起点</h2>
+  <p>在 C++ 里 <code>class</code> 和 <code>struct</code> 几乎是同一个东西：都能有成员函数、构造函数、访问说明符。<b>唯一默认区别</b>：<code>class</code> 的成员默认是 <b>private</b>，<code>struct</code> 的成员默认是 <b>public</b>。</p>
+
+  <div class="compare">
+    <div class="compare-col badc">
+      <h4>❌ class：默认 private</h4>
+      <pre><code class="cpp">class Point {
+    int x;   // 默认 private
+    int y;
+};
+
+Point p;
+p.x = 1;   // ⛔ 编译错误：
+           // x 是私有的</code></pre>
+    </div>
+    <div class="compare-col good">
+      <h4>✅ struct：默认 public</h4>
+      <pre><code class="cpp">struct Point {
+    int x;   // 默认 public
+    int y;
+};
+
+Point p;
+p.x = 1;   // ✅ 可以：
+           // struct 默认公开</code></pre>
+    </div>
+  </div>
+
+  <div class="note">书写惯例（并非语法强制）：只装数据的“聚合体”用 <code>struct</code>（如上一章示例 4 的 <code>Part</code>），带有行为、需要保护数据的类型用 <code>class</code>。考试判断题“struct 不能有成员函数”为<b>假</b>。</div>
+
+  <!-- ================= 3. 访问说明符与成员函数 ================= -->
+  <h2>2. 访问说明符、成员函数与 this</h2>
+  <p><b>访问说明符</b>决定“谁能碰这些成员”，从说明符那一行起生效，直到下一个说明符或类结束。</p>
+
+  <table class="data-table">
+    <tr><th>说明符</th><th>类外可访问</th><th>派生类可访问（第 8 章）</th><th>典型用途</th></tr>
+    <tr><td><code>public</code></td><td>是</td><td>是</td><td>对外接口：成员函数</td></tr>
+    <tr><td><code>private</code></td><td>否</td><td>否</td><td>数据成员、内部实现细节</td></tr>
+    <tr><td><code>protected</code></td><td>否</td><td>是</td><td>继承体系中留给子类用的成员</td></tr>
+  </table>
+
+  <p><b>const 成员函数</b>：参数列表后加 <code>const</code>（如 <code>void f() const</code>），承诺“不修改任何数据成员”。Getter 类函数应该一律加 const；要修改成员的函数不能加。</p>
+  <p><b>this 指针</b>：每个成员函数都带一个隐藏参数 <code>this</code>——“当前对象的地址”（类型 <code>类名*</code>，const 成员函数里是 <code>const 类名*</code>）。<code>s.introduce()</code> 实质上是 <code>introduce(&amp;s)</code>。平时不用写它，但在“返回自身”“判断参数是不是自己”时必须显式使用（见示例 9）。</p>
+
+  <article class="example-card" id="ch07-ex-01">
+    <div class="ex-head">
+      <h3 class="ex-title">示例1：第一个类 —— 私有数据 + 公开接口</h3>
+      <div class="ex-meta"><span class="tag green">入门必会</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+class Student {
+public:                              // 公开：类外可以调用
+    void introduce() const {         // const 成员函数：只读
+        std::cout &lt;&lt; "我是" &lt;&lt; name_ &lt;&lt; "，学号 " &lt;&lt; id_ &lt;&lt; "\n";
+    }
+    void rename(std::string new_name) {   // 要写成员 → 不能是 const
+        name_ = new_name;
+    }
+private:                             // 私有：类外访问被编译器拒绝
+    std::string name_ = "未命名";    // 类内默认初始化（C++11，第 5 节细讲）
+    int id_ = 0;
+};
+
+int main() {
+    Student s;
+    s.rename("李华");
+    s.introduce();
+    // std::cout &lt;&lt; s.name_;        // ⛔ 编译错误：name_ 是私有的
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">我是李华，学号 0</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5~11行</b>：<code>public</code> 区是对外接口。<code>introduce</code> 只读成员，加 <code>const</code>；<code>rename</code> 要写 <code>name_</code>，不能加。</li>
+        <li><b>第12~15行</b>：<code>private</code> 区把数据藏起来——外界只能通过公开函数间接读写，这就是<b>封装</b>：数据何时合法、如何变化，由类自己把关。</li>
+        <li><b>第21行</b>：取消注释会得到类似 <code>error: 'name_' is a private member of 'Student'</code> 的编译错误——封装是编译期强制的。</li>
+        <li>数据成员命名带下划线后缀（<code>name_</code>）是常见风格，用来与参数名区分。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>把 <code>class</code> 换成 <code>struct</code> 且不写任何访问说明符：第 21 行就不再报错（成员默认 public）。可见“能否访问”由<b>默认权限 + 说明符</b>共同决定。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>类定义结束时<b>必须带分号</b>：<code>};</code>。漏掉分号时，报错往往出现在下一行，非常迷惑人。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 18, "vars": { "s.name_": "未命名", "s.id_": "0" }, "out": "", "note": "定义 s：类内默认初始化生效" },
+      { "line": 19, "vars": { "s.name_": "李华", "s.id_": "0" }, "out": "", "note": "rename 把 name_ 改为 李华" },
+      { "line": 20, "vars": { "s.name_": "李华", "s.id_": "0" }, "out": "我是李华，学号 0", "note": "const 成员函数只读输出" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 4. 构造函数 ================= -->
+  <h2>3. 构造函数与成员初始化列表</h2>
+  <p><b>构造函数</b>与类同名、<b>没有返回类型</b>，在对象创建时自动执行，负责把每个成员置成合法状态。不写构造函数时，编译器生成一个什么都不做的<b>隐式默认构造</b>；但只要手写了任意一个构造函数，隐式默认构造就不再生成（除非用 <code>=default</code> 要回，见示例 12）。</p>
+
+  <article class="example-card" id="ch07-ex-02">
+    <div class="ex-head">
+      <h3 class="ex-title">示例2：默认构造、带参构造与成员初始化列表</h3>
+      <div class="ex-meta"><span class="tag">知识点：构造函数</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+class Cat {
+public:
+    Cat() : name_("无名猫"), age_(0) {   // 默认构造函数：无参
+        std::cout &lt;&lt; "默认构造：" &lt;&lt; name_ &lt;&lt; "\n";
+    }
+    Cat(std::string name, int age)       // 带参构造
+        : name_(name), age_(age) {        // ⭐ 成员初始化列表
+        std::cout &lt;&lt; "带参构造：" &lt;&lt; name_ &lt;&lt; "\n";
+    }
+private:
+    std::string name_;
+    int age_;
+};
+
+int main() {
+    Cat a;              // 调用默认构造
+    Cat b("咪咪", 2);   // 调用带参构造
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">默认构造：无名猫
+带参构造：咪咪</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第6行</b>：<code>Cat()</code> 无参，叫<b>默认构造函数</b>。<code>Cat a;</code> 就调用它。</li>
+        <li><b>第9~12行</b>：冒号后是<b>成员初始化列表</b>：<code>name_(name)</code> 表示“用参数 name 直接初始化成员 name_”。每个成员只在列表中出现一次，用逗号分隔。</li>
+        <li><b>第19~20行</b>：两个对象分别走两条构造路径，输出两行。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>也可以给参数设默认值，用一个函数兼任两种构造：<code>Cat(std::string name = "无名猫", int age = 0)</code>——此时不能再写无参版本（调用会有歧义）。两种风格考试都认可。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>构造函数<b>没有返回类型</b>——写 <code>void Cat()</code> 是编译错误（那就不是构造函数了）。它与类同名是识别标志。</p>
+    </div>
+  </article>
+
+  <div class="compare">
+    <div class="compare-col badc">
+      <h4>❌ 函数体内赋值</h4>
+      <pre><code class="cpp">class A {
+public:
+    A(int v) {   // 成员先被“默认
+                 // 初始化”，再赋值
+        x = v;   // 对 int 只是浪费；
+                 // 对 const/引用成员
+    }            // 直接编译错误
+private:
+    int x;
+};</code></pre>
+    </div>
+    <div class="compare-col good">
+      <h4>✅ 成员初始化列表（推荐）</h4>
+      <pre><code class="cpp">class A {
+public:
+    A(int v) : x(v) {
+        // ✅ 出生即初始化，
+        // 不经过“先默认
+        // 构造再赋值”
+    }
+private:
+    int x;
+};</code></pre>
+    </div>
+  </div>
+
+  <article class="example-card" id="ch07-ex-03">
+    <div class="ex-head">
+      <h3 class="ex-title">示例3：const 成员与引用成员 —— 只能初始化，不能赋值</h3>
+      <div class="ex-meta"><span class="tag red">编译错误示范</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+class Fixed {
+public:
+    Fixed(int v) {   // ⛔ 编译错误：const/引用成员没被初始化
+        c = v;       // ⛔ 这一句是“赋值”，const 不允许被赋值
+    }
+private:
+    const int c;     // const 成员：只能初始化一次
+    int&amp; r;          // 引用成员：出生必须绑定到别人
+};
+
+int main() {
+    Fixed f(7);
+    return 0;
+}
+
+/* g++ 报错大意（措辞随版本不同）：
+   const 成员 c 没有初始化；
+   引用成员 r 不能默认初始化 */</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第6行</b>：函数体里的 <code>c = v;</code> 是<b>赋值</b>。但 const 成员和引用成员根本没有“先默认出生、再赋值”的机会——引用必须一出生就绑定对象，const 必须一出生就有值。</li>
+        <li>正确写法是初始化列表：<code>Fixed(int&amp; v) : c(v), r(v) {}</code>——<b>const 成员和引用成员只能出现在初始化列表中</b>，这是列表与函数体赋值的本质区别。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>引用成员绑定<b>构造函数的按值参数</b>会造成悬空：构造一结束参数就消亡。要绑定就传 <code>int&amp;</code>（调用者的变量），并确保其生命周期长于对象。</p>
+    </div>
+  </article>
+
+  <!-- ================= 5. 成员初始化顺序 ================= -->
+  <h2>4. 成员初始化顺序 = 声明顺序（经典考题）</h2>
+  <p>不管初始化列表把谁写在前面，成员永远<b>按它们在类里的声明顺序</b>依次初始化。原因是：析构要按相反顺序进行，编译器必须固定一套与书写顺序无关的规则。</p>
+
+  <article class="example-card" id="ch07-ex-04">
+    <div class="ex-head">
+      <h3 class="ex-title">示例4：列表先写 b_，实际先构造 a_</h3>
+      <div class="ex-meta"><span class="tag">知识点：成员初始化顺序</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+struct Part {
+    explicit Part(const char* name) : name_(name) {
+        std::cout &lt;&lt; "构造 " &lt;&lt; name_ &lt;&lt; "\n";
+    }
+    const char* name_;
+};
+
+class Machine {
+public:
+    Machine() : b_("B 部件"), a_("A 部件") {}   // 列表里先写 b_
+    Part a_;   // 但 a_ 声明在前 → 先构造 a_
+    Part b_;
+};
+
+int main() {
+    Machine m;
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">构造 A 部件
+构造 B 部件</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第12行</b>：初始化列表的<b>书写顺序</b>是 b_ 在前——但它只决定“谁用什么初值”，<b>不决定执行顺序</b>。</li>
+        <li><b>第13~14行</b>：声明顺序 a_ 在前，所以先构造 a_（打印 A 部件），再构造 b_（打印 B 部件）。</li>
+        <li>这也是考试的标准考法：“初始化列表的执行顺序由什么决定？”——答：<b>成员的声明顺序</b>。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>把成员声明换成 <code>Part b_; Part a_;</code>（列表不动），输出就会变成先 B 后 A——顺序确实跟着声明走。保险起见，<b>初始化列表的书写顺序尽量与声明顺序一致</b>。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 依赖顺序的写法是 UB</h4>
+      <div class="ub-warning"><code>Bad(int v) : b_(v), a_(b_) {}</code>（成员声明为 <code>int a_; int b_;</code>）：本意“用 b_ 初始化 a_”，但 a_ 按<b>声明顺序</b>先初始化，此时 b_ 还没被初始化——读未初始化成员是<b>未定义行为</b>。开启 <code>-Wall -Werror=reorder</code> 时 g++ 会警告“初始化顺序将与声明顺序不符”。不要让一个成员的初值依赖列表中排在它后面的成员。</div>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 12, "vars": {}, "out": "构造 A 部件", "note": "进入 Machine 构造：虽然列表先写 b_，但 a_ 声明在前 → 先构造 a_（Part 的构造函数打印）" },
+      { "line": 12, "vars": {}, "out": "构造 B 部件", "note": "接着才轮到 b_" },
+      { "line": 18, "vars": {}, "out": "", "note": "m 构造完毕；main 结束时成员按声明逆序自动析构" }
+    ] }</script>
+  </article>
+
+  <p>学到这里，试着把一个<b>完整的封装类骨架</b>拼回来——公开的构造与接口在前、私有的数据成员在后：</p>
+  <div class="widget-parsons"><script type="application/json" class="parsons-data">{ "title": "拼回 Student 类的封装骨架",
+    "items": [
+    "class Student {",
+    "public:",
+    "Student(std::string n, int a) : name_(n), age_(a) {}",
+    "void show() const { std::cout << name_ << \" \" << age_ << \"\\n\"; }",
+    "private:",
+    "std::string name_;",
+    "int age_;",
+    "};"
+    ], "hint": "类的常规布局：public 段放构造函数和对外接口，private 段放数据成员；类体结束后分号不能少。",
+  "explain": "封装的典型骨架：public 在前（使用者关心的部分），private 数据成员收在后面。构造函数用初始化列表按声明顺序初始化 name_、age_；注意 class 定义的右花括号后必须有分号——这是新手最常忘的一个字符。" }</script></div>
+
+  <!-- ================= 6. 委托构造与类内初始化 ================= -->
+  <h2>5. 委托构造与类内默认成员初始化（C++11）</h2>
+
+  <article class="example-card" id="ch07-ex-05">
+    <div class="ex-head">
+      <h3 class="ex-title">示例5：一个构造函数调用另一个构造函数</h3>
+      <div class="ex-meta"><span class="tag">知识点：委托构造</span><span class="tag">C++11</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+class Point {
+public:
+    Point() : Point(0, 0) { }              // ⭐ 委托构造（C++11）
+    Point(int x, int y) : x_(x), y_(y) {   // 主构造函数
+        std::cout &lt;&lt; "主构造 (" &lt;&lt; x_ &lt;&lt; ", " &lt;&lt; y_ &lt;&lt; ")\n";
+    }
+    int x_ = 1;   // 类内默认成员初始化（C++11）
+    int y_ = 1;
+};
+
+int main() {
+    Point p1;            // 委托给 Point(0, 0)
+    Point p2(3, 4);
+    std::cout &lt;&lt; p1.x_ &lt;&lt; " " &lt;&lt; p1.y_ &lt;&lt; "\n";
+    std::cout &lt;&lt; p2.x_ &lt;&lt; " " &lt;&lt; p2.y_ &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">主构造 (0, 0)
+主构造 (3, 4)
+0 0
+3 4</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：<code>Point() : Point(0, 0) {}</code> 在初始化列表的位置调用<b>同类的另一个构造函数</b>，把公共逻辑集中到主构造，避免复制粘贴。</li>
+        <li><b>第9~10行</b>：<b>类内默认成员初始化</b>：声明成员时直接给初值。当某成员没被初始化列表覆盖时，就用这里的值兜底。</li>
+        <li><b>第16~17行</b>：p1、p2 的 x_、y_ 都被主构造的列表覆盖，所以分别是 0 0 和 3 4。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>委托构造的初始化列表里<b>不能</b>再写其他成员：<code>Point() : x_(0), Point(0, 0) {}</code> 是编译错误——委托和成员初始化只能二选一。</p>
+    </div>
+  </article>
+
+  <!-- ================= 7. 析构函数 ================= -->
+  <h2>6. 析构函数与析构顺序</h2>
+  <p><b>析构函数</b>写成 <code>~类名()</code>：无参数、无返回值、最多一个。对象消亡时自动执行，负责收尾（释放堆内存、关文件……）。<b>调用时机</b>：</p>
+  <ul>
+    <li>栈上的局部对象：<b>离开作用域</b>时（大括号结束、函数返回）。</li>
+    <li><code>new</code> 出来的对象：执行 <code>delete</code> 时。</li>
+    <li>临时对象：所在表达式结束时。</li>
+    <li>全局 / <code>static</code> 对象：<code>main</code> 结束之后。</li>
+  </ul>
+  <p><b>顺序永远与构造相反</b>——“后出生的先退场”，和栈的行为一致。成员的析构在析构函数体之后自动进行（<code>std::string</code> 成员会自己释放内存——这就是 RAII 思想，第 9 章展开）。</p>
+
+  <article class="example-card" id="ch07-ex-06">
+    <div class="ex-head">
+      <h3 class="ex-title">示例6：析构顺序演示 —— 与构造相反</h3>
+      <div class="ex-meta"><span class="tag">知识点：析构函数</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+class Logger {
+public:
+    Logger(std::string name) : name_(name) {
+        std::cout &lt;&lt; "构造 " &lt;&lt; name_ &lt;&lt; "\n";
+    }
+    ~Logger() {                              // 析构函数：~类名，无参无返回
+        std::cout &lt;&lt; "析构 " &lt;&lt; name_ &lt;&lt; "\n";
+    }
+private:
+    std::string name_;
+};
+
+int main() {
+    Logger a("a");
+    {
+        Logger b("b");
+        Logger c("c");
+    }                    // 离开作用域：c、b 依次析构
+    Logger d("d");
+    return 0;
+}                        // main 结束：d、a 依次析构</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">构造 a
+构造 b
+构造 c
+析构 c
+析构 b
+构造 d
+析构 d
+析构 a</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第17行</b>：a 出生。</li>
+        <li><b>第19~20行</b>：进入内层大括号，b、c 依次出生。</li>
+        <li><b>第21行</b>：大括号一结束，括号内的对象按<b>构造的相反顺序</b>析构：先 c 后 b。a、d 不受影响。</li>
+        <li><b>第24行</b>：main 结束，剩下的局部对象逆序析构：d（最后构造的先走），然后 a。</li>
+      </ul>
+    </div>
+    <div class="ex-explain">
+      <h4>记忆法</h4>
+      <p>把每个大括号想成一个“盘子”：进括号时往盘里叠对象，出括号时从顶上一个个拿走——后放上去的先被拿走。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>析构函数不能带参数、不能重载、没有返回值；一个类只能有一个析构函数。写 <code>void ~Logger()</code> 或 <code>~Logger(int x)</code> 都是编译错误。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 17, "vars": {}, "out": "构造 a", "note": "a 进入 main 的作用域" },
+      { "line": 19, "vars": {}, "out": "构造 b", "note": "进入内层大括号" },
+      { "line": 20, "vars": {}, "out": "构造 c", "note": "c 是括号内最后构造的" },
+      { "line": 21, "vars": {}, "out": "析构 c", "note": "离开大括号：后构造的先析构" },
+      { "line": 21, "vars": {}, "out": "析构 b", "note": "括号内的对象清空，a 不受影响" },
+      { "line": 22, "vars": {}, "out": "构造 d", "note": "" },
+      { "line": 24, "vars": {}, "out": "析构 d", "note": "main 结束：局部对象逆序析构，d 最后构造所以先走" },
+      { "line": 24, "vars": {}, "out": "析构 a", "note": "最后析构最早构造的 a" }
+    ] }</script>
+  </article>
+
+  <article class="example-card" id="ch07-ex-13">
+    <div class="ex-head">
+      <h3 class="ex-title">练习：把示例 6 的 8 行输出排成正确顺序</h3>
+      <div class="ex-meta"><span class="tag purple">互动练习</span></div>
+    </div>
+    <p>程序是：<code>Logger a("a");</code> 然后 <code>{ Logger b("b"); Logger c("c"); }</code>，最后 <code>Logger d("d");</code>。请把 8 行输出拖动（或用 ↑↓）排成正确顺序：</p>
+    <div class="widget-sort"><script type="application/json" class="sort-data">{ "items": [
+      "构造 a",
+      "构造 b",
+      "构造 c",
+      "析构 c",
+      "析构 b",
+      "构造 d",
+      "析构 d",
+      "析构 a"
+    ], "hint": "后构造的先析构；离开大括号时只析构括号里创建的对象。",
+    "explain": "大括号结束时 c、b 逆序析构；main 结束时 d、a 逆序析构。每一对大括号都是独立的“盘子”：进时叠上去，出时从顶上拿。" }</script></div>
+  </article>
+
+  <!-- ================= 8. 拷贝构造 ================= -->
+  <h2>7. 拷贝构造</h2>
+  <p><b>拷贝构造函数</b>的签名固定为 <code>类名(const 类名&amp; other)</code>。它在三种情况下被调用：</p>
+  <ul>
+    <li><b>初始化</b>：用已有对象创建新对象（<code>T b = a;</code>、<code>T b(a);</code>）。</li>
+    <li><b>按值传参</b>：实参复制给形参。</li>
+    <li><b>按值返回</b>：函数返回对象时复制一份（编译器常可优化掉，见“标准差异”）。</li>
+  </ul>
+  <p>不写拷贝构造时，编译器自动生成一个“逐成员复制”的版本——对指针成员来说，复制的只是<b>地址</b>，这就是下一节浅拷贝问题的根源。</p>
+
+  <article class="example-card" id="ch07-ex-07">
+    <div class="ex-head">
+      <h3 class="ex-title">示例7：拷贝构造发生了几次</h3>
+      <div class="ex-meta"><span class="tag">知识点：拷贝构造触发时机</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+class Box {
+public:
+    explicit Box(std::string tag) : tag_(tag) {
+        std::cout &lt;&lt; "构造 " &lt;&lt; tag_ &lt;&lt; "\n";
+    }
+    Box(const Box&amp; other) : tag_(other.tag_) {   // 拷贝构造：参数是自身 const 引用
+        std::cout &lt;&lt; "拷贝 -&gt; " &lt;&lt; tag_ &lt;&lt; "\n";
+    }
+    std::string tag() const { return tag_; }
+private:
+    std::string tag_;
+};
+
+void take(Box b) {                   // 按值传参：触发一次拷贝构造
+    std::cout &lt;&lt; "take 收到 " &lt;&lt; b.tag() &lt;&lt; "\n";
+}
+
+int main() {
+    Box b1("b1");
+    Box b2 = b1;     // 用已有对象初始化新对象：拷贝构造
+    take(b1);        // 按值传参：拷贝构造
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">构造 b1
+拷贝 -&gt; b1
+拷贝 -&gt; b1
+take 收到 b1</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第22行</b>：普通构造，输出“构造 b1”。</li>
+        <li><b>第23行</b>：<code>Box b2 = b1;</code> 用已有对象初始化新对象——调用拷贝构造（即使有 <code>=</code> 号，也不是赋值）。</li>
+        <li><b>第24行</b>：按值传参，形参 <code>b</code> 由 b1 拷贝构造。</li>
+        <li>两次拷贝都来自<b>左值</b> b1，编译器不允许消除，输出确定。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p><code>Box b3 = Box("b3");</code> 是“从临时对象初始化”——C++17 起<b>强制</b>消除拷贝，只构造一次（见“标准差异”一节）。所以判断“会不会拷贝”要先分清来源是左值还是临时对象。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>Box b2 = b1;</code> 的 <code>=</code> 是<b>初始化</b>不是赋值，走拷贝构造；而 <code>b2 = b1;</code>（b2 已存在）走的是<b>拷贝赋值运算符</b>。两者是不同的函数，考题常混着考。</p>
+    </div>
+  </article>
+
+  <!-- ================= 9. 浅拷贝与深拷贝 ================= -->
+  <h2>8. 浅拷贝与深拷贝</h2>
+
+  <article class="example-card" id="ch07-ex-08">
+    <div class="ex-head">
+      <h3 class="ex-title">示例8：默认拷贝 + 指针成员 = 双重释放（UB）</h3>
+      <div class="ex-meta"><span class="tag red">未定义行为示范</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+class IntBag {
+public:
+    explicit IntBag(int v) : data_(new int(v)) {}  // 在堆上分配一块 int
+    ~IntBag() { delete data_; }                    // 每个对象负责释放自己的堆内存
+    int* data_;    // 为演示，暂时公开
+};
+
+int main() {
+    IntBag a(42);
+    IntBag b = a;   // 编译器生成的拷贝构造：逐成员复制 → 只复制了指针本身！
+    std::cout &lt;&lt; *b.data_ &lt;&lt; "\n";
+    return 0;
+}   // ⛔ a、b 析构时先后 delete 同一块内存：双重释放</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：构造函数用 <code>new</code> 在<b>堆</b>上分配 int，对象只保存它的地址。</li>
+        <li><b>第12行</b>：编译器生成的拷贝构造把 <code>data_</code> 逐字节复制——两个对象的指针<b>指向同一块堆内存</b>。这就是<b>浅拷贝</b>：复制了地址，没复制内容。</li>
+        <li><b>第15行</b>：main 结束，a、b 各自析构、各自 <code>delete</code>——同一块内存被释放两次。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 为什么没有“预期输出”？</h4>
+      <div class="ub-warning">对同一块内存 <code>delete</code> 两次是<b>未定义行为</b>：堆结构可能被破坏，程序可能崩溃（glibc 下常见 <code>free(): double free detected</code>），也可能毫无征兆地错下去。标准不规定结果，考试不会也不应考它的“输出”。修复方法见示例 9 的<b>深拷贝</b>：新对象在堆上另开一块内存、复制内容而不是地址。</div>
+    </div>
+    <div class="memviz"><script type="application/json" class="mem-data">{ "title": "IntBag b = a; 之后：两个对象共享同一块堆内存",
+      "regions": [
+        { "addr": "0x7ffd…3000", "name": "a.data_", "type": "int*", "value": "0x55ff…8010", "note": "栈上的对象 a，存的是堆地址" },
+        { "addr": "0x7ffd…3008", "name": "b.data_", "type": "int*", "value": "0x55ff…8010", "note": "栈上的对象 b —— 浅拷贝复制了同一个地址" },
+        { "addr": "0x55ff…8010", "name": "堆内存", "type": "int", "value": "42", "note": "a、b 共同指向的同一块内存 → 析构时被 delete 两次" }
+      ],
+      "note": "浅拷贝只复制指针的值；深拷贝要让新对象在堆上另开一块并复制内容（示例 9）。" }</script></div>
+  </article>
+
+  <article class="example-card" id="ch07-ex-09">
+    <div class="ex-head">
+      <h3 class="ex-title">示例9：Rule of Three —— 三大件的深拷贝</h3>
+      <div class="ex-meta"><span class="tag">知识点：拷贝赋值 / Rule of Three</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+class IntBag {
+public:
+    explicit IntBag(int v) : data_(new int(v)) {}
+    // ── 三大件之一：拷贝构造（深拷贝）
+    IntBag(const IntBag&amp; other) : data_(new int(*other.data_)) {}
+    // ── 三大件之二：拷贝赋值运算符
+    IntBag&amp; operator=(const IntBag&amp; other) {
+        if (this != &amp;other) {           // ① 防自赋值：a = a 不出错
+            *data_ = *other.data_;      // ② 复制内容，不复制地址
+        }
+        return *this;                   // ③ 返回自身，支持 a = b = c
+    }
+    // ── 三大件之三：析构函数
+    ~IntBag() { delete data_; }
+
+    int value() const { return *data_; }
+    void set(int v) { *data_ = v; }
+private:
+    int* data_;
+};
+
+int main() {
+    IntBag a(1);
+    IntBag b = a;    // 深拷贝：b 有自己的堆内存
+    b.set(99);       // 只改 b，不影响 a
+    std::cout &lt;&lt; a.value() &lt;&lt; " " &lt;&lt; b.value() &lt;&lt; "\n";
+    a = b;           // 拷贝赋值
+    std::cout &lt;&lt; a.value() &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">1 99
+99</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第7行</b>：<code>new int(*other.data_)</code>——先取别的对象<b>堆上的值</b>，再给自己<b>另开</b>一块堆内存放进去。两块内存从此互不相干。</li>
+        <li><b>第9~14行</b>：拷贝赋值的标准三步：<code>this != &amp;other</code> 防自赋值；复制<b>内容</b>；<code>return *this</code> 返回自己。</li>
+        <li><b>第26~27行</b>：b 改成 99，a 仍是 1——深拷贝后互不影响，输出 <code>1 99</code>。</li>
+        <li><b>第29行</b>：<code>a = b;</code> 走拷贝赋值运算符，a 的堆内存内容变为 99。</li>
+        <li><b>Rule of Three</b>：析构、拷贝构造、拷贝赋值——<b>需要自定义其中一个，几乎就三个都需要</b>（资源管理类尤其如此）。C++11 加入移动语义后扩展为 Rule of Five（第 9 章）。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>如果默认的逐成员复制刚好够用（没有资源需要管），C++11 起可以写 <code>IntBag(const IntBag&amp;) = default;</code> 明确表达“我就是要默认行为”；而不该被拷贝的类则 <code>=delete</code>（示例 12）。现代 C++ 更推荐直接用 <code>std::vector</code>/智能指针管理资源，让“三大件”自动生成即正确（第 9、10 章）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>拷贝赋值忘写 <code>return *this;</code> 无法支持 <code>a = b = c</code> 连等；忘写自赋值判断，遇到 <code>a = a</code> 时若实现是“先释放再复制”就会出事。这两处是阅卷常见扣分点。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 25, "vars": { "a": "堆上 1" }, "out": "", "note": "a 构造：堆上分配并放入 1" },
+      { "line": 26, "vars": { "a": "堆上 1", "b": "另一块堆上 1" }, "out": "", "note": "深拷贝：b 另开一块堆内存并复制值" },
+      { "line": 27, "vars": { "a": "堆上 1", "b": "另一块堆上 99" }, "out": "", "note": "set 只改 b 自己的堆内存" },
+      { "line": 28, "vars": { "a": "堆上 1", "b": "另一块堆上 99" }, "out": "1 99", "note": "两个对象互不影响" },
+      { "line": 29, "vars": { "a": "堆上 99", "b": "另一块堆上 99" }, "out": "", "note": "拷贝赋值：把 b 的内容复制进 a 的堆内存" },
+      { "line": 30, "vars": { "a": "堆上 99", "b": "另一块堆上 99" }, "out": "99", "note": "" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 10. static 成员 ================= -->
+  <h2>9. static 成员：属于类，而不是对象</h2>
+
+  <article class="example-card" id="ch07-ex-10">
+    <div class="ex-head">
+      <h3 class="ex-title">示例10：static 成员变量与静态成员函数</h3>
+      <div class="ex-meta"><span class="tag">知识点：static 成员</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+class Counter {
+public:
+    Counter()  { ++count_; }                 // 每构造一个，计数 +1
+    ~Counter() { --count_; }
+    static int alive() { return count_; }    // 静态成员函数：没有 this
+    static int count_;                       // 类内只是“声明”
+};
+
+int Counter::count_ = 0;                     // ⭐ 类外定义（分配存储），一般写在 .cpp
+
+int main() {
+    Counter a, b;
+    std::cout &lt;&lt; Counter::alive() &lt;&lt; "\n";  // 用类名访问，不需要对象
+    {
+        Counter c;
+        std::cout &lt;&lt; c.alive() &lt;&lt; "\n";      // 也可以通过对象访问
+    }
+    std::cout &lt;&lt; Counter::count_ &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">2
+3
+2</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第8行</b>：<code>static int count_;</code> 在类内只是<b>声明</b>——它说的是“所有 Counter 共享一个 count_”。</li>
+        <li><b>第11行</b>：<b>必须在类外定义一次</b>（分配存储），否则链接时报 undefined reference。整型常量有例外：<code>static const int N = 10;</code> 可以在类内直接初始化。</li>
+        <li><b>第7行</b>：静态成员函数<b>没有 this 指针</b>，只能访问静态成员；调用不需要任何对象：<code>Counter::alive()</code>。</li>
+        <li><b>第15、18、20行</b>：a、b 共享同一份 count_（值为 2）；c 出生变 3，c 析构后回到 2。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>“static 成员变量属于类，不属于任何对象”——每个对象里<b>没有</b>它的副本，<code>sizeof</code> 一个对象也统计不到它。判断题“每创建一个对象，static 成员都会重新初始化一次”为<b>假</b>。</p>
+    </div>
+  </article>
+
+  <!-- ================= 11. 对象数组与按值传参 ================= -->
+  <h2>10. 对象数组与按值传参的性能</h2>
+
+  <article class="example-card" id="ch07-ex-11">
+    <div class="ex-head">
+      <h3 class="ex-title">示例11：对象数组的拷贝初始化 + 按值传参的代价</h3>
+      <div class="ex-meta"><span class="tag">知识点：对象数组 / 传参方式</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+class Student {
+public:
+    explicit Student(std::string name) : name_(name) {
+        std::cout &lt;&lt; "构造 " &lt;&lt; name_ &lt;&lt; "\n";
+    }
+    Student(const Student&amp; other) : name_(other.name_) {
+        std::cout &lt;&lt; "拷贝 " &lt;&lt; name_ &lt;&lt; "\n";
+    }
+private:
+    std::string name_;
+};
+
+void save(Student s) {   // 按值传参：又要拷贝一次
+    // ……保存 s 的逻辑（省略）
+}
+
+int main() {
+    Student a("Alice");
+    Student arr[3] = {a, a, a};   // 从左值拷贝初始化 3 个元素
+    std::cout &lt;&lt; "---\n";
+    save(arr[0]);                 // 按值传参：拷贝构造
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">构造 Alice
+拷贝 Alice
+拷贝 Alice
+拷贝 Alice
+---
+拷贝 Alice</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第21行</b>：a 先构造。</li>
+        <li><b>第22行</b>：对象数组的 3 个元素都从同一个<b>左值</b> a 拷贝初始化——左值拷贝不允许被消除，所以必然是 3 次“拷贝 Alice”。</li>
+        <li><b>第24行</b>：<code>save(arr[0])</code> 按值传参，形参再拷贝一次。</li>
+        <li>对象数组离开作用域时同样按构造的相反顺序析构（本例未打印析构）。</li>
+      </ul>
+    </div>
+    <div class="tip"><b>性能提示</b>：对象作函数参数时优先写 <code>const Student&amp;</code>——按引用传递不调用拷贝构造，既快又安全（函数内改不了实参）。按值传参对大对象（内含 string、vector 的类）意味着一次完整的深拷贝加一次析构，循环里尤其要避免。</div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>“传对象就是把名字传过去”——错。按值传参<b>每次调用都触发拷贝构造</b>；传引用（<code>&amp;</code>）传的是别名，一次拷贝都没有。</p>
+    </div>
+  </article>
+
+  <!-- ================= 12. =default / =delete ================= -->
+  <h2>11. =default 与 =delete（C++11）</h2>
+
+  <article class="example-card" id="ch07-ex-12">
+    <div class="ex-head">
+      <h3 class="ex-title">示例12：精确控制编译器生成的函数</h3>
+      <div class="ex-meta"><span class="tag">知识点：=default / =delete</span><span class="tag">C++11</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+class Point {
+public:
+    Point() = default;                     // 显式要回默认构造（C++11）
+    Point(int x, int y) : x_(x), y_(y) {}
+    Point(const Point&amp;) = delete;          // 禁止拷贝（C++11）
+    Point&amp; operator=(const Point&amp;) = delete;
+    int x_ = 0, y_ = 0;
+};
+
+class Id {
+public:
+    Id(int v) : v_(v) {}   // 定义了带参构造后，默认构造被“顶掉”
+private:
+    int v_;
+};
+
+int main() {
+    Point p;           // OK：=default 提供的默认构造
+    Point q(1, 2);
+    // Point r = p;    // ⛔ 编译错误：拷贝被 =delete 禁止
+    // Id u;           // ⛔ 编译错误：Id 没有默认构造
+    std::cout &lt;&lt; q.x_ &lt;&lt; "\n";   // 使用 q，避免“未使用变量”警告
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">1</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：只要手写了任意构造函数（第 6 行），编译器就不再自动生成默认构造；<code>=default</code> 显式把它<b>要回来</b>，让 <code>Point p;</code> 合法。</li>
+        <li><b>第7~8行</b>：<code>=delete</code> 告诉编译器“这个函数不许用”——调用它的代码直接<b>编译错误</b>。典型用途：禁止拷贝的资源类、单例模式。</li>
+        <li><b>第14行</b>：Id 只定义了带参构造，隐式默认构造被顶掉——<code>Id u;</code> 报“没有默认构造”。这是构造函数最常见的意外。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>C++98 想禁止拷贝，只能把拷贝构造声明成 <code>private</code> 且不实现——报错信息晦涩、还要额外写一个 friend。<code>=delete</code> 一行搞定，报错直指“use of deleted function”。</p>
+    </div>
+  </article>
+
+  <!-- ================= 13. 常见错误 ================= -->
+  <h2>12. 常见错误</h2>
+  <div class="warn"><b>1. 类定义结尾忘分号</b>：<code>class X { ... }</code> 缺 <code>;</code>，报错常出现在下一个定义处。修复：牢记 <code>};</code> 收尾。</div>
+  <div class="warn"><b>2. 在函数体内给 const / 引用成员赋值</b>：编译错误。修复：const 成员、引用成员只能写进<b>成员初始化列表</b>。</div>
+  <div class="warn"><b>3. 以为初始化列表按书写顺序执行</b>：实际按<b>声明顺序</b>；让后面的成员给前面的成员当初值，读到的是未初始化内存。修复：列表顺序与声明顺序保持一致，避免成员间依赖。</div>
+  <div class="ub-warning">带指针（资源）成员的类依赖编译器默认的拷贝——<b>浅拷贝导致两个对象管理同一块内存，析构时双重释放，是未定义行为</b>，典型症状是 <code>double free</code> 崩溃。修复：写全三大件做深拷贝（示例 9），或改用智能指针 / 容器托管资源（第 9、10 章）。</div>
+  <div class="warn"><b>4. static 成员变量忘了类外定义</b>：类内声明只是“报了个名字”，链接时报 <code>undefined reference</code>。修复：在类外（通常 .cpp 中）写 <code>int Counter::count_ = 0;</code>。</div>
+  <div class="warn"><b>5. 对象按值传来传去</b>：每次调用都拷贝构造 + 析构一次。修复：参数写 <code>const T&amp;</code>。</div>
+  <p>更多同类报错见 <a href="../errors.html">编译错误博物馆</a>（如 “undefined reference”“is private”），以及 <a href="../cheatsheets.html">速查表专区</a> 的构造/析构顺序表；考前再过一遍 <a href="../exam-pitfalls.html">考试易错点</a> 的“浅拷贝与三大件”专题。</p>
+
+  <!-- ================= 14. 标准差异 ================= -->
+  <h2>13. C++ 标准差异</h2>
+  <table class="data-table">
+    <tr><th>特性</th><th>C++98</th><th>C++11 及以后</th></tr>
+    <tr><td>成员初始化列表、构造/析构、三大件</td><td>可用</td><td>不变（扩展为 Rule of Five，第 9 章）</td></tr>
+    <tr><td>类内默认成员初始化 <code>int x_ = 0;</code></td><td>不可用</td><td>可用</td></tr>
+    <tr><td>委托构造 <code>Point() : Point(0,0) {}</code></td><td>不可用</td><td>可用</td></tr>
+    <tr><td><code>=default</code> / <code>=delete</code></td><td>不可用（只能“private + 不实现”的老技巧）</td><td>可用</td></tr>
+    <tr><td><code>static</code> 成员（类外定义等规则）</td><td>可用</td><td>不变</td></tr>
+  </table>
+  <div class="std-diff"><b>拷贝消除（copy elision）</b>：对“按值返回”或“用临时对象初始化”，C++98/11/14 允许编译器<b>省掉</b>拷贝但不强制，因此“拷贝构造打印几次”随编译器与优化等级而变；<b>C++17 起对“从纯临时对象初始化”强制消除</b>（如 <code>Box b = Box("b3");</code> 只构造一次）。依赖拷贝次数的考题按基本规则（初始化 / 按值传参 / 按值返回）作答，工程中应避免依赖副作用次数。</div>
+
+  <!-- ================= 15. 小结 ================= -->
+  <h2>本章小结</h2>
+  <div class="keypoint">类把数据（private）和行为（public）捆在一起；成员按声明顺序初始化、对象按构造的相反顺序析构；管理资源的类必须写全“三大件”——否则默认的浅拷贝就是双重释放的 UB。</div>
+  <ul>
+    <li><code>class</code> 与 <code>struct</code> 唯一默认区别：默认 private / 默认 public。</li>
+    <li>构造函数与类同名、无返回类型；成员初始化列表“出生即初始化”，<b>const 成员与引用成员只能用它</b>。</li>
+    <li><b>成员初始化顺序 = 声明顺序</b>，与列表书写顺序无关；成员间依赖初值的写法是 UB。</li>
+    <li>析构函数 <code>~X()</code> 在离开作用域 / <code>delete</code> 时调用，顺序与构造<b>相反</b>；成员在函数体之后自动析构。</li>
+    <li>拷贝构造在初始化、按值传参、按值返回时触发；带指针成员必须<b>深拷贝</b>（Rule of Three）。</li>
+    <li>static 成员变量须<b>类外定义</b>；静态成员函数<b>没有 this</b>，只能访问静态成员。</li>
+    <li>对象按值传参每次都拷贝——优先 <code>const T&amp;</code>；<code>=default</code> / <code>=delete</code>（C++11）精确控制编译器生成的函数。</li>
+  </ul>
+
+  <!-- ================= 16. 自测清单 ================= -->
+  <h2>自测清单</h2>
+  <ul class="checklist" data-chapter="ch07">
+    <li><label><input type="checkbox" data-check-id="ch07-c1"><span>我能说出 class 与 struct 的唯一默认区别，并举一个该用 struct 的例子</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch07-c2"><span>我能解释为什么数据成员通常设为 private，并会写 const 成员函数</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch07-c3"><span>我能用成员初始化列表写构造函数，并说清 const/引用成员为什么只能用它</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch07-c4"><span>我能背出“成员初始化顺序 = 声明顺序”，并解释列表书写顺序为何不起作用</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch07-c5"><span>我能说出构造/析构/拷贝构造各自的触发时机，并排出析构顺序</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch07-c6"><span>我能解释浅拷贝与深拷贝的区别，并为带指针成员的类写出 Rule of Three</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch07-c7"><span>我知道 static 成员变量要在类外定义、静态成员函数没有 this</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch07-c8"><span>我习惯用 const 引用传对象，并能说出 =default / =delete 的两个用途</span></label></li>
+  </ul>
+
+  <!-- ================= 17. 随堂测验 ================= -->
+  <section class="quiz" data-source="ch07">
+    <script type="application/json" class="quiz-data">{ "title": "随堂测验：类与对象",
+      "questions": [
+        { "type": "mcq", "q": "关于 C++ 的 class 与 struct，下列说法正确的是？",
+          "options": ["class 成员默认 public，struct 默认 private", "唯一默认区别：class 默认 private，struct 默认 public", "struct 不能有成员函数", "class 不能只包含数据成员"], "answer": 1,
+          "explain": "两者都能有成员函数、构造函数等，唯一默认区别是成员的默认访问权限。" },
+        { "type": "mcq", "q": "对 <code>void f() const;</code> 这样的 const 成员函数，编译器禁止它做哪件事？",
+          "options": ["读取数据成员", "调用本类的另一个 const 成员函数", "修改数据成员的值", "输出成员的值"], "answer": 2,
+          "explain": "const 成员函数承诺不修改数据成员，写成员即编译错误；读成员、调 const 函数、打印都允许。" },
+        { "type": "mcq", "q": "<code>class X { public: X() : b_(2), a_(1) {} int a_; int b_; };</code> 中 a_、b_ 的初始化顺序是？",
+          "options": ["按初始化列表：先 b_ 后 a_", "按声明顺序：先 a_ 后 b_", "不确定，取决于编译器", "编译错误"], "answer": 1,
+          "explain": "成员初始化顺序由声明顺序决定，与列表书写顺序无关——经典考题。" },
+        { "type": "tf", "q": "const 成员和引用成员只能在成员初始化列表中初始化。",
+          "answer": true,
+          "explain": "它们没有“先默认构造再赋值”的机会：函数体内写的是赋值，const 不可赋值、引用不可重绑。" },
+        { "type": "mcq", "q": "同一个大括号块里依次定义 <code>A a; B b; C c;</code>，块结束时析构顺序是？",
+          "options": ["a、b、c", "c、b、a", "随机", "三者同时"], "answer": 1,
+          "explain": "析构顺序与构造相反：后构造的先析构。" },
+        { "type": "tf", "q": "编译器自动生成的拷贝构造逐成员复制——对指针成员复制的是地址本身。",
+          "answer": true,
+          "explain": "这就是“浅拷贝”：两个对象的指针指向同一块内存，是双重释放的根源。" },
+        { "type": "mcq", "q": "下列哪种情况一定会调用拷贝构造函数？",
+          "options": ["通过指针访问对象", "对象按值作为函数参数传入", "对象按引用传递", "调用对象的成员函数"], "answer": 1,
+          "explain": "按值传参要把实参复制进形参。传引用/用指针都不复制；成员函数也不复制。" },
+        { "type": "mcq", "q": "带裸指针成员的类使用编译器默认的拷贝构造，最可能的后果是？",
+          "options": ["编译错误", "两个对象共享同一块堆内存，析构时双重释放（UB）", "自动完成深拷贝", "第二个对象构造失败"], "answer": 1,
+          "explain": "默认拷贝是浅拷贝：只复制指针地址，两个对象析构时先后 delete 同一块内存。" },
+        { "type": "fill", "q": "静态成员函数内部没有 ____ 指针，因此不能直接访问非静态成员。（填关键字）",
+          "answer": ["this"],
+          "explain": "静态成员函数不属于任何对象，没有 this，只能访问 static 成员。" },
+        { "type": "code", "q": "补全 C++11 委托构造：<code>Point() : ____(0, 0) {}</code>（调用同类的双参构造函数）",
+          "answer": ["Point"],
+          "explain": "委托构造在初始化列表的位置写“类名(实参)”，把工作交给另一个构造函数。" }
+      ] }</script>
+  </section>
+
+  </main>
+
+<script src="../assets/js/highlight.js"></script>
+<script src="../assets/js/toc.js"></script>
+<script src="../assets/js/nav.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/interactive.js"></script>
+<script src="../assets/js/teacher.js"></script>
+<script src="../assets/js/mastery.js"></script>
+<script src="../assets/js/bughunt-data.js"></script>
+<script src="../assets/js/bug-hunt.js"></script>
+<script src="../assets/js/present.js"></script>
+<script src="../assets/js/glossary-data.js"></script>
+<script src="../assets/js/glossary.js"></script>
+<script src="../assets/js/page-toc.js"></script>
+<script src="../assets/js/v2-config.js"></script>
+<script src="../assets/js/v2-core.js"></script>
+<script src="../assets/js/v2-lab.js"></script>
+</body>
+</html>

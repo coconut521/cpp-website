@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第5章 指针与引用 | 大学C++离线助教</title>
+<script src="../assets/js/theme-init.js"></script>
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/v2.css">
+</head>
+<body>
+<main class="container chapter">
+
+  <p class="crumbs"><a href="../index.html">首页</a> / <a href="../index.html#toc">章节目录</a> / 第5章</p>
+
+  <header>
+    <h1>第5章 指针与引用</h1>
+    <p class="muted">指针直接操作<b>内存地址</b>，引用是对象的别名；本章讲指针算术、数组退化、const 组合与两者的选型，所有 UB 都会明确标出。</p>
+  </header>
+
+  <!-- ================= 1. 学习目标 ================= -->
+  <section class="card objectives">
+    <h2 style="margin-top:0">学习目标</h2>
+    <ul>
+      <li>用 <code>&amp;</code> 取地址、<code>*</code> 解引用，识别 <code>int* a, b;</code> 声明陷阱。</li>
+      <li>用 <code>nullptr</code> 判空，区分它与 <code>NULL</code>、<code>0</code>；规避野指针与悬空指针。</li>
+      <li>做指针算术：<code>p + 1</code> 移动 <code>sizeof(T)</code> 字节，<code>*(p+i)</code> 与 <code>arr[i]</code> 等价。</li>
+      <li>解释<b>数组退化</b>：传参后 <code>sizeof</code> 失效，长度需单独传。</li>
+      <li>区分 <code>const int* p</code>、<code>int* const p</code>、<code>const int* const p</code> 三种组合。</li>
+      <li>说出引用的三条规则（必须初始化、不能重绑、无空引用），对比指针与引用的选型。</li>
+    </ul>
+    <p class="small muted">前置知识：<a href="../chapters/ch01-variables.html">第1章 变量与基本类型</a> 与第4章“函数”。</p>
+    </section>
+
+  <!-- ================= 2. 指针是什么 ================= -->
+  <h2>1. 指针：存地址的变量</h2>
+  <p>第 1 章说过，每个变量都有<b>地址</b>。<b>指针</b>就是一种“值为地址”的变量：<code>int* p</code> 的意思是“p 里存着一个 int 对象的地址”。两个专属运算符：<code>&amp;</code> 取地址，<code>*</code> 解引用（顺着地址找到对象本身）。</p>
+
+  <article class="example-card" id="ch05-ex-01">
+    <div class="ex-head">
+      <h3 class="ex-title">示例1：取地址与解引用</h3>
+      <div class="ex-meta"><span class="tag">知识点：指针基础</span><span class="tag green">入门必会</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int a = 42;
+    int* p = &amp;a;              // p 存下 a 的地址
+
+    std::cout &lt;&lt; "a = " &lt;&lt; a &lt;&lt; "\n";
+    std::cout &lt;&lt; "*p = " &lt;&lt; *p &lt;&lt; "\n";   // 解引用：顺着地址找到 a
+    *p = 50;                  // 通过 p 修改 a 本尊
+    std::cout &lt;&lt; "a = " &lt;&lt; a &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">a = 42
+*p = 42
+a = 50</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：<code>&amp;a</code> 取出 a 的地址存入 p。从此“p 指向 a”。</li>
+        <li><b>第8行</b>：<code>*p</code> 读——顺着 p 里的地址找到 a，取出 42。</li>
+        <li><b>第9行</b>：<code>*p = 50</code> 写——顺着地址找到 a 并改写。<b>通过指针修改的就是原对象</b>，第 10 行的输出为证。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p><code>sizeof(p)</code> 是<b>指针本身</b>的大小（64 位平台 8 字节），与它指向的 <code>int</code> 多大无关。指针也分类型：<code>int*</code>、<code>double*</code>、<code>char*</code>……类型决定了“解引用时按什么解释、算术时跨多远”。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 声明风格坑：<code>int* a, b;</code></h4>
+      <pre><code class="cpp">int* a, b;    // a 是 int*，b 只是普通 int！
+int *a, *b;   // 想都要指针就这样写
+int* a;       // 最清晰：一行一个
+int* b;</code></pre>
+      <p><code>*</code> 在语法上<b>修饰变量名</b>而不是类型——<code>int* a, b;</code> 等价于 <code>int *a; int b;</code>。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "a": "42" }, "out": "", "note": "在栈上分配 a，写入 42" },
+      { "line": 5, "vars": { "a": "42", "p": "a 的地址（0x…1000）" }, "out": "", "note": "& 取地址，存入指针 p" },
+      { "line": 7, "vars": { "a": "42", "p": "a 的地址（0x…1000）" }, "out": "a = 42", "note": "直接读 a" },
+      { "line": 8, "vars": { "a": "42", "p": "a 的地址（0x…1000）" }, "out": "*p = 42", "note": "* 解引用：顺着 p 存的地址找到 a" },
+      { "line": 9, "vars": { "a": "50", "p": "a 的地址（0x…1000）" }, "out": "", "note": "*p = 50 改的是 a 本尊" },
+      { "line": 10, "vars": { "a": "50", "p": "a 的地址（0x…1000）" }, "out": "a = 50", "note": "证明修改生效" }
+    ] }</script>
+  </article>
+
+  <div class="memviz"><script type="application/json" class="mem-data">{ "title": "int a = 42; int* p = &a;",
+    "regions": [
+      { "addr": "0x7ffd…1000", "name": "a", "type": "int", "value": "42", "note": "栈上对象" },
+      { "addr": "0x7ffd…2008", "name": "p", "type": "int*", "value": "0x7ffd…1000", "note": "p 存的是 a 的地址" }
+    ],
+    "note": "箭头语义：p 指向 a。*p 就是顺着箭头读写 a 本尊；地址每次运行可能不同，但“p 里存着 a 的地址”这层关系不变。" }</script></div>
+
+  <p>点「下一步」跟着箭头走一遍：赋地址、两个指针、重新赋值、置空——每一步只有 <b>p 里存的地址</b>在变，对象本身不动：</p>
+  <div class="widget-ptrviz"><script type="application/json" class="ptrviz-data">{ "title": "指针的指向：赋地址 → 双指针 → 重新赋值 → 置空",
+    "vars": [
+      { "name": "a", "type": "int", "value": "42" },
+      { "name": "b", "type": "int", "value": "7" },
+      { "name": "p", "type": "int*" },
+      { "name": "q", "type": "int*" }
+    ],
+    "frames": [
+      { "ptrs": { "p": "a" }, "note": "int* p = &a;：p 里存的是 a 的地址——箭头从 p 出发，落到 a 上。*p 就是顺着箭头找到的 a 本尊。" },
+      { "ptrs": { "p": "a", "q": "b" }, "note": "int* q = &b;：两个指针各指各的对象。*p 是 42，*q 是 7。" },
+      { "ptrs": { "p": "b", "q": "b" }, "note": "p = q;：把 q 里存的地址抄给 p——两个箭头都指向 b。注意 a 的值纹丝不动，变的只是 p 里存的地址。" },
+      { "ptrs": { "p": "null", "q": "b" }, "note": "p = nullptr;：空指针不指向任何对象（∅）。解引用前必须判空：if (p != nullptr)。" }
+    ] }</script></div>
+
+  <!-- ================= 3. 空指针与野指针 ================= -->
+  <h2>2. 空指针：nullptr、NULL 与 0</h2>
+  <p>指针必须“有所指”才能解引用。表示“什么都不指”用<b>空指针</b>：<b>C++11 起一律写 <code>nullptr</code></b>。</p>
+
+  <article class="example-card" id="ch05-ex-02">
+    <div class="ex-head">
+      <h3 class="ex-title">示例2：nullptr 与判空的习惯</h3>
+      <div class="ex-meta"><span class="tag">知识点：空指针</span><span class="tag">C++11</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int* p = nullptr;            // 一开始就置空：明确“不指向任何对象”
+
+    if (p == nullptr) {
+        std::cout &lt;&lt; "p 不指向任何对象\n";
+    }
+    // std::cout &lt;&lt; *p;          // ⛔ 解引用空指针：UB（此处没有执行）
+
+    int x = 7;
+    p = &amp;x;                      // 现在指向 x
+    if (p != nullptr) {
+        std::cout &lt;&lt; "*p = " &lt;&lt; *p &lt;&lt; "\n";
+    }
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">p 不指向任何对象
+*p = 7</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：<code>nullptr</code> 是专门的空指针字面量，类型为 <code>std::nullptr_t</code>，只能转换成指针类型。</li>
+        <li><b>第6~8行</b>：<b>使用指针前先判空</b>——这是指针安全的必修课。</li>
+        <li><b>第13行</b>：p 已指向 x，判空通过后解引用才安全。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p><code>delete</code> 空指针是<b>安全</b>的（定义好的空操作），所以“delete 后置空”能让后续的防御性 delete 无害化（示例 7）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 野指针：未初始化的指针</h4>
+      <div class="ub-warning">局部指针<b>不初始化</b>（<code>int* p;</code>）就是<b>野指针</b>：它的值是栈上残留的随机比特，“指向”哪里完全不可控。解引用野指针是<b>未定义行为</b>——可能崩溃、可能悄悄改坏别的变量、也可能在优化后表现完全错乱。空指针一解引用通常当场崩溃（容易发现问题），野指针却可能“看起来还在正常运行”地悄悄破坏数据。解引用空指针同样是 UB（通常表现为段错误崩溃）。规避三连：<b>定义即初始化</b>（<code>int* p = nullptr;</code>）、<b>使用前判空</b>、<b>delete 后置空</b>。</div>
+    </div>
+  </article>
+
+  <div class="std-diff"><b>C++98</b> 只有 <code>NULL</code>（宏，展开后是一个值为 0 的整数常量，通常就是 <code>0</code>）和字面量 <code>0</code>；<b>C++11</b> 起才有 <code>nullptr</code>。在 C 语言里 <code>NULL</code> 可以是 <code>((void*)0)</code>，但 C++ 里不允许这样定义——这是 C/C++ 的差异之一。因为 <code>0</code> 既是整数又是合法的空指针常量，重载时容易出乱子，这正是引入 <code>nullptr</code> 的动机（见示例 3）。</div>
+
+  <article class="example-card" id="ch05-ex-03">
+    <div class="ex-head">
+      <h3 class="ex-title">示例3：nullptr 如何参与重载决议</h3>
+      <div class="ex-meta"><span class="tag">知识点：nullptr 与重载</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+void f(int)   { std::cout &lt;&lt; "f(int)\n"; }
+void f(char*) { std::cout &lt;&lt; "f(char*)\n"; }
+
+int main() {
+    f(nullptr);   // nullptr 只能转成指针类型 → f(char*)
+    f(0);         // 整数 0 → 精确匹配 f(int)
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">f(char*)
+f(int)</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第7行</b>：<code>nullptr</code> 的类型是 <code>std::nullptr_t</code>，能转换成任意指针类型，但<b>不能</b>转成 <code>int</code>——<code>f(int)</code> 根本不可行，唯一候选 <code>f(char*)</code> 胜出。</li>
+        <li><b>第8行</b>：<code>0</code> 是 int 字面量，精确匹配 <code>f(int)</code>。</li>
+        <li>若写 <code>f(NULL)</code>：NULL 通常是整数 <code>0</code>，往往也会选中 <code>f(int)</code>——与“我想传空指针”的直觉相反。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>只有 <code>void f(int);</code> 一个候选时，<code>f(nullptr)</code> 是<b>编译错误</b>（nullptr 转不成 int）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>判断题“<code>NULL</code> 和 <code>nullptr</code> 完全等价”为<b>假</b>：NULL 是值为 0 的整数常量（宏），nullptr 是独立的指针类型。C++11 起一律用 <code>nullptr</code>。</p>
+    </div>
+  </article>
+
+  <!-- ================= 4. 指针算术 ================= -->
+  <h2>3. 指针算术：按元素跨度移动</h2>
+  <p>指针支持 <code>+、-、++、--</code> 和比较，但步长不是 1 字节：<b><code>p + 1</code> 前进 <code>sizeof(T)</code> 字节</b>（T 是指针的元素类型）。指针只有指向<b>数组元素</b>（或同一数组内）时算术才有意义。</p>
+
+  <article class="example-card" id="ch05-ex-04">
+    <div class="ex-head">
+      <h3 class="ex-title">示例4：p+1、*(p+i) 与指针相减</h3>
+      <div class="ex-meta"><span class="tag">知识点：指针算术</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int arr[5] = {10, 20, 30, 40, 50};
+    int* p = arr;                  // 指向首元素 arr[0]
+    int* q = &amp;arr[4];              // 指向最后一个元素
+
+    std::cout &lt;&lt; *p &lt;&lt; " " &lt;&lt; *(p + 1) &lt;&lt; " " &lt;&lt; *(p + 4) &lt;&lt; "\n";
+    ++p;                           // 向后移动一个 int（4 字节）
+    std::cout &lt;&lt; *p &lt;&lt; " " &lt;&lt; *(p + 2) &lt;&lt; "\n";
+    std::cout &lt;&lt; q - p &lt;&lt; "\n";    // 相差几个元素（不是字节！）
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">10 20 50
+20 40
+3</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：数组名在这里<b>退化</b>为指向首元素的指针，等价于 <code>&amp;arr[0]</code>（退化详见第 4 节）。</li>
+        <li><b>第8行</b>：<code>*(p + i)</code> 与 <code>arr[i]</code> 完全等价——语言层面 <code>arr[i]</code> 本来就定义为 <code>*(arr + i)</code>。</li>
+        <li><b>第9行</b>：<code>++p</code> 后 p 从 <code>arr[0]</code>（地址 …1000）走到 <code>arr[1]</code>（地址 …1004）——只前进了 <code>sizeof(int) = 4</code> 字节。</li>
+        <li><b>第11行</b>：同类型指针相减得<b>相差的元素个数</b>（类型 <code>ptrdiff_t</code>）：q 在 arr[4]、p 在 arr[1]，差 3。不是字节数 12。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p><code>double arr[5]</code> 时，<code>double* p</code> 的 <code>p + 1</code> 前进 8 字节——步长永远等于 <code>sizeof(元素类型)</code>。指针也可以用 <code>&lt;、&gt;、==</code> 比较（常用于循环边界）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 越界即 UB</h4>
+      <div class="ub-warning">指针算术只能在这条数组的<b>范围内</b>活动。<code>arr[5]</code> 之后已经出界，<code>*(p + 5)</code> 是<b>未定义行为</b>——标准只允许指针“指向数组元素或最后一个元素之后的位置”，且后者不能解引用。</div>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "arr": "10 20 30 40 50" }, "out": "", "note": "5 个 int 连续存放，每个 4 字节" },
+      { "line": 5, "vars": { "arr": "10 20 30 40 50", "p": "→arr[0]" }, "out": "", "note": "数组名退化为首元素地址" },
+      { "line": 6, "vars": { "arr": "10 20 30 40 50", "p": "→arr[0]", "q": "→arr[4]" }, "out": "", "note": "q 指向最后一个元素" },
+      { "line": 8, "vars": { "arr": "10 20 30 40 50", "p": "→arr[0]", "q": "→arr[4]" }, "out": "10 20 50", "note": "*(p+i) 与 arr[i] 等价" },
+      { "line": 9, "vars": { "arr": "10 20 30 40 50", "p": "→arr[1]", "q": "→arr[4]" }, "out": "", "note": "++p 前进 sizeof(int)=4 字节" },
+      { "line": 10, "vars": { "arr": "10 20 30 40 50", "p": "→arr[1]", "q": "→arr[4]" }, "out": "20 40", "note": "p 指向 arr[1]；*(p+2) 是 arr[3]" },
+      { "line": 11, "vars": { "arr": "10 20 30 40 50", "p": "→arr[1]", "q": "→arr[4]" }, "out": "3", "note": "q-p = 元素个数 3，不是 12 字节" }
+    ] }</script>
+  </article>
+
+  <div class="memviz"><script type="application/json" class="mem-data">{ "title": "int arr[5] 与两个指针（++p 之后的状态）",
+    "regions": [
+      { "addr": "0x7ffd…1000", "name": "arr[0]", "type": "int", "value": "10", "note": "p 原来在这里" },
+      { "addr": "0x7ffd…1004", "name": "arr[1]", "type": "int", "value": "20", "note": "p 现在指向这里" },
+      { "addr": "0x7ffd…1008", "name": "arr[2]", "type": "int", "value": "30", "note": "" },
+      { "addr": "0x7ffd…100c", "name": "arr[3]", "type": "int", "value": "40", "note": "*(p+2) 到这里" },
+      { "addr": "0x7ffd…1010", "name": "arr[4]", "type": "int", "value": "50", "note": "q 指向这里" },
+      { "addr": "0x7ffd…2000", "name": "p", "type": "int*", "value": "0x7ffd…1004", "note": "存 arr[1] 的地址" },
+      { "addr": "0x7ffd…2008", "name": "q", "type": "int*", "value": "0x7ffd…1010", "note": "q - p = 3（元素个数）" }
+    ],
+    "note": "相邻元素地址相差 sizeof(int)=4 字节。p+1 按“元素”跨步而不是按字节——这是指针类型存在的意义。" }</script></div>
+
+  <!-- ================= 5. 数组退化 ================= -->
+  <h2>4. 数组退化：长度丢了怎么办</h2>
+  <p>数组作为实参传给函数时，<b>退化</b>为指向首元素的指针，长度信息丢失——函数内 <code>sizeof(arr)</code> 是指针大小。<b>解决方案：把长度作为第二个参数一起传。</b></p>
+
+  <article class="example-card" id="ch05-ex-05">
+    <div class="ex-head">
+      <h3 class="ex-title">示例5：传数组必须传长度</h3>
+      <div class="ex-meta"><span class="tag">知识点：数组退化</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+// 退化后长度信息丢失：把长度 n 一起传进来
+int sum(const int* arr, int n) {
+    int total = 0;
+    for (int i = 0; i &lt; n; ++i) {
+        total += arr[i];      // arr[i] 即 *(arr + i)
+    }
+    return total;
+}
+
+int main() {
+    int a[5] = {1, 2, 3, 4, 5};
+    std::cout &lt;&lt; "main 里 sizeof(a) = " &lt;&lt; sizeof(a) &lt;&lt; "\n";
+    std::cout &lt;&lt; "sum = " &lt;&lt; sum(a, 5) &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">main 里 sizeof(a) = 20
+sum = 15</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：形参 <code>const int* arr</code> 与写 <code>int arr[]</code> 完全等价；<code>const</code> 表示只读（第 5 节详解）。</li>
+        <li><b>第7行</b>：<code>arr[i]</code> 之所以能用，是因为 <code>arr[i]</code> 就是 <code>*(arr + i)</code>——指针加偏移再解引用。</li>
+        <li><b>第14行</b>：在定义处 <code>sizeof(a)</code> = 5 × 4 = 20；传进函数后只剩 8 字节的指针，长度 5 必须作为参数传入。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比（进阶）</h4>
+      <p>数组名与 <code>&amp;数组名</code> 的<b>类型不同</b>：</p>
+      <pre><code class="cpp">int a[5];
+int*  p1 = a;        // int*：指向首元素 a[0]
+int (*p2)[5] = &amp;a;   // int(*)[5]：指向“整个数组”
+// 数值上 p1 与 p2 相同，但：
+// p1 + 1 前进 sizeof(int)  = 4 字节
+// p2 + 1 前进 sizeof(a)   = 20 字节</code></pre>
+      <p>退化只发生在“数组名”这一个身份上，<code>&amp;a</code> 不退化。想保留长度还可以用数组引用 <code>int (&amp;arr)[5]</code>（第 4 章示例 5）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>传长度参数时传错个数（如把字节数 20 当元素个数传）会<b>越界读</b>——属于未定义行为。习惯上传“元素个数”，并在函数内只信这个 n。</p>
+    </div>
+  </article>
+
+  <!-- ================= 6. const 与指针 ================= -->
+  <h2>5. const 与指针：三种组合</h2>
+  <p><code>const</code> 和 <code>*</code> 的相对位置决定约束对象。口诀：<b>“左定值，右定针”</b>——<code>const</code> 在 <code>*</code> 左边，所指的<b>值</b>是常量；在 <code>*</code> 右边，<b>指针本身</b>是常量。</p>
+
+  <table class="data-table">
+    <tr><th>写法</th><th>俗称</th><th>指向可换？</th><th>内容可改？</th></tr>
+    <tr><td><code>const int* p</code>（等价 <code>int const* p</code>）</td><td>指向常量的指针</td><td>✔ 可以</td><td>✘ 不行</td></tr>
+    <tr><td><code>int* const p</code></td><td>常量指针</td><td>✘ 不行</td><td>✔ 可以</td></tr>
+    <tr><td><code>const int* const p</code></td><td>双保险</td><td>✘ 不行</td><td>✘ 不行</td></tr>
+  </table>
+
+  <article class="example-card" id="ch05-ex-06">
+    <div class="ex-head">
+      <h3 class="ex-title">示例6：三种组合逐一验证</h3>
+      <div class="ex-meta"><span class="tag">知识点：const 与指针</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int a = 10, b = 20;
+
+    const int* p1 = &amp;a;     // ① 指向常量的指针：内容只读
+    // *p1 = 99;            // ⛔ 编译错误：不能通过 p1 改内容
+    p1 = &amp;b;                // ✔ 指向可以换
+
+    int* const p2 = &amp;a;     // ② 常量指针：指向不能换
+    *p2 = 99;               // ✔ 内容可以改（a 变成 99）
+    // p2 = &amp;b;             // ⛔ 编译错误：不能换指向
+
+    const int* const p3 = &amp;b;   // ③ 双保险：都不能改
+    std::cout &lt;&lt; "*p1 = " &lt;&lt; *p1 &lt;&lt; "\n";
+    std::cout &lt;&lt; "*p2 = " &lt;&lt; *p2 &lt;&lt; "\n";
+    std::cout &lt;&lt; "a = " &lt;&lt; a &lt;&lt; " b = " &lt;&lt; b &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">*p1 = 20
+*p2 = 99
+a = 99 b = 20</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第6~8行</b>：<code>p1</code> 换指向到 <code>b</code> 合法，但 <code>*p1 = 99</code> 被编译器拒绝——这就是第 4 章只读参数 <code>const std::string&amp;</code> 的指针版。</li>
+        <li><b>第10~12行</b>：<code>p2</code> 定义时必须初始化且永远指向 a；<code>*p2 = 99</code> 合法，把 a 改成 99。</li>
+        <li><b>第14行</b>：<code>p3</code> 两个方向都锁死，定义时必须初始化。</li>
+        <li><b>第17行</b>：a 已被 <code>*p2</code> 改成 99，所以输出 <code>a = 99</code>；p1 现在指着 b。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>把 <code>int*</code> 赋给 <code>const int*</code> 不需要任何转换（承诺加严，安全）；反方向（去掉 const）要 <code>const_cast</code>，且改写真正声明为 const 的对象是 UB——一律别做。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>int* const p</code> 与 <code>const int* p</code> 中文都带“常量”二字，极易混。答题技巧：从右往左读声明——<code>p</code> is a <code>const</code> pointer to <code>int</code>（指针常量）；<code>p</code> is a pointer to <code>const int</code>（指向常量）。</p>
+    </div>
+  </article>
+
+  <!-- ================= 7. 悬空指针 ================= -->
+  <h2>6. 悬空指针：指向已消失的内存</h2>
+
+  <article class="example-card" id="ch05-ex-07">
+    <div class="ex-head">
+      <h3 class="ex-title">示例7：悬空指针的三种来源（UB 示范）</h3>
+      <div class="ex-meta"><span class="tag red">未定义行为示范</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int* getAddr() {
+    int local = 42;
+    return &amp;local;      // ⛔ local 在函数返回时销毁
+}
+
+int main() {
+    int* p = getAddr(); // p 从此悬空
+    // std::cout &lt;&lt; *p; // ⛔ 解引用悬空指针：UB，不写不考
+
+    int* q = new int(5); // new：在堆上分配（后续章节详讲）
+    delete q;            // 内存已归还系统
+    // std::cout &lt;&lt; *q;  // ⛔ 同样悬空：UB
+    // delete q;         // ⛔ 双重 delete：UB
+    q = nullptr;         // ✔ 好习惯：delete 后立刻置空
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-pitfall">
+      <h4>⚠ 为什么没有“预期输出”？</h4>
+      <div class="ub-warning"><b>悬空指针</b>指向的对象已经销毁。解引用悬空指针是<b>未定义行为</b>：可能崩溃、可能读到垃圾、可能“碰巧”正常——因此本例不给出任何预期输出，考试也不允许以它的结果为答案。三种典型来源：① 返回局部变量的地址（第 5 行，g++ <code>-Wall</code> 会报 <code>warning: address of local variable 'local' returned [-Wreturn-local-addr]</code>）；② <code>delete</code> 之后继续解引用；③ <code>delete</code> 之后再 <code>delete</code>（双重释放，可能破坏堆结构）。注意：<code>delete</code> 一个空指针是<b>安全</b>的（定义好的空操作），所以第 16 行“delete 后置空”是好习惯——但置空防不住“别的指针也指向同一块内存”的情况，根治靠设计。</div>
+    </div>
+  </article>
+
+  <p>下面的分步图把「悬空」画了出来：<b>对象销毁后，指向它的箭头还在，但落点已经打了叉</b>——这就是悬空的图形含义（红色虚线箭头 = 悬空，解引用是 UB）：</p>
+  <div class="widget-ptrviz"><script type="application/json" class="ptrviz-data">{ "title": "悬空指针：对象没了，箭头还在",
+    "vars": [
+      { "name": "local", "type": "int" },
+      { "name": "heap",  "type": "int" },
+      { "name": "p",     "type": "int*" },
+      { "name": "q",     "type": "int*" }
+    ],
+    "frames": [
+      { "ptrs": { "p": "local", "q": "heap" }, "note": "p 指向局部变量 local，q 指向堆上 new 出来的 int。此刻两条箭头都是安全的。" },
+      { "ptrs": { "p": "local", "q": "heap" }, "freed": ["local"], "note": "函数返回：local 销毁（盒子打叉）。p 的箭头还在，但落点已经没了——p 悬空，*p 是未定义行为。" },
+      { "ptrs": { "p": "local", "q": "heap" }, "freed": ["local", "heap"], "note": "delete q; 之后 heap 也销毁：q 同样悬空。三种来源：返回局部地址 / delete 后使用 / 双重 delete。根治：delete 后立刻置空，或干脆用智能指针（第 9 章）。" },
+      { "ptrs": { "p": "null", "q": "null" }, "freed": ["local", "heap"], "note": "p = nullptr; q = nullptr;：箭头收起、换成 ∅ 空指针徽标——置空后解引用前判空即可，不再悬空。" }
+    ] }</script></div>
+
+  <!-- ================= 8. 引用 ================= -->
+  <h2>7. 引用：对象的别名</h2>
+  <p>第 4 章已经用过引用参数，现在正式介绍它。引用的三条铁律：<b>① 定义时必须初始化；② 绑定后不能“重绑”（一切操作都作用于被绑对象）；③ 不存在空引用</b>。它在语言层面就是<b>别名</b>——底层常由编译器用指针实现，但那是实现细节，标准只规定语义。</p>
+
+  <article class="example-card" id="ch05-ex-08">
+    <div class="ex-head">
+      <h3 class="ex-title">示例8：引用是别名，不是“可换的指针”</h3>
+      <div class="ex-meta"><span class="tag">知识点：引用基础</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int a = 1;
+    int&amp; r = a;        // 定义引用时必须初始化
+    r = 100;           // 给 r 赋值就是给 a 赋值
+    std::cout &lt;&lt; "a = " &lt;&lt; a &lt;&lt; "\n";
+
+    int b = 2;
+    r = b;             // 不是重新绑定！是把 b 的值赋给 a
+    std::cout &lt;&lt; "a = " &lt;&lt; a &lt;&lt; " b = " &lt;&lt; b &lt;&lt; "\n";
+    std::cout &lt;&lt; (&amp;r == &amp;a ? "同一对象" : "不同对象") &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">a = 100
+a = 2 b = 2
+同一对象</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：<code>int&amp; r = a;</code>——r 从此是 a 的别名，<b>不占新的“逻辑”对象</b>。</li>
+        <li><b>第6行</b>：<code>r = 100</code> 完全等价于 <code>a = 100</code>。</li>
+        <li><b>第10行</b>：<b>最容易错的行</b>——<code>r = b</code> 不是让 r 改绑到 b，而是把 b 的值 <b>2</b> 拷贝给 a。引用一经绑定，终身不改。</li>
+        <li><b>第12行</b>：对 r 取地址得到的就是 a 的地址——别名与本尊是同一块内存。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>同样的声明陷阱：<code>int&amp; r = a, b;</code> 里 <code>b</code> 是普通 <code>int</code>，不是引用（<code>&amp;</code> 同样只修饰 r）。另外引用绑定后 <code>sizeof(r)</code> 等于被绑对象的大小（这里是 4），而 <code>sizeof(int*)</code> 恒为指针大小。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 返回局部引用同样是 UB</h4>
+      <div class="ub-warning">引用作为返回值时，规则与第 4 章示例 10 相同：<b>绝不能返回局部变量的引用</b>——函数返回后局部变量销毁，引用悬空，使用它是未定义行为。合法的返回引用对象：引用形参、静态/全局变量。</div>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "a": "1" }, "out": "", "note": "定义 a" },
+      { "line": 5, "vars": { "a": "1", "r": "绑定 a（别名）" }, "out": "", "note": "r 绑定 a，终身不可改绑" },
+      { "line": 6, "vars": { "a": "100", "r": "绑定 a（别名）" }, "out": "", "note": "r = 100 就是 a = 100" },
+      { "line": 7, "vars": { "a": "100", "r": "绑定 a（别名）" }, "out": "a = 100", "note": "别名生效" },
+      { "line": 9, "vars": { "a": "100", "b": "2" }, "out": "", "note": "定义 b" },
+      { "line": 10, "vars": { "a": "2", "b": "2" }, "out": "", "note": "r = b 是赋值不是重绑：把 2 拷贝给 a" },
+      { "line": 11, "vars": { "a": "2", "b": "2" }, "out": "a = 2 b = 2", "note": "r 仍绑定 a" },
+      { "line": 12, "vars": { "a": "2", "b": "2" }, "out": "同一对象", "note": "&r 就是 &a，同一块内存" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 9. 指针 vs 引用 ================= -->
+  <h2>8. 指针 vs 引用：何时用哪个</h2>
+
+  <table class="data-table">
+    <tr><th>对比点</th><th>指针</th><th>引用</th></tr>
+    <tr><td>可否“什么都不指”</td><td>可以（<code>nullptr</code>）</td><td>不存在空引用</td></tr>
+    <tr><td>定义时必须初始化</td><td>否（但不初始化就是野指针）</td><td>必须</td></tr>
+    <tr><td>之后可否改变指向</td><td>可以重新赋值</td><td>不能重绑</td></tr>
+    <tr><td>指针算术</td><td>支持（<code>p+1</code> 等）</td><td>不支持</td></tr>
+    <tr><td>多级形式</td><td><code>int**</code>、<code>int***</code> 都有</td><td>没有二级引用</td></tr>
+    <tr><td>使用方式</td><td>要 <code>*p</code> 解引用、<code>-&gt;</code> 访问成员</td><td>像原对象一样直接用</td></tr>
+    <tr><td>何时选它</td><td>可能为空、需要换目标、遍历内存</td><td>对象必然存在、要别名词义</td></tr>
+  </table>
+
+  <p>同一个 swap 的两种写法：</p>
+
+  <div class="compare">
+    <div class="compare-col badc">
+      <h4>指针版：能干，但到处是 * 和 &amp;</h4>
+      <pre><code class="cpp">void swapP(int* px, int* py) {
+    int t = *px;
+    *px = *py;
+    *py = t;
+}
+int main() {
+    int a = 1, b = 2;
+    swapP(&amp;a, &amp;b);   // 调用要取地址
+}</code></pre>
+    </div>
+    <div class="compare-col good">
+      <h4>引用版：C++ 首选</h4>
+      <pre><code class="cpp">void swapR(int&amp; rx, int&amp; ry) {
+    int t = rx;
+    rx = ry;
+    ry = t;
+}
+int main() {
+    int a = 1, b = 2;
+    swapR(a, b);     // 像传值一样自然
+}</code></pre>
+    </div>
+  </div>
+
+  <p>两者效果一致；引用版调用自然、不可能“忘了解引用”，参数语义上还承诺“必然有所指”。指针版胜在能表达“这里可能没有对象（空）”或“目标会换”的语义——函数参数的默认选择是<b>引用</b>，只有在“可空/可换/遍历内存”时才换指针。</p>
+
+  <article class="example-card" id="ch05-ex-09">
+    <div class="ex-head">
+      <h3 class="ex-title">示例9：综合运用——用引用/指针带回多个结果</h3>
+      <div class="ex-meta"><span class="tag green">综合</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+// 引用版：结果直接写进实参
+void divModRef(int a, int b, int&amp; q, int&amp; r) {
+    q = a / b;
+    r = a % b;
+}
+
+// 指针版：传入结果变量的地址
+void divModPtr(int a, int b, int* q, int* r) {
+    *q = a / b;
+    *r = a % b;
+}
+
+int main() {
+    int q = 0, r = 0;
+    divModRef(17, 5, q, r);
+    std::cout &lt;&lt; "引用版: 商=" &lt;&lt; q &lt;&lt; " 余=" &lt;&lt; r &lt;&lt; "\n";
+    divModPtr(17, 5, &amp;q, &amp;r);
+    std::cout &lt;&lt; "指针版: 商=" &lt;&lt; q &lt;&lt; " 余=" &lt;&lt; r &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">引用版: 商=3 余=2
+指针版: 商=3 余=2</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第17、19行</b>：函数要“带回”两个结果（商和余数），返回值不够用——用<b>输出参数</b>：引用版直接传变量，指针版传地址。</li>
+        <li><b>第19行</b>：指针版调用要写 <code>&amp;q, &amp;r</code>——漏写会得到类型不匹配的编译错误（编译器能拦住，比 C 语言时代安全些）。</li>
+        <li><b>第18、20行</b>：两次调用后 q=3、r=2（17 = 5×3 + 2），结果完全一致。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>输出参数也可以用 <code>const int*</code> 只读传入、非 const 引用写回混合使用。规则：<b>只读参数加 const 引用，写回参数用非 const 引用，可空场景才用指针</b>。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>判断题“引用参数 = 传值”为<b>假</b>；判断题“指针参数调用时不用取地址”为<b>假</b>。两者都在考“是否理解间接访问”。</p>
+    </div>
+  </article>
+
+  <!-- ================= 10. 二级指针 ================= -->
+  <h2>9. 二级指针：指向指针的指针</h2>
+  <p>指针自己也是变量、也有地址，所以可以有<b>指向指针的指针</b>。<code>int** pp</code> 解引用一次得到 <code>int*</code>，解引用两次才得到 <code>int</code>。这里点到为止，认识记号即可。</p>
+
+  <article class="example-card" id="ch05-ex-10">
+    <div class="ex-head">
+      <h3 class="ex-title">示例10：int** 与 ** 解引用</h3>
+      <div class="ex-meta"><span class="tag">知识点：二级指针</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int a = 7;
+    int* p = &amp;a;       // 一级指针：指向 int
+    int** pp = &amp;p;     // 二级指针：指向“指向 int 的指针”
+
+    std::cout &lt;&lt; **pp &lt;&lt; "\n";   // 解引用两次：pp→p→a
+    **pp = 99;                   // 通过二级指针修改 a
+    std::cout &lt;&lt; a &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">7
+99</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第6行</b>：<code>&amp;p</code> 取的是“指针变量 p”自己的地址，类型是 <code>int**</code>。</li>
+        <li><b>第8行</b>：<code>*pp</code> 得到 p（值为 a 的地址），再 <code>*</code> 一次得到 a。</li>
+        <li><b>第9行</b>：<code>**pp = 99</code> 沿链条改写 a 本尊。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p><code>main</code> 还有一种带参数的写法：<code>int main(int argc, char* argv[])</code>。argv 是“若干个字符串（char*）”的数组，退化后就是 <code>char**</code>：argv[0] 是程序名、argv[1] 是第一个命令行参数。这是二级指针最常见的现身方式。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>几颗 <code>*</code> 就要解引用几次：拿 <code>*pp</code>（一个 <code>int*</code>）直接当 <code>int</code> 用是类型错误。判断题“<code>int**</code> 可以赋给 <code>int*</code>”为<b>假</b>——类型不同，不自动转换。</p>
+    </div>
+    <div class="memviz"><script type="application/json" class="mem-data">{ "title": "int a; int* p = &a; int** pp = &p;（**pp = 99 之后）",
+      "regions": [
+        { "addr": "0x7ffd…1000", "name": "a", "type": "int", "value": "99", "note": "被 **pp = 99 改写" },
+        { "addr": "0x7ffd…2000", "name": "p", "type": "int*", "value": "0x7ffd…1000", "note": "一级指针，存 a 的地址" },
+        { "addr": "0x7ffd…3000", "name": "pp", "type": "int**", "value": "0x7ffd…2000", "note": "二级指针，存 p 的地址" }
+      ],
+      "note": "链条：pp → p → a。**pp 解引用两次才落到 a；这也是 char** argv 能“依次取出每个字符串”的原理。" }</script></div>
+  </article>
+
+  <!-- ================= 11. 练习 ================= -->
+  <h2>10. 练习：安全使用指针的流程</h2>
+
+  <article class="example-card" id="ch05-ex-11">
+    <div class="ex-head">
+      <h3 class="ex-title">练习：把“指针安全四步”排成正确顺序</h3>
+      <div class="ex-meta"><span class="tag purple">互动练习</span></div>
+    </div>
+    <p>下面是一个指针从<b>诞生到退场</b>的四个动作，顺序被打乱了。请拖动（或用 ↑↓ 按钮）恢复正确顺序：</p>
+    <div class="widget-sort"><script type="application/json" class="sort-data">{ "items": [
+      "定义时初始化：int* p = &a; 或 int* p = nullptr;",
+      "使用前判空：if (p != nullptr)",
+      "解引用访问目标：*p = 10;",
+      "delete 之后的指针立刻置空：p = nullptr;"
+    ], "hint": "先有确定指向，再谈使用；退场时清空痕迹。",
+    "explain": "野指针与悬空指针的共同根源是“指针指向不确定的对象”。定义即初始化、使用前判空、delete 后置空——三步习惯能挡住本章绝大多数 UB。" }</script></div>
+  </article>
+
+  <!-- ================= 12. 常见错误 ================= -->
+  <h2>11. 常见错误</h2>
+  <div class="ub-warning"><b>1. 解引用野指针</b>：<code>int* p; *p = 1;</code> —— p 未初始化，指向随机地址，写入是未定义行为。修复：<code>int* p = nullptr;</code> 或直接指向合法对象。</div>
+  <div class="ub-warning"><b>2. 解引用空指针</b>：<code>int* p = nullptr; cout &lt;&lt; *p;</code> —— 通常表现为段错误崩溃，标准定性为 UB。使用前必须判空。</div>
+  <div class="ub-warning"><b>3. 悬空指针</b>：返回局部变量地址、<code>delete</code> 后继续解引用或双重 <code>delete</code>，都是 UB。习惯：delete 后置空；谁拥有内存谁来释放（后续章节展开）。</div>
+  <div class="warn"><b>4. 声明陷阱</b>：<code>int* a, b;</code> 里 b 是普通 int。一行一个声明，或写 <code>int *a, *b;</code>；引用同理 <code>int&amp; r = a, b;</code> 的 b 也不是引用。</div>
+  <div class="warn"><b>5. 函数内用 sizeof 求数组长度</b>：数组传参退化后 <code>sizeof(arr)</code> 是指针大小（64 位平台 8）。必须把长度作为参数传入（或用数组引用/容器）。</div>
+  <div class="warn"><b>6. 把赋值当重绑</b>：<code>int&amp; r = a; r = b;</code> 不会让 r 指向 b，而是把 b 的值拷贝给 a。引用不能重绑；需要“换目标”的语义就该用指针。</div>
+  <p>更多同类错误见 <a href="../errors.html">编译错误博物馆</a>（如“cannot convert”“invalid conversion”），以及 <a href="../exam-pitfalls.html">考试易错点</a> 中的指针专题；常用写法可查 <a href="../cheatsheets.html">速查表</a>。</p>
+
+  <!-- ================= 13. 标准差异 ================= -->
+  <h2>12. C++ 标准差异小结</h2>
+  <table class="data-table">
+    <tr><th>特性</th><th>C++98</th><th>C++11 及以后</th></tr>
+    <tr><td>空指针字面量</td><td><code>NULL</code>（值为 0 的整数常量）或 <code>0</code></td><td><code>nullptr</code>（首选），类型 <code>std::nullptr_t</code></td></tr>
+    <tr><td><code>NULL</code> 可否为 <code>(void*)0</code></td><td>C++ 中不可（C 语言可以）</td><td>未变</td></tr>
+    <tr><td>右值引用 <code>int&amp;&amp;</code></td><td>不存在</td><td>C++11 引入（进阶课程再讲，记住记号即可）</td></tr>
+    <tr><td>引用（左值）</td><td>已支持别名语义</td><td>未变</td></tr>
+  </table>
+  <div class="std-diff"><code>nullptr</code> 可隐式转换为<b>任意指针类型</b>但不能转成整数——重载决议因此有了“指针专属”的空值（示例 3），这是它比 <code>0</code> 安全的根本原因。C++98 代码里见到的 <code>NULL</code>、<code>0</code> 应在新代码中逐步替换为 <code>nullptr</code>。</div>
+
+  <!-- ================= 14. 小结 ================= -->
+  <h2>本章小结</h2>
+  <div class="keypoint">指针存地址、引用是别名。安全口诀：<b>定义即初始化、使用前判空、delete 后置空</b>；“左定值，右定针”分清 const；数组传参退化，长度必须单独传；UB（野指针、空指针、悬空指针）不考输出，只考规避。</div>
+  <ul>
+    <li><code>&amp;</code> 取地址、<code>*</code> 解引用；<code>int* a, b;</code> 的 b 是普通 int。</li>
+    <li><code>nullptr</code> 优于 <code>NULL/0</code>；未初始化的指针是野指针，解引用是 UB。</li>
+    <li><code>p+1</code> 前进 <code>sizeof(T)</code> 字节；<code>arr[i]</code> 就是 <code>*(arr+i)</code>；指针相减得元素个数。</li>
+    <li>数组退化：传参后长度丢失，函数内 <code>sizeof</code> 失效；<code>&amp;a</code> 与 <code>a</code> 类型不同。</li>
+    <li>const 三组合：<code>const int*</code>（值只读）、<code>int* const</code>（指向锁定）、双保险。</li>
+    <li>悬空指针三种来源：局部地址带出、delete 后用、双重 delete。</li>
+    <li>引用三铁律：必须初始化、不能重绑、无空引用；返回局部引用是 UB。</li>
+    <li>选型：默认引用；可空/可换目标/遍历内存才用指针；<code>char** argv</code> 是二级指针的常见形态。</li>
+  </ul>
+
+  <!-- ================= 15. 自测清单 ================= -->
+  <h2>自测清单</h2>
+  <ul class="checklist" data-chapter="ch05">
+    <li><label><input type="checkbox" data-check-id="ch05-c1"><span>我能用 &amp; 取地址、* 解引用，并画出 <code>int* p = &amp;a;</code> 的内存图</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch05-c2"><span>我知道 <code>int* a, b;</code> 里 b 是什么，并会选用安全的声明写法</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch05-c3"><span>我会用 nullptr 判空，说清它与 NULL/0 的区别</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch05-c4"><span>我能计算 p+1 前进的字节数，并解释 *(p+i) 与 arr[i] 的等价性</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch05-c5"><span>我能解释数组传参退化，并知道如何把长度正确传入函数</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch05-c6"><span>我能区分 const int* / int* const / const int* const 三种组合</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch05-c7"><span>我能说出悬空指针的三种典型来源，以及对应的规避习惯</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch05-c8"><span>我能对比指针与引用，说出“何时用哪个”，并解释 argv 为什么是 char**</span></label></li>
+  </ul>
+
+  <!-- ================= 16. 随堂测验 ================= -->
+  <section class="quiz" data-source="ch05">
+    <script type="application/json" class="quiz-data">{ "title": "随堂测验：指针与引用",
+      "questions": [
+        { "type": "mcq", "q": "<code>int a = 5; int* p = &amp;a;</code>，<code>*p</code> 的值是？",
+          "options": ["a 的地址", "5", "p 的地址", "未定义行为"], "answer": 1,
+          "explain": "* 解引用：顺着 p 里存的地址找到 a，读到 5。a 的地址是 p 的值，不是 *p。" },
+        { "type": "mcq", "q": "<code>int* p, q;</code> 中 q 的类型是？",
+          "options": ["int*", "int", "int 的引用", "编译错误"], "answer": 1,
+          "explain": "* 在语法上修饰变量名：p 是 int*，q 只是普通 int。一行声明一个指针最安全。" },
+        { "type": "mcq", "q": "有 <code>void f(int);</code> 和 <code>void f(char*);</code>，调用 <code>f(nullptr)</code> 选哪个？",
+          "options": ["f(int)", "f(char*)", "二义性编译错误", "运行时随机"], "answer": 1,
+          "explain": "nullptr 只能转换为指针类型，f(int) 不可行，唯一候选是 f(char*)。换成 f(0) 才会选 f(int)。" },
+        { "type": "mcq", "q": "<code>int arr[5]; int* p = arr;</code>（sizeof(int)==4），<code>p + 1</code> 与 p 的地址相差几字节？",
+          "options": ["1", "4", "20", "不确定"], "answer": 1,
+          "explain": "指针算术按元素跨步：p+1 前进 sizeof(int)=4 字节，不是 1 字节，也不是整个数组的 20 字节。" },
+        { "type": "mcq", "q": "关于 const 与指针，下列哪个说法正确？",
+          "options": ["const int* p：p 的指向不能改", "int* const p：所指内容不能改", "const int* p：不能通过 p 修改内容", "const int* 与 int* const 完全等价"], "answer": 2,
+          "explain": "口诀“左定值，右定针”：const 在 * 左边约束内容（const int*），在右边约束指针本身（int* const）。A、B 恰好说反。" },
+        { "type": "tf", "q": "引用可以先定义、之后再初始化。",
+          "answer": false, "explain": "引用必须在定义的同时初始化，之后不能改绑。int& r; 是编译错误。" },
+        { "type": "tf", "q": "<code>int&amp; r = a;</code> 之后执行 <code>r = b;</code> 会让 r 改绑到 b。",
+          "answer": false, "explain": "r = b 是赋值：把 b 的值拷贝给 a。引用一经绑定终身不变，这是它和指针的核心区别之一。" },
+        { "type": "fill", "q": "C++11 起推荐的空指针字面量是____。",
+          "answer": ["nullptr"], "explain": "nullptr 类型为 std::nullptr_t，只能转换为指针类型，比 NULL/0 更安全。" },
+        { "type": "fill", "q": "64 位平台上，数组形参 <code>int arr[]</code> 在函数内 <code>sizeof(arr)</code> 的值是____字节。",
+          "answer": ["8"], "explain": "数组传参退化为指针，sizeof 给出指针大小；32 位平台是 4。" },
+        { "type": "code", "q": "补全：让指针 p 指向 int 变量 a：<code>int* p = ____;</code>",
+          "answer": ["&a"], "explain": "用取地址运算符 & 取出 a 的地址赋给 p。" }
+      ] }</script>
+  </section>
+
+</main>
+
+<script src="../assets/js/highlight.js"></script>
+<script src="../assets/js/toc.js"></script>
+<script src="../assets/js/nav.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/interactive.js"></script>
+<script src="../assets/js/teacher.js"></script>
+<script src="../assets/js/mastery.js"></script>
+<script src="../assets/js/bughunt-data.js"></script>
+<script src="../assets/js/bug-hunt.js"></script>
+<script src="../assets/js/present.js"></script>
+<script src="../assets/js/glossary-data.js"></script>
+<script src="../assets/js/glossary.js"></script>
+<script src="../assets/js/page-toc.js"></script>
+<script src="../assets/js/v2-config.js"></script>
+<script src="../assets/js/v2-core.js"></script>
+<script src="../assets/js/v2-lab.js"></script>
+</body>
+</html>

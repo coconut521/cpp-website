@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大学 C++ 离线助教 · v2</title>
+<script src="assets/js/theme-init.js"></script>
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/v2.css">
+</head>
+<body>
+<main class="container v2-home" id="v2-main">
+
+  <section class="v2-home-hero">
+    <div class="v2-hero-copy">
+      <div class="v2-hero-kicker">COLLEGE C++ · OFFLINE ASSISTANT</div>
+      <h1 class="v2-hero-title">把 C++ 学成<br>一张可以走的<em>地图</em>。</h1>
+      <p class="v2-hero-lede">12 章主线、5 条专题支线、可单步的实验台。每个动画只回答一个具体问题；所有内容离线可用，双击即开。</p>
+      <div class="v2-hero-actions">
+        <button type="button" class="v2-search-big" data-v2-palette>
+          <span>搜索章节、报错、速查、术语</span><kbd>Ctrl K</kbd>
+        </button>
+        <a class="v2-btn v2-btn-primary" href="#v2-map">进入学习路线 <span aria-hidden="true">→</span></a>
+      </div>
+      <div class="v2-stats" id="v2-stats"></div>
+    </div>
+    <div class="v2-continue" id="v2-continue" aria-label="继续学习"></div>
+  </section>
+
+  <span id="toc" class="v2-anchor" aria-hidden="true"></span>
+  <section class="v2-section" id="v2-map">
+    <div class="v2-section-head">
+      <div>
+        <div class="v2-kicker">LEARNING ROUTE</div>
+        <h2>12 站，从变量到现代 C++</h2>
+      </div>
+      <p>进度沿路线填充；标记「已学完」后，下一站会亮起。每站对应一章讲义。</p>
+    </div>
+    <div class="v2-route" id="v2-route"></div>
+  </section>
+
+  <section class="v2-section" id="v2-specials-section">
+    <div class="v2-section-head">
+      <div>
+        <div class="v2-kicker">SIDE QUESTS</div>
+        <h2>四条支线，四种看法</h2>
+      </div>
+      <p>排序是赛道，错误是标本墙，速查是卡盒，易错是雷区。每个专题页有自己的记忆点。</p>
+    </div>
+    <div class="v2-specials" id="v2-specials"></div>
+  </section>
+
+  <section class="v2-section v2-dashboard" id="v2-dashboard">
+    <div class="v2-panel" id="v2-weak"></div>
+    <div class="v2-panel" id="v2-recent"></div>
+    <div class="v2-panel" id="v2-search"></div>
+  </section>
+
+</main>
+
+<script src="assets/js/highlight.js"></script>
+<script src="assets/js/toc.js"></script>
+<script src="assets/js/nav.js"></script>
+<script src="assets/js/teacher.js"></script>
+<script src="assets/js/mastery.js"></script>
+<script src="assets/js/errors-data.js"></script>
+<script src="assets/js/cheatsheets-data.js"></script>
+<script src="assets/js/pitfalls-data.js"></script>
+<script src="assets/js/sorting-data.js"></script>
+<script src="assets/js/bughunt-data.js"></script>
+<script src="assets/js/glossary-data.js"></script>
+<script src="assets/js/site-updates-data.js"></script>
+<script src="assets/js/present.js"></script>
+<script src="assets/js/v2-config.js"></script>
+<script src="assets/js/v2-core.js"></script>
+<script src="assets/js/v2-home.js"></script>
+</body>
+</html>

@@ -1,181 +1,316 @@
-# DEV.md — Development Guide
+# DEV.md - Development Guide
 
-For developers who want to **modify or extend** this site. For the user guide see [README.md](README.md) (Chinese: [README.zh-CN.md](README.zh-CN.md)).
+This guide covers both front ends in the repository:
 
-## 1. Technical constraints (read this first)
+- the **classic site** at the repository root;
+- the **v2 interface** under `v2/`.
 
-- **Pure static, zero dependencies**: HTML5 + CSS3 + vanilla JS (ES2017+, modern browsers). No framework, no build step, no package manager.
-- **Must work over `file://`**: therefore *no* ES modules, no local `fetch()` of JSON, no CDN. All data lives as `window.XXX = [...]` globals in `assets/js/*-data.js`, loaded via plain `<script>` tags in order.
-- **Zero network requests**: no external fonts, icons, or images.
-- Site copy is Simplified Chinese; files are UTF-8.
+All development documentation in this repository is written in English. The site copy itself is Chinese; `README.zh-CN.md` is the end-user guide and is not a development document.
 
-## 2. Layout
+## 1. Technical Constraints (Read First)
+
+- **Pure static, zero dependencies**: HTML5 + CSS3 + vanilla JavaScript (ES2017+). No framework, no build step, no package manager is required to run the site.
+- **Must work over `file://`**: no ES modules, no `fetch()` for local data, no CDN, no web workers. All data lives in `window.XXX` globals in `assets/js/*-data.js`, loaded by ordinary `<script>` tags.
+- **Zero network requests**: no external fonts, icons, images or animation libraries. Inline SVG, CSS and Canvas are allowed.
+- **UTF-8** for every file. The site copy is Chinese; developer-facing prose and comments added from now on must be English.
+- **Validator is a hard gate**: `node tools/validate.js` must end with **0 errors and 0 warnings** before committing. The v2 validator must also pass.
+
+## 2. Repository Layout
 
 ```text
-index.html                 Home (search + topics + catalog + learning progress + recent updates)
-errors.html                Compiler-error museum (51 entries, incl. Visual Studio 2026 issues)
-sorting.html               Sorting special topic (7 sorts + steppers + comparison table + quiz)
-cheatsheets.html           Cheat sheets (19 sheets + quick-jump buttons)
-exam-pitfalls.html         Exam pitfalls (20 topics + random practice)
-chapters/ch01…ch12.html    12 lecture chapters
+index.html                     Classic home
+errors.html                    Classic compiler-error museum
+sorting.html                   Classic sorting topic
+cheatsheets.html               Classic cheat sheets
+exam-pitfalls.html             Classic exam pitfalls + bug hunt
+chapters/ch01...ch12.html      Classic lecture chapters
 templates/
-  chapter-template.html    New-chapter template
-  authoring-guide.md       Component authoring guide (example cards / steppers / memory viz …)
+  chapter-template.html        New-chapter template
+  authoring-guide.md           Component authoring guide (English)
 assets/
-  css/style.css            Site-wide styles (CSS variables, dark mode, print styles)
-  js/theme-init.js         Theme & font-size bootstrap (loaded synchronously in <head>;
-                           light/dark/auto follow-system; exposes window.SiteTheme)
-  js/highlight.js          Home-grown C++ syntax highlighting (exposes window.CppLight)
-  js/toc.js                Catalog data COURSE_TOC + topics SPECIAL_PAGES
-  js/nav.js                Top bar / footer / pager / theme & font controls (exposes window.SiteUI)
-  js/quiz.js               Quiz engine (exposes window.Quiz)
-  js/interactive.js        Example-card buttons, steppers, memory viz, drag sort,
-                           inc/dec animation (window.Interact)
-  js/teacher.js            Teacher mode
-  js/mastery.js            Knowledge-point marking (know / don't know) +
-                           top-bar "weak points" summary panel
-  js/bughunt-data.js       Bug-hunt exercise bank BUGHUNT_DATA (window.BugHunt)
-  js/bug-hunt.js           "Bug hunt" find-the-error widget; auto-inserts a per-chapter
-                           section on chapter pages (exposes window.BugHunt)
-  js/present.js            Presentation mode: section-per-slide projection, HUD,
-                           keyboard paging, fullscreen (exposes window.Present)
-  js/glossary-data.js      Glossary terms GLOSSARY_DATA
-  js/glossary.js           Glossary tooltips: marks first occurrence per term in prose,
-                           hover explanation, click-through (exposes window.Glossary)
-  js/page-toc.js           Floating in-page TOC: h2 sections of main, left-edge tab,
-                           click-to-scroll + scrollspy; hidden < 1200px / in
-                           presentation mode / in print (exposes window.PageToc)
-  js/quizbank-data.js      跨章题库 QUIZBANK_DATA（随机组卷数据源之一；题目含 difficulty）
-  js/errors-data.js        Error museum data ERRORS_DATA
-  js/cheatsheets-data.js   Cheat-sheet data CHEATSHEETS_DATA
-  js/pitfalls-data.js      Pitfalls data PITFALLS_DATA
-  js/cpp-run.js            在线运行入口（window.CppRun）：双协议加载 WASM +
-                           canRun 启发式 + run()；由 interactive.js 按需动态注入
-  js/cpprun-wasm-embed.js  cpprun.wasm 的 base64 内嵌版（tools/gen-embed.mjs 生成，勿手改）
-  assets/wasm/cpprun.wasm  教学子集解释器（AssemblyScript 编译产物）
-tools/validate.js          Site-wide static validation
-tools/cpprun-src/interpreter.ts   WASM 解释器源码（AssemblyScript）
-tools/gen-embed.mjs        生成 cpprun-wasm-embed.js（npm run build:cpprun 的后半步）
-tools/test-cpprun.mjs      解释器 node 直测（npm run test:cpprun，22 例）
-README.md / README.zh-CN.md / DEV.md
+  css/style.css                Classic site styles + v2 banner styles
+  js/theme-init.js             Theme/font bootstrap; exposes window.SiteTheme
+  js/highlight.js              Home-grown C++ syntax highlighting
+  js/toc.js                    COURSE_TOC + SPECIAL_PAGES
+  js/nav.js                    Classic header/footer/pager + v2 test banner
+  js/quiz.js                   Quiz engine
+  js/interactive.js            Example cards, stepper, memory viz, sort, Parsons, ptrviz
+  js/teacher.js                Teacher mode and exam builder
+  js/mastery.js                Know/don't-know marking + weak-point panel
+  js/bughunt-data.js           Bug-hunt exercise bank
+  js/bug-hunt.js               Bug-hunt widget
+  js/present.js                Presentation mode
+  js/glossary-data.js          Glossary entries
+  js/glossary.js               Glossary tooltips
+  js/page-toc.js               Classic floating page TOC
+  js/quizbank-data.js          Cross-chapter quiz bank
+  js/errors-data.js            Error museum data
+  js/cheatsheets-data.js       Cheat-sheet data
+  js/pitfalls-data.js          Exam-pitfall data
+  js/site-updates-data.js      Site feature/UI update feed
+  js/cpp-run.js                Online-run entry (window.CppRun)
+  js/cpprun-wasm-embed.js      Base64-embedded WASM fallback (generated)
+  wasm/cpprun.wasm             Teaching-subset C++ interpreter
+tools/
+  validate.js                  Original site validator
+  cpprun-src/interpreter.ts    WASM interpreter source
+  gen-embed.mjs                Generates the embedded WASM copy
+  test-cpprun.mjs              22 direct interpreter tests
+v2/
+  index.html                   v2 learning-map home
+  errors.html                  v2 specimen wall
+  cheatsheets.html             v2 card box
+  sorting.html                 v2 race track
+  exam-pitfalls.html           v2 minefield + case board
+  chapters/ch01...ch12.html    v2 chapter pages (same content, v2 shell)
+  assets/css/v2.css            v2 design system, layout, print, dark, responsive
+  assets/js/v2-config.js       Margin notes, icon set, explainer data
+  assets/js/v2-core.js         Chapter cover/rail, listings, special metaphors, command palette
+  assets/js/v2-lab.js          Explainer engines and inspector
+  assets/js/v2-home.js         Learning map, continue learning, weak points
+  assets/js/nav.js             v2 header, course drawer, footer, pager
+  assets/js/site-updates-data.js  v2 copy of the site update feed
+  assets/js/interactive.js     Forked interactive engine with SVG icons
+  assets/js/present.js         Presentation mode with v2 rail skipped
+  assets/js/page-toc.js        Classic floating TOC disabled on v2 pages
+  templates/chapter-template.html  v2-ready chapter template
+  templates/authoring-guide.md     English authoring guide
+  tools/inject-v2.mjs          Injects v2 CSS/scripts into copied pages
+  tools/validate-v2.mjs        v2 static validator
+  README.md                    v2 design and authoring notes
 ```
 
-Every page is just "skeleton + page-local `<style>` + a bit of glue"; all shared behavior lives in `assets/js/`.
+The v2 folder is a **snapshot copy** of the original content plus a new presentation layer. Editing original pages does not automatically update v2, and vice versa. See section 6.3 for the sync rules.
 
-## 3. Key mechanisms (cheat sheet)
+## 3. Runtime Architecture
+
+### 3.1 Classic page shell
+
+Every classic page is "HTML skeleton + page-local `<style>` + a small script". Shared behaviour lives in `assets/js/`:
+
+1. `theme-init.js` runs synchronously in `<head>` and applies the stored theme/font size.
+2. `nav.js` inserts the top bar, footer and chapter pager. On every classic page it also inserts the dismissible v2 test banner.
+3. Page scripts render the content (for special pages) or wire the chapter tools.
+4. `teacher.js`, `mastery.js`, `present.js`, `glossary.js` and `page-toc.js` add their own buttons/panels.
+
+### 3.2 v2 page shell
+
+v2 pages reuse the original chapter/special content and load a v2 layer after the classic scripts:
+
+- `v2-config.js` - icon set, chapter margin notes, explainer frames and questions.
+- `v2-core.js` - detects the page type and builds:
+  - chapter cover + reading/rail layout;
+  - listing wrappers (title bar, toolbar, output terminal);
+  - special-page metaphor headers/classes;
+  - `Ctrl+K` command palette and lazy corpus loading;
+  - site-update links and last-visit tracking.
+- `v2-lab.js` - mounts an inspector inside the configured example card and drives six renderers: `memory`, `stack`, `timeline`, `scene`, `grid`, `bars`.
+- `v2-home.js` - builds the learning map, continue-learning panel, weak-point panel, special quests and recent updates.
+- `v2/assets/js/nav.js` - v2 header, course drawer, footer and pager.
+- `v2/assets/css/v2.css` - design tokens, three-column chapter layout, listings, inspector, special pages, home, print, dark mode and responsive rules.
+
+`v2/tools/inject-v2.mjs` added the v2 `<link>` and `<script>` tags to every copied page; it is idempotent and can be rerun after adding a chapter.
+
+### 3.3 Page-type detection
+
+`v2-core.js` derives the chapter id from `/chapters/chXX-*.html` and the page type from the filename. `v2-lab.js` does the same and also maps `sorting.html` to the `sorting` demo. The rail is inserted after the chapter cover; the cover spans both columns.
+
+## 4. Key Mechanisms
 
 | Mechanism | Notes |
 | --- | --- |
-| Syntax highlighting | `highlight.js` scans `pre code.cpp` and tokenizes via keyword/string regexes; copy buttons use the pre-highlight source (`data-raw`); line numbers come from CSS counters and are `user-select: none` |
-| Navigation | `nav.js` inserts the top bar and footer; chapter pages get prev/next from `COURSE_TOC`; pages in subdirectories get the `../` prefix automatically |
-| Theme | `theme-init.js` (in `<head>`) sets `data-theme` from `cppcourse.theme` (`light` / `dark` / `auto`); `auto` follows `prefers-color-scheme` and reacts to live OS switching. The nav button cycles the three states; all decisions go through `window.SiteTheme` |
-| Search | The home page builds one corpus array from the 5 data files; plain `indexOf` matching, no index |
-| Teacher mode | `body.teacher` class + `?teacher=1` + `Ctrl+Alt+T`; answers are revealed via `body.teacher-show-answers` |
-| Learning progress | Home page only: checkboxes write `localStorage["cppcourse.progress"]` (JSON array of chapter ids); the progress bar renders done/total |
-| Knowledge-point marking | `mastery.js` turns each chapter's learning-objective and self-check `li` items into "know / don't know" chips (checklist checkboxes are removed at runtime). Stored in `localStorage["cppcourse.mastery"]`, keyed by item id (`data-check-id` for checklists, generated `chXX-obj-N` for objectives); values carry the item text and chapter info so the top-bar panel can summarize across pages |
-| Bug hunt | Data lives in `bughunt-data.js`; the engine renders `<section class="bug-hunt" data-ch="chNN">` blocks (data-ch omitted = all). On `/chapters/` pages it auto-inserts a "火眼金睛" section before the quiz when the current chapter has exercises (skipped if a manual block exists). Code lines are highlighted via `CppLight.highlight`, so each line carries `.ln[data-n]`; judging marks the picked line `.bh-miss` and the bug line `.bh-hit`. `data-shuffle="1"` adds a shuffle button that re-reads cards from the DOM (never from a cached array — redo replaces nodes) |
-| Presentation mode | `present.js` groups `main.container`'s direct children into slides at `h2` / `.section-head` boundaries and tags them `data-pslide`; only the current slide's group keeps `.p-cur` (CSS hides the rest, nothing is moved). Entering scales `html` font-size ×1.15 and restores it on exit; `Esc` leaves fullscreen first when in fullscreen, then exits the mode. `?present=1` enters without fullscreen |
-| Glossary tooltips | `glossary.js` walks text nodes under `main` (skipping `pre/code/a/h1/buttons/.mk-chips/...`), wraps the first occurrence of each term per page as `.term` (an `<a>` when the entry has `href`), and shows one shared `.term-tip` bubble. Matching is longest-first (so 纯虚函数 wins over 虚函数) with word-boundary checks for ASCII aliases (UB / RAII / lambda) |
-| Stepper（增强） | `interactive.js` 扫描 `pre code.cpp` 逐步执行；除行高亮/变量表/控制台外，还支持：**▶ 自动播放 + 速度档**（控件行）、**调用栈侧栏**（`step.stack`：字符串数组，底→顶）、**柱状图**（`step.vars` 里键名以 `[]` 结尾、值为空格分隔数字的项；`step.cmp` 橙色标比较下标、`step.pivot` 红色标基准下标） |
-| Parsons 问题 | `.widget-parsons` + `script.parsons-data`（`items` 正确顺序的代码行 / `hint` / `explain`）。双栏：左「代码块（打乱）」右「程序区」，拖拽或 ↑↓✕ 按钮；「检查顺序」从第一个错行开始定位。渲染用 `esc()`，行内容为纯文本（`white-space: pre` 保留缩进） |
-| 多空代码填空 | quiz 题型 `mfill`：`code`（多行代码，空位写成 `____`，≥4 个下划线）+ `blanks:[{answer, ci?}]`（按出现顺序对应每个空）。判分逐空进行、绿/红边框标对错；validate.js 校验 `____` 数量与 blanks 数量一致 |
-| 指针指向图 | `.widget-ptrviz` + `script.ptrviz-data`（`vars` 变量盒 + `frames` 每步 `ptrs`/`freed`/`note`；字段名避开 `steps`——validate.js 对 ex-steps 的 `steps` 有 line 校验）。SVG 箭头从指针盒顶部弧线到目标盒顶部；`"null"` 画 ∅ 徽标；`freed` 盒子打删除线、指向它的箭头变红虚线（悬空）。箭头用 stroke-dashoffset 生长动画（虚线箭头除外） |
-| 随机组卷 | 教师面板「📑 随机组卷」：题源 = `QUIZBANK_DATA`（quizbank-data.js）+ `PITFALLS_DATA[].quiz` + `BUGHUNT_DATA`，三者均支持可选 `difficulty: "easy"/"medium"/"hard"`（pitfalls 小题继承其专题的难度）。按 题数/难度/题型/章节 随机抽取，全屏浮层渲染试卷与答案页；`@media print` 下 `body.exam-open` 只打印浮层。数据文件按需动态注入 `<script>`（file:// 可用） |
-| 在线运行 | 示例卡通过启发式（含 `int main`、无 class/vector/string/cin 等）显示「▶ 在线运行」；点击时动态注入 `cpp-run.js`，其 `CppRun.ensure` 按协议加载 WASM：**https/http → fetch `assets/wasm/cpprun.wasm`（分离文件）**，**file: → 注入 `cpprun-wasm-embed.js`（base64 内嵌版）**，https 失败也回退内嵌版。解释器为教学子集（AssemblyScript，源码 `tools/cpprun-src/interpreter.ts`），UB（未初始化读取/有符号溢出/整除零/数组越界/递归过深）会警告或报错停止。构建：`npm run build:cpprun`；测试：`npm run test:cpprun`（node 直测，22 例） |
-| Floating page TOC | `page-toc.js` collects the `h2` headings of `main.container` (auto-id `ptoc-N`, hidden headings excluded), renders a left-edge vertical tab + panel, scrolls via `scrollIntoView` (global `scroll-padding-top` keeps the sticky header clear) and highlights the current section on scroll (rAF-throttled, bottom-clamped). Shows only with ≥3 sections, window ≥1200px, and outside presentation mode (watched via a body-class MutationObserver) |
-| Storage keys | Shared prefix `cppcourse.`: `theme` (`light`/`dark`/`auto`), `fontscale` (0.8–1.4), `progress`, `mastery`. Every access is wrapped in try/catch (some `file://` environments block storage) |
-| HTML injection | `title` fields are mostly `esc()`'d on render; but **`desc`, table `rows` cells, and `items[].desc` are inserted as raw HTML** — write `&lt;` `&gt;` to show angle brackets (see §5) |
+| Syntax highlighting | `highlight.js` scans `pre code.cpp`; copy buttons use `data-raw`; line numbers come from CSS counters and are `user-select: none` |
+| Navigation | `nav.js` inserts header/footer/pager; chapter pages get previous/next from `COURSE_TOC`; v2 uses its own `nav.js` |
+| Theme | `theme-init.js` stores `light` / `dark` / `auto` in `cppcourse.theme`; `auto` follows the OS and reacts to live changes |
+| Font size | `nav.js` changes the root font size; stored in `cppcourse.fontscale` (0.8-1.4) |
+| Search | Classic home builds one corpus from the data files with `indexOf`; v2 uses the `Ctrl+K` command palette and lazy-loads missing data files |
+| Teacher mode | `body.teacher` plus `?teacher=1` and `Ctrl+Alt+T`; answers are revealed with `body.teacher-show-answers` |
+| Learning progress | `localStorage["cppcourse.progress"]` stores completed chapter ids; both home pages render progress |
+| Last visit | v2 stores `cppcourse.last` on chapter load and uses it for "continue learning" |
+| Knowledge marking | `mastery.js` turns objective/self-check items into know/don't-know chips; stored in `cppcourse.mastery` |
+| Bug hunt | `bughunt-data.js` + `bug-hunt.js`; auto-inserts before the quiz on chapter pages; line selection marks hit/miss; shuffle re-reads cards from the DOM |
+| Presentation | `present.js` groups `main.container` direct children at `h2` / `.section-head` boundaries; v2 skips `.v2-rail`; `Esc` exits |
+| Glossary | `glossary.js` wraps the first occurrence of each term per page; longest-first matching; ASCII aliases use word boundaries |
+| Classic page TOC | `page-toc.js` collects `h2` headings and shows a left-edge tab on wide screens; hidden on v2 chapter/special pages |
+| Stepper | `interactive.js` supports line highlight, variable table, console, auto-play/speed, call stack (`step.stack`) and bars (`vars["a[]"]`, `cmp`, `pivot`) |
+| Parsons | `.widget-parsons` + `script.parsons-data`; two-column pool/target; drag or arrow buttons; first wrong line is reported |
+| Multi-blank quiz | `mfill` questions: `code` with `____` holes plus `blanks[]`; validator checks the count |
+| Pointer diagram | `.widget-ptrviz` + `script.ptrviz-data`; field name must be `frames`, not `steps`; `"null"` draws a null badge; `freed` draws a dangling red dashed arrow |
+| Exam builder | Teacher panel uses `QUIZBANK_DATA`, `PITFALLS_DATA[].quiz` and `BUGHUNT_DATA`; data scripts are injected on demand; print CSS prints only the overlay |
+| WASM runner | `cpp-run.js` uses HTTP(S) fetch for the separate `.wasm`, and the embedded base64 copy on `file://`; UB stops with a warning/error, never a deterministic output |
+| v2 chapter cover | Built from the original `h1`, header paragraph and objectives section; completion button writes `cppcourse.progress` |
+| v2 rail | Sticky on wide screens, two-column on tablet, hidden on phones; contains the lab question, margin notes, section index and tools |
+| v2 listings | `v2-core.js` wraps each `pre.ex-code` with a header, toolbar and terminal; `interactive.js` inserts the stepper/run box after the listing, not inside it |
+| v2 explainers | `v2-lab.js` clones the highlighted code and drives frames from `V2_CONFIG`; default frame is the first step; print moves to the last step |
+| v2 special pages | Specimen wall, card box, minefield, case board and race track are added by `v2-core.js` using existing data renderers |
+| Site updates | `site-updates-data.js` powers the "Recent updates" list on both homes; keep the classic and v2 copies identical |
+| v2 test banner | Classic `nav.js` inserts a dismissible banner; stored in `cppcourse.v2banner`; hidden in print/presentation |
 
-## 4. Common tasks
+## 5. v2 Configuration and Explainer Authoring
 
-### 4.1 Adding a chapter
+`v2/assets/js/v2-config.js` exposes:
+
+```js
+window.V2_CONFIG = {
+  chapters: {
+    ch05: {
+      label: "Pointers and references",
+      notes: [
+        { section: 1, kicker: "DEFINITION", title: "...", body: "..." }
+      ],
+      demo: {
+        cardId: "ch05-ex-04",
+        engine: "scene",
+        question: "How far does pointer arithmetic move?",
+        frames: [ /* one visual state per step */ ]
+      }
+    }
+  }
+};
+```
+
+### 5.1 `notes`
+
+- `section` is the zero-based index in the chapter's original `h2` list (including the objectives heading).
+- Notes are rendered in the right rail. Clicking a note scrolls to its section.
+- `body` is inserted as HTML; keep it short and escape code angle brackets.
+
+### 5.2 `demo`
+
+- `cardId`: the example card that owns the inspector.
+- `engine`: `memory` | `stack` | `timeline` | `scene` | `grid` | `bars`.
+- `question`: the concrete mechanism question shown at the top. Every explainer must answer one question.
+- `frames`: visual state per step. The inspector uses the existing `ex-steps` for line/output/note; `frames` only describe the picture.
+- `useStepStack: true` reuses `step.stack` for the `stack` engine.
+- `useStepBars: true` reuses `step.vars["a[]"]`, `step.cmp` and `step.pivot` for the `bars` engine.
+- If `frames` is shorter than the step list, the last frame is reused.
+
+### 5.3 Frame shapes
+
+- `memory`: `{ regions: [{ label, cells: [{ name, type, value, size, addr, state }] }] }`
+- `stack`: `{ frames: [{ name, locals: ["x = 1"] }] }`
+- `timeline`: `{ events: [{ label, desc, state: "active" | "done" | "next" }] }`
+- `scene`: `{ boxes: [{ id, label, sub, cls }], arrows: [{ from, to, label, cls }] }`
+- `grid`: `{ rows: [[1,2,3],[4,5,6]], active: [row, col], base: "0x1000" }`
+- `bars`: `{ bars: [3,1,4], cmp: [0,1], pivot: 2 }`
+
+### 5.4 Explainer behaviour
+
+- Starts at the first frame; never auto-plays on load.
+- Buttons: first, previous, next, auto/pause, speed select, last.
+- Output is accumulated from `step.out` up to the current step.
+- Printing triggers `beforeprint`, moves to the last frame and hides the controls; `afterprint` restores the previous step.
+- `prefers-reduced-motion` disables auto-play and CSS transitions.
+
+## 6. Common Tasks
+
+### 6.1 Add a chapter (classic)
 
 1. Copy `templates/chapter-template.html` to `chapters/chNN-short-name.html`.
-2. Fill in the components per `templates/authoring-guide.md` (example cards, steppers, quiz …).
-3. Append an entry to `COURSE_TOC` in `assets/js/toc.js` (`id / title / file / desc / keywords / updated`).
+2. Fill in the sections and components. The validator requires three literal section labels and one `<section class="quiz">`; keep the labels exactly as they appear in the template (do not translate or rename them).
+3. Append an entry to `COURSE_TOC` in `assets/js/toc.js`.
 4. Run `node tools/validate.js`.
 
-Navigation, catalog, search, and the pager pick the chapter up automatically. Chapter pages have hard requirements (the validator checks them):
+Chapter pages also need the seven classic scripts and `theme-init.js` in `<head>`. The validator checks all of this.
 
-- Must contain the section headings 「学习目标」 (objectives), 「本章小结」 (summary), 「自测清单」 (self-check) — literal Chinese, the validator greps for them — plus one `<section class="quiz">`;
-- Must reference the 7 shared scripts (highlight / toc / nav / quiz / interactive / teacher / mastery) and keep `theme-init.js` in `<head>`;
-- `class="example-card"` ids must be unique; aim for 8–15 example cards and ≥2 `ex-steps`.
+### 6.2 Add a chapter to v2
 
-### 4.2 Adding a cheat sheet
+1. Copy the finished classic chapter to `v2/chapters/`.
+2. Run `node v2/tools/inject-v2.mjs` to add the v2 CSS/scripts.
+3. Add margin notes and an explainer to `v2/assets/js/v2-config.js`.
+4. Run `node v2/tools/validate-v2.mjs` and `node tools/validate.js`.
 
-Append an object to `assets/js/cheatsheets-data.js`. Common fields:
+### 6.3 Sync rules
+
+- `v2/` is a snapshot. Content changes in the root do not flow into v2 automatically.
+- `assets/js/site-updates-data.js` and `v2/assets/js/site-updates-data.js` must stay identical.
+- The v2 test banner lives in the classic `assets/js/nav.js`; v2 does not show it.
+- Shared engine fixes (quiz, bug hunt, glossary, WASM) usually need to be applied to both the classic and v2 copies.
+- v2-only UI changes belong in `v2/assets/css/v2.css` or `v2/assets/js/v2-*.js`.
+
+### 6.4 Add a cheat sheet / error / pitfall / bug-hunt item / glossary term
+
+- Cheat sheet: append to `assets/js/cheatsheets-data.js` (and the v2 copy if v2 should show it).
+- Error: append to `assets/js/errors-data.js`.
+- Pitfall: append to `assets/js/pitfalls-data.js`.
+- Bug hunt: append to `assets/js/bughunt-data.js` with `id`, `ch`, `title`, `kind` (`compile` / `logic` / `ub`), `code` (one string per line), `bugLine`, optional `hint`, and `why` (raw HTML).
+- Glossary: append to `assets/js/glossary-data.js` with `term`, optional `aliases`, `detail` (raw HTML) and optional `href`.
+- Keep the data id unique; the home search and v2 command palette pick up new entries automatically.
+
+### 6.5 Update the site update feed
+
+Edit both copies of `site-updates-data.js`. Each item uses:
 
 ```js
 {
-  id: "cs-xxx",            // in-page anchor, must be unique; prefer the cs- prefix
-  title: "Sheet title",    // escaped with esc() on render
-  category: "Category",    // drives the category filter chips; new categories appear automatically
-  short: "Short label",    // text on the quick-jump button; falls back to title
-  desc: "One-line blurb",  // inserted as raw HTML — use entities for angle brackets
-  type: "table" | "code" | "items",
-  // table  →  header: [...], rows: [[...], ...]
-  // code   →  code: `...`,  notes: ["...", ...]
-  // items  →  items: [{ code: "...", desc: "..." }, ...]
-  tip: "Green tip box at the bottom"   // optional
+  date: "2026-10-27",
+  tag: "UI",
+  title: "Short title",
+  desc: "One-line summary.",
+  href: "v2/index.html",
+  hrefV2: "index.html"
 }
 ```
 
-Array order = page order = quick-jump button order. Run `node tools/validate.js` afterwards (it syntax-checks the JS).
+The classic home uses `href`; v2 uses `hrefV2`. Both homes show the first six entries.
 
-### 4.3 Adding error / pitfall entries
+### 6.6 Styling
 
-Append objects to `errors-data.js` / `pitfalls-data.js` respectively. Fields **follow the in-file comments and existing entries** (an error entry needs at least `id/title/message/cause/bad`; a pitfall at least `id/title/tags/why/examQ`). The home-page search picks up new entries automatically.
+- Classic variables and dark theme live in `assets/css/style.css`.
+- v2 tokens, layout and components live in `v2/assets/css/v2.css`.
+- Page-specific styles stay in that page's `<style>` block.
+- Print rules are in both stylesheets; v2 explainers and listings have dedicated print rules.
+- Use CSS variables; do not hard-code colours.
 
-### 4.4 Adding bug-hunt exercises / glossary terms
+### 6.7 Teacher exam builder and WASM runner
 
-- **Bug hunt**: append an object to `assets/js/bughunt-data.js` — `{ id: "bh-chNN-NN" (unique, used as page anchor), ch, title, kind: "compile" | "logic" | "ub", code: [one string per line, raw text], bugLine (1-based), hint?, why (raw HTML) }`. Chapter pages pick it up automatically on the next load; the pitfalls page and home search too. Keep the teaching principle: UB questions never imply a deterministic output.
-- **Glossary**: append `{ term, aliases?, detail (raw HTML), href? }` to `assets/js/glossary-data.js`. Terms appear as tooltips on every page (first occurrence only); entries with `href` are also searchable on the home page. Mind the per-term length interplay: a new term that contains an existing one (e.g. adding 迭代器失效 next to 迭代器) is matched longest-first automatically.
+- Exam sources: `QUIZBANK_DATA`, `PITFALLS_DATA[].quiz` and `BUGHUNT_DATA`. All support optional `difficulty`.
+- Data scripts are injected on demand, so the builder works on any page, including `file://`.
+- The exam overlay prints alone via `body.exam-open`.
+- WASM source: `tools/cpprun-src/interpreter.ts`. After changing it, run `npm run build:cpprun` (regenerates both the `.wasm` and the embedded base64 copy) and `npm run test:cpprun` (22 cases). Both output files must be regenerated together.
 
-### 4.5 Styling
+## 7. Coding Conventions
 
-- Site-wide variables and the dark theme live in `style.css` under `:root` / `html[data-theme="dark"]`; add colors via CSS variables, never hard-code them.
-- Page-specific styles go in that page's `<style>` block (e.g. the cheat-sheet quick-jump row, the home progress bar).
-- Print styles: global rules in `style.css` under `@media print`; page-specific print hiding goes in the page's own `<style>`.
+1. Escape `<`, `>` and `&` inside `<pre><code>`; the validator enforces this.
+2. HTML fields in data files (`desc`, table cells, `items[].desc`) are inserted raw: write entities for angle brackets.
+3. UB is always marked with `.ub-warning` and must never be a "predict the output" question.
+4. Example output is pre-baked unless the card is actually run through the WASM subset. Do not claim real in-browser compilation for pre-baked results.
+5. Keep ids unique per page.
+6. Wrap every `localStorage` access in `try/catch`; new keys use the `cppcourse.` prefix.
+7. `file://` compatibility: no ES modules, no local `fetch()`, no workers; keep the IIFE + `window` global pattern.
+8. Keep comments and developer-facing prose in English. The site copy remains Chinese.
+9. Do not add external resources or animation libraries.
+10. When adding a v2-only component, update `v2.css` and the relevant `v2-*.js`; do not edit the classic copies unless the behaviour is shared.
 
-### 4.6 随机组卷（教师）
-
-- 题源三处：`quizbank-data.js`（每题 `{ id: "qb-…", ch, type, q, options?, answer, explain, difficulty, tags }`）、`pitfalls-data.js` 各专题的 `quiz` 小题（难度继承所在专题）、`bughunt-data.js` 找错题。给任一来源补题只需按各自格式追加；`difficulty` 缺省按中等处理。
-- 生成流程不需要改任何页面：teacher.js 会按需动态注入缺失的数据 `<script>`，任何页面（含 file://）都能组卷。
-- 出卷/答案页的打印走 `body.exam-open` 的 `@media print` 规则（只打印浮层）；若改打印样式，注意别破坏该规则。
-
-### 4.7 在线运行（WASM C++ 子集解释器）
-
-- 解释器源码在 `tools/cpprun-src/interpreter.ts`（AssemblyScript），产物 `assets/wasm/cpprun.wasm` + 内嵌版 `assets/js/cpprun-wasm-embed.js`。改完解释器：`npm run build:cpprun` 重新生成两个文件，再 `npm run test:cpprun` 跑 22 例直测（保持全绿）。
-- 加载策略见 `cpp-run.js`：https/http 走 fetch 分离 wasm；file: 与加载失败时回退 base64 内嵌版。**改 wasm 后两个文件必须同时重新生成**，否则 file:// 与 https 行为不一致。
-- 示例卡是否显示「▶ 在线运行」由 `interactive.js` 的轻量启发式决定（含 `int main`、无 class/vector/string/cin/switch 等）；解释器内部另有完整语法检查，误放行只会得到友好报错，不会产生错误输出。
-- 教学原则不变：UB 示例（越界、未初始化、溢出、除零、递归过深）在运行器里会**警告或报错停止**，绝不给出“确定输出”。
-
-## 5. Coding conventions (validator rules + lessons learned)
-
-1. **Escape `<pre><code>` contents**: `<` → `&lt;`, `&` → `&amp;` (`validate.js` enforces this). A bare `>` inline is fine.
-2. **HTML fields in data files** (`desc`, `rows` cells, `items[].desc`) are injected raw: write `&lt;string&gt;`, not `<string>` — otherwise the browser swallows it as an unknown tag.
-3. **Undefined behavior (UB) is always flagged in red (`.ub-warning`)** and never used as a "predict the output" exam question — a teaching principle of this site.
-4. Example "output" is pre-baked; cards already carry the disclaimer. Keep that consistent in new examples — never claim real in-browser compilation.
-5. `id`s must be unique per page (example cards, cheat-sheet anchors, catalog cards `toc-chNN`, …).
-6. Wrap every `localStorage` access in try/catch; new keys reuse the `cppcourse.` prefix.
-7. `file://` compatibility: no ES modules / fetch / workers; new JS keeps the IIFE + `window` global pattern.
-8. Keep copy and comments in the existing style; the tone targets first-year students.
-
-## 6. Validation
+## 8. Validation
 
 ```bash
-node tools/validate.js                              # whole site (HTML + JS + toc consistency)
-node tools/validate.js chapters/ch07-classes.html   # single page
+node tools/validate.js                    # classic site, plus v2 HTML
+node tools/validate.js chapters/ch07-classes.html
+node v2/tools/validate-v2.mjs             # v2 links, ids, JSON, scripts, JS syntax
 ```
 
-Checks: local link 404s, `<pre><code>` escaping, unknown-tag whitelist, strict parsing of JSON blocks (quiz-data / ex-steps / mem-data / sort-data), quiz schema, same-page/cross-page anchors, duplicate ids, chapter required sections & scripts, `toc.js` ↔ `chapters/` consistency, and `node --check` on every `assets/js/*.js`.
+`tools/validate.js` checks: local link 404s, escaped code blocks, unknown tags, strict JSON blocks, quiz schema, same-page/cross-page anchors, duplicate ids, required chapter sections/scripts, `toc.js` consistency, and `node --check` for `assets/js/*.js`.
 
-A non-zero exit code means errors; **keep it at 0 errors, 0 warnings before committing**.
+`v2/tools/validate-v2.mjs` additionally checks the v2 chapter scripts, v2 JSON blocks, and all `v2/assets/js/*.js`.
 
-## 7. Manual testing tips
+A non-zero exit code means errors. Keep both validators at **0 errors, 0 warnings** before committing.
 
-The validator is static only — re-check interactions in a browser after behavioral changes:
+## 9. Manual Testing
 
-- Double-click `index.html` (`file://`), or serve the root directory locally (`python -m http.server` / `npx serve`).
-- Key regressions: theme (all three states) and font size survive a reload; home progress checkboxes survive a reload; cheat-sheet quick-jump clears filters, scrolls and flashes while a search filter is active; teacher mode's three switches; `Ctrl+P` print preview.
-- Learning progress lives in the browser — clear `localStorage["cppcourse.progress"]` before re-testing it.
+The validators are static only. Re-check interactions in a browser after behavioural changes:
+
+- Open `index.html` and `v2/index.html` from `file://`; no console errors.
+- Classic: theme (all three states), font size persistence, home progress, v2 banner close, cheat-sheet quick jump, teacher mode, print preview.
+- v2: learning map, continue learning after visiting a chapter, command palette `Ctrl+K`, course drawer, chapter cover completion toggle, listing toolbar, explainer step/play/pause, print final frame, special-page filters.
+- Presentation mode: `?present=1`, arrow keys, `Esc`; v2 rail must stay hidden.
+- Mobile widths: 390 px, 768 px, 1024 px; no horizontal page scroll (internal code/table scrolling is fine).
+- `prefers-reduced-motion`: explainer auto-play disabled, transitions reduced.
+- Clear `localStorage["cppcourse.progress"]`, `cppcourse.mastery`, `cppcourse.last` and `cppcourse.v2banner` when re-testing those flows.
+
+## 10. Documentation Language Policy
+
+- All development documentation (`DEV.md`, `v2/README.md`, `templates/authoring-guide.md`, `v2/templates/authoring-guide.md`) is English-only.
+- The site copy is Chinese; the component templates and required section labels stay Chinese.
+- `README.zh-CN.md` is the Chinese end-user guide and is the only intentionally Chinese document.
+- New developer-facing comments, commit messages and documentation should be in English.

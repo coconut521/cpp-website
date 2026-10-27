@@ -76,7 +76,7 @@
   </section>
   <div class="toc-grid" id="toc-grid"></div>
 
-  <div class="section-head"><h2>最近更新</h2></div>
+  <div class="section-head"><h2>最近更新</h2><span class="muted small">网站功能、界面与体验</span></div>
   <div class="card" style="padding:10px 20px">
     <ul class="recent-list" id="recent"></ul>
   </div>
@@ -94,6 +94,7 @@
 <script src="assets/js/pitfalls-data.js"></script>
 <script src="assets/js/sorting-data.js"></script>
 <script src="assets/js/bughunt-data.js"></script>
+<script src="assets/js/site-updates-data.js"></script>
 <script src="assets/js/glossary-data.js"></script>
 <script>
 (function () {
@@ -187,10 +188,10 @@
 
   (function buildRecent() {
     var ul = document.getElementById("recent");
-    var items = toc.slice().sort(function (a, b) { return b.updated < a.updated ? -1 : b.updated > a.updated ? 1 : 0; }).slice(0, 6);
-    items.forEach(function (c) {
+    var items = (window.SITE_UPDATES || []).slice(0, 6);
+    items.forEach(function (u) {
       var li = document.createElement("li");
-      li.innerHTML = '<span class="r-date">' + esc(c.updated) + "</span><a href=\"" + c.file + '">' + esc(c.title) + "</a><span class='muted small'>" + esc(c.desc) + "</span>";
+      li.innerHTML = '<span class="r-date">' + esc(u.date) + '</span><span class="tag">' + esc(u.tag) + '</span><a href="' + esc(u.href) + '">' + esc(u.title) + '</a><span class="muted small">' + esc(u.desc) + "</span>";
       ul.appendChild(li);
     });
   })();

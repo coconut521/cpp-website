@@ -1,89 +1,155 @@
 # College C++ Offline Assistant
 
-**Language / 语言**: [English](README.md) | [简体中文](README.zh-CN.md) ｜ Dev Guide / 开发说明: [DEV.md](DEV.md)
+**Language**: English | [Chinese (Simplified)](README.zh-CN.md) | [Developer Guide](DEV.md)
 
-A fully offline C++ teaching website built with plain HTML5 + CSS3 + vanilla JavaScript. **No CDN, no network requests, no build step.** Copy the folder to any machine and double-click `index.html` — it works straight from `file://`.
+A fully offline C++ teaching website built with plain HTML5, CSS3 and vanilla JavaScript. **No CDN, no network requests, no build step.** Copy the folder to any machine and double-click a page - it works straight from `file://`.
 
-> ⚠️ Program outputs shown on the pages are pre-baked teaching results. For real compilation, use g++ / MSVC + VS Code locally.
+The repository ships two front ends:
+
+| Version | Entry | Status |
+| --- | --- | --- |
+| Classic | `index.html` | Stable, original interface |
+| v2 | `v2/index.html` | UI refactor test build: editorial chapter layout, lab inspectors, learning map, special-page metaphors |
+
+Both versions share the same teaching content, quizzes, bug-hunt exercises, cheat sheets, error museum, exam pitfalls, teacher tools and WASM runner. The classic version remains fully usable; v2 is the place where the new interface is being validated.
+
+> Program outputs shown on the pages are pre-baked teaching results. For real compilation, use g++ / MSVC + VS Code locally.
 
 ---
 
 ## 1. Quick Start
 
-1. Copy the whole project folder (including the `chapters/` and `assets/` subfolders) anywhere you like.
-2. Double-click `index.html` to open it in a browser (Chrome / Edge / Firefox all work).
-3. Done — nothing to install, no internet required.
+1. Copy the whole project folder, including `chapters/`, `assets/` and `v2/`.
+2. Double-click `index.html` for the classic site, or `v2/index.html` for the v2 interface.
+3. Done - nothing to install and no internet connection is required.
 
-You can also serve it locally (identical behavior): run `python -m http.server` or `npx serve` in the project root and open the printed address.
+You can also serve the root folder locally (identical behaviour):
+
+```bash
+python -m http.server
+# or
+npx serve
+```
+
+Then open the printed address.
 
 ## 2. What's Inside
 
 | Page | Content |
 | --- | --- |
-| `index.html` | Home: global search, special topics, chapter catalog, **learning progress**, recent updates |
-| `chapters/ch01…ch12.html` | 12 lecture chapters: variables → operators → control flow → functions → pointers & references → arrays & strings → classes → inheritance & polymorphism → move semantics & smart pointers → templates & STL → exceptions → lambda & modern C++ |
-| `errors.html` | Compiler-error museum: 51 common errors with the exact message, cause, fix, and prevention (including frequent Visual Studio 2026 issues) |
-| `sorting.html` | Sorting special topic: bubble/selection/insertion/shell/quick/merge/heap — 7 classic sorts with steppers, a complexity/stability table, and a quiz |
-| `cheatsheets.html` | Cheat sheets: 19 searchable, copyable, printable reference tables |
-| `exam-pitfalls.html` | Exam pitfalls: 20 classic trap topics + random practice + the "Bug Hunt" find-the-bug trainer |
+| `index.html` | Classic home: global search, special topics, chapter catalog, learning progress, site updates |
+| `chapters/ch01...ch12.html` | 12 lecture chapters: variables, operators, control flow, functions, pointers and references, arrays and strings, classes, inheritance and polymorphism, move semantics and smart pointers, templates and STL, exceptions, lambdas and modern C++ |
+| `errors.html` | Compiler-error museum: 51 common errors with the exact message, cause, fix and prevention |
+| `sorting.html` | Sorting special topic: seven classic sorts, steppers, comparison table and quiz |
+| `cheatsheets.html` | 19 searchable, copyable and printable reference sheets |
+| `exam-pitfalls.html` | 20 exam-trap topics, random practice and the bug-hunt trainer |
+| `v2/index.html` | v2 learning map: continue-learning panel, weak-point entry, four side quests and site updates |
+| `v2/chapters/...` | v2 chapter pages: chapter cover, reading column, margin notes / lab rail |
+| `v2/errors.html` | v2 specimen wall |
+| `v2/cheatsheets.html` | v2 card box |
+| `v2/sorting.html` | v2 race track |
+| `v2/exam-pitfalls.html` | v2 minefield plus the bug-hunt case board |
 
 ## 3. Features
 
-### Lecture chapters
-- **Example code cards**: one-click copy, download as `.cpp`, show the pre-baked output, run the **step-by-step stepper** (current-line highlight + variable table + console), or hit **▶ Run online** — a teaching-subset C++ interpreter compiled to WebAssembly runs simple examples for real, right in the page (works from `file://` too; undefined behavior stops with an explanation instead of a made-up output).
-- **Interactive widgets**: memory visualization, pointer-arrow diagrams (SVG, step through pointer reassignment / nullptr / dangling), `i++` / `++i` animation, drag-to-sort, **Parsons problems** (drag shuffled code lines back into a working program), side-by-side comparisons, collapsible answers.
-- **Stepper extras**: auto-play with speed control, a **call-stack side panel** for recursion (watch frames push and pop), and bar-chart visualization for sorting code.
-- **Quizzes**: multiple choice, true/false, fill-in, code fill-in, and **multi-blank code fill-in** (each `____` graded separately) with instant grading and explanations; the self-check list supports per-item "know it / don't know" marking.
-- **Bug Hunt (find-the-bug)**: every chapter ends with an auto-inserted "🔥 火眼金睛：本章找错" section — read a snippet hiding one defect, click the offending line, submit, and get instant verdict plus an explanation (compile errors / logic errors / undefined behavior).
-- **Glossary tooltips**: 49 terms in the prose (pointers, polymorphism, iterator invalidation, …) get a dashed underline automatically; hovering pops a plain-language explanation, clicking jumps to the covering chapter. Only the first occurrence per term per page is marked.
-- **Floating page TOC**: on wide windows a vertical "目录" tab sits at the left edge; open it to jump to any section of the chapter, with the current section highlighted as you scroll. It hides itself on narrow windows, in presentation mode, and when printing.
-- **Weak-point list**: click "don't know" on any item in a chapter's learning objectives or self-check list, and the 🎯 button in the top bar collects weak points from all chapters, each linking back to its chapter.
-- Previous/next chapter navigation is generated automatically at the bottom of every chapter.
+### 3.1 Lecture chapters
 
-### Cheat sheets (cheatsheets.html)
-- The search box filters by sheet title or entry keywords; category chips filter by topic.
-- The **quick-jump buttons** under the search box (priority, string, vector, iterator invalidation, …) scroll to the matching sheet and flash-highlight it.
-- Every sheet has a copy button; `Ctrl+P` prints to PDF (the filter bar hides automatically).
+- **Example cards**: one-click copy, download as `.cpp`, reveal the expected output, run the step-by-step stepper, or use **Run online** - a teaching-subset C++ interpreter compiled to WebAssembly runs simple examples for real. It also works from `file://`.
+- **Interactive widgets**: memory visualization, pointer-arrow diagrams, `i++` / `++i` animation, drag-to-sort, Parsons problems, side-by-side comparisons and collapsible answers.
+- **Stepper extras**: auto-play with speed control, a call-stack side panel for recursion, and bar-chart visualization for sorting code.
+- **Quizzes**: multiple choice, true/false, fill-in, code fill-in and multi-blank code fill-in, with instant grading and explanations. Self-check lists support per-item "know it / don't know" marking.
+- **Bug Hunt**: an auto-inserted find-the-bug section at the end of each chapter. Read a snippet hiding one defect, click the offending line, submit, and get a verdict plus an explanation.
+- **Glossary tooltips**: 49 terms are marked automatically on first occurrence; hovering shows a plain-language explanation and clicking jumps to the covering chapter.
+- **Navigation**: previous/next chapter links and a floating page table of contents on wide screens.
+- **Weak-point list**: mark any objective or self-check item as "don't know" and collect weak points across chapters in the top-bar panel.
 
-### Compiler-error museum (errors.html)
-- Search by message or keyword, filter by category and compiler (g++ / MSVC / VS 2026), expand or collapse everything at once.
-- The "IDE & toolchain" category collects frequent Visual Studio 2026 issues: the C4996 security check, the console window closing instantly, LNK1168 / LNK2005, garbled Chinese output, the C++14 default standard, missing DLLs in Debug builds, PDB notices, and IntelliSense false red squiggles.
+### 3.2 v2 interface
 
-### Sorting special topic (sorting.html)
-- 7 exam-relevant sorts: bubble/selection/insertion each with a step-by-step stepper (line highlight + variable table); quicksort partition and merge merge are traceable step by step; shell & heap sort are covered conceptually.
-- Complexity/stability comparison table, classic exam question patterns, and an 8-question quiz.
+- **Learning map home**: a 12-stop route with progress fill, continue-learning panel, progress ring, weak-point entry and site updates.
+- **Chapter cover**: oversized chapter number, reading time, listing/step counts, learning objectives and a completion toggle.
+- **Reading + margin rail**: the chapter body stays in a readable editorial column; the right rail holds the chapter lab question, margin notes, a section index and quick tools.
+- **Listings**: every example becomes a `Listing` with a title bar, copy/download/output/step/run toolbar and a dark output terminal.
+- **Explainers**: a synchronized inspector with code line, diagram and accumulated output. Each animation asks one concrete question, starts paused, supports step/play/pause and prints its final frame.
+- **Special-page metaphors**: sorting race track, compiler-error specimen wall, cheat-sheet card box, exam-pitfall minefield and bug-hunt case board.
+- **Command palette**: `Ctrl+K` searches chapters, errors, cheat sheets, pitfalls, glossary terms and page sections; the top bar also has a course drawer.
+- **Themes and layout**: light, dark and follow-system modes; paper/ink palette with purple accents; responsive reading layout down to phone width.
 
-### Exam pitfalls (exam-pitfalls.html)
-- 20 topics, each with the wrong code, why it's wrong, the correct version, and a typical exam question; "random practice" draws 10 questions from the bank.
-- The "🔥 Bug Hunt" trainer: 21 snippets hiding a bug (1–2 per chapter); click the suspicious line to submit, filter by chapter, or shuffle the order.
+### 3.3 Teaching tools
 
-### Learning progress (home page)
-- Each chapter card has a **"completed"** checkbox; the progress bar above the catalog shows "x / 12 chapters" in real time.
-- Progress is stored in the browser's `localStorage`, **only on this machine and in this browser** — switching computers/browsers or clearing site data loses it. "Reset" clears everything.
+- **Teacher mode**: enable it from the top-bar button, `?teacher=1` or `Ctrl+Alt+T`. Reveal answers and outputs, expand folded blocks, export a chapter's examples as `.cpp`, generate a chapter template, and build a random exam paper from the cross-chapter question bank.
+- **Presentation mode**: split a page into one slide per section; navigate with arrow keys or Space; exit with `Esc`.
+- **Printing**: hides interactive controls, expands outputs and folded blocks, and in v2 prints the final frame of every explainer.
+- **Learning progress**: chapter completion is stored in `localStorage` under the `cppcourse.` prefix.
 
-### Global search (home page)
-Covers chapters, error entries, cheat-sheet entries, pitfalls, bug-hunt exercises, and glossary terms at once. Results appear as you type and link straight to the content.
+### 3.4 Special pages
 
-### Teacher mode
-Turn it on via any of: the 🧑‍🏫 button in the top bar / `?teacher=1` in the URL / `Ctrl+Alt+T`.
-Once on: reveal all answers and outputs, expand all folded blocks, export a chapter's examples as `.cpp` files, generate a new-chapter template, and **build a random exam paper** — pick a question count, difficulty, type, and chapter range from the cross-chapter question bank, then print the paper or its separate answer page (`Ctrl+P`; only the paper prints, site chrome hides).
+- **Compiler-error museum**: search by message or keyword, filter by category and compiler, expand/collapse all, and see the failing code, exact message, cause, fix and prevention.
+- **Cheat sheets**: filter by title or keyword, use category chips and quick-jump buttons, copy a sheet, or print it to PDF.
+- **Sorting topic**: seven exam-relevant sorts, step-by-step traces for bubble/selection/insertion/quicksort/merge, a complexity/stability table, classic question patterns and a quiz.
+- **Exam pitfalls**: 20 trap topics, each with wrong code, why it is wrong, the correct version and a typical exam question; random practice draws ten questions from the bank.
+- **Bug Hunt trainer**: 21 snippets hiding a compile error, logic error or undefined behaviour; filter by chapter or shuffle the order.
 
-### Presentation mode
-Click the 🖥 button in the top bar (or press `Ctrl+Alt+P`): the page is split into one "slide" per section — navigate with `←` `→` / Space, exit with `Esc`. Entering also tries fullscreen and scales the font up, made for projecting lectures. `?present=1` in the URL enters directly.
+## 4. v2 Design Notes
 
-### Look & print
-- `A－` / `A＋` changes the font size; the theme button cycles through **☀️ light → 🌙 dark → 💻 follow system** — "follow system" tracks the OS dark/light preference in real time (all remembered automatically).
-- Printing any page (`Ctrl+P`) hides interactive buttons and expands all outputs and folded blocks — handy for PDF handouts.
+v2 combines three directions:
 
-## 4. Notes
+- **Editorial textbook (body)**: paper/ink surfaces, thin rules and whitespace, chapter covers, a wide reading column and a margin rail.
+- **Code lab (components)**: listings, toolbars, output terminals and explainers that synchronize code, diagram and output.
+- **Learning map (home)**: a route with progress rather than a plain progress bar, plus continue-learning and weak-point entries.
 
-- Most example "run results" are pre-baked for teaching. The new **Run online** button executes a *teaching-subset* interpreter (WebAssembly) covering chapters 1–4-style code — real output for supported syntax, and a clear stop-with-explanation on undefined behavior or unsupported syntax. Pre-baked outputs and the red UB markings remain the source of truth for everything else.
-- Undefined behavior (UB) is always marked in red and is **never** used as a "predict the output" exam question.
-- The site makes zero network requests — safe for offline labs and exam rooms. (The WASM interpreter ships inside the folder: browsers fetch the separate `.wasm` over `http(s)`, or fall back to the embedded base64 copy on `file://`.)
-- Want to contribute content (new chapters, new sheets, styling)? See [DEV.md](DEV.md).
+Special pages each get one metaphor:
+
+| Page | Metaphor |
+| --- | --- |
+| Sorting | Race track |
+| Compiler errors | Specimen wall |
+| Cheat sheets | Card box |
+| Exam pitfalls | Minefield |
+| Bug hunt | Case board |
+
+Purple remains the brand accent for links, current state and progress. Large surfaces use paper/ink colours; special cards use one base surface with icons, numbers and line patterns instead of multi-colour gradients.
+
+## 5. Explainers in v2
+
+All explainers are data-driven and start paused. Each one displays the question it answers, supports step/previous/next/play/pause and shows accumulated output.
+
+| Chapter | Question | Engine |
+| --- | --- | --- |
+| 1 | What appears in memory when a variable is defined? | memory |
+| 2 | Where exactly do `i++` and `++i` differ? | timeline |
+| 3 | Where do `continue` and `break` send control flow? | timeline |
+| 4 | How do stack frames grow and unwind during recursion? | stack |
+| 5 | How far does pointer arithmetic move, and why is `q - p` 3? | scene |
+| 6 | Is a 2D array a table or one contiguous chain? | grid |
+| 7 | When are objects constructed and destroyed, and why in reverse order? | timeline |
+| 8 | Why does pass-by-value lose polymorphism? | scene |
+| 9 | What is the difference between copy and move? | memory |
+| 10 | What is the difference between `size` and `capacity`? | memory |
+| 11 | How does the stack unwind after `throw`, and when do destructors run? | stack |
+| 12 | What is stored in a closure for by-value and by-reference capture? | scene |
+| Sorting | Why is the pivot in its final position after one partition? | bars |
+
+## 6. Site Updates
+
+The "Recent updates" section on both home pages is driven by:
+
+- `assets/js/site-updates-data.js`
+- `v2/assets/js/site-updates-data.js`
+
+The two files are intentionally identical. Each entry has `date`, `tag`, `title`, `desc`, `href` (classic path) and `hrefV2` (v2 path). Keep both copies in sync when adding an update.
+
+The classic site also shows a dismissible **v2 test build** banner at the top of every page, with a link to `v2/index.html`. The banner is hidden in print and presentation mode.
+
+## 7. Notes
+
+- Most example "run results" are pre-baked for teaching. The **Run online** button executes a teaching-subset interpreter for supported syntax and stops with an explanation on undefined behaviour or unsupported syntax.
+- Undefined behaviour (UB) is always marked in red and is **never** used as a "predict the output" exam question.
+- The site makes zero network requests. The WASM interpreter ships inside the folder: browsers fetch the separate `.wasm` over HTTP(S), or fall back to the embedded base64 copy on `file://`.
+- All development documentation is English-only. The Chinese user guide (`README.zh-CN.md`) is provided for end users and is not a development document.
+- For contribution rules and component schemas, see `DEV.md` and `templates/authoring-guide.md`.
 
 ## Copyright
 
-© 2026 **小椰子 (Xiaoyezi)**. All rights reserved.
+© 2026 **Xiaoyezi**. All rights reserved.
 
-This site — including all lecture chapters, cheat sheets, the compiler-error museum, and the exam-pitfall notes — is original teaching work by 小椰子; the same notice appears in every page footer. Commercial use is not permitted without permission.
+This site - including all lecture chapters, cheat sheets, the compiler-error museum and the exam-pitfall notes - is original teaching work by Xiaoyezi; the same notice appears in every page footer. Commercial use is not permitted without permission.

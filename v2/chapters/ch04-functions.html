@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第4章 函数 | 大学C++离线助教</title>
+<script src="../assets/js/theme-init.js"></script>
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/v2.css">
+</head>
+<body>
+<main class="container chapter">
+
+  <p class="crumbs"><a href="../index.html">首页</a> / <a href="../index.html#toc">章节目录</a> / 第4章</p>
+
+  <header>
+    <h1>第4章 函数</h1>
+    <p class="muted">函数是把代码打包复用的基本手段。</p>
+  </header>
+
+  <!-- ================= 1. 学习目标 ================= -->
+  <section class="card objectives">
+    <h2 style="margin-top:0">学习目标</h2>
+    <ul>
+      <li>区分函数的<b>声明</b>与<b>定义</b>，把声明放进头文件。</li>
+      <li>写出并分辨<b>传值、传引用、传指针</b>三种参数传递及其适用场景；用 <b>const 引用参数</b>避免大对象拷贝（可绑定临时值）。</li>
+      <li>解释<b>数组传参退化为指针</b>、函数内 <code>sizeof</code> 失效的原因。</li>
+      <li>记住<b>默认实参</b>两条规则；判断<b>重载决议</b>的结果（返回值不参与），识别默认实参与重载组合的二义性。</li>
+      <li>按<b>递归三要素</b>写出正确的递归，解释朴素斐波那契为什么慢。</li>
+      <li>识别<b>返回局部变量引用/指针</b>的未定义行为，说出合法的返回引用场景。</li>
+    </ul>
+    <p class="small muted">前置知识：<a href="../chapters/ch01-variables.html">第1章 变量与基本类型</a>。</p>
+    </section>
+
+  <!-- ================= 2. 函数的定义与调用 ================= -->
+  <h2>1. 函数：一次定义，处处调用</h2>
+  <p>函数由四部分组成：<b>返回类型、名字、参数列表、函数体</b>。调用函数时，程序跳到函数体执行，结束后带着返回值回到调用点。</p>
+
+  <article class="example-card" id="ch04-ex-01">
+    <div class="ex-head">
+      <h3 class="ex-title">示例1：定义函数并调用</h3>
+      <div class="ex-meta"><span class="tag">知识点：函数定义与调用</span><span class="tag green">入门必会</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int square(int x) {          // 返回类型 int，名字 square，参数 int x
+    return x * x;            // return 把结果送回调用点
+}
+
+int main() {
+    std::cout &lt;&lt; "square(5) = " &lt;&lt; square(5) &lt;&lt; "\n";
+    int a = 7;
+    std::cout &lt;&lt; "square(a) = " &lt;&lt; square(a) &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">square(5) = 25
+square(a) = 49</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第3~5行</b>：函数定义。形参 <code>x</code> 只在函数体内可见；<code>return</code> 结束函数并把值送回。</li>
+        <li><b>第8、10行</b>：调用时实参的<b>值</b>被拷贝给形参（这就是“传值”，第 3 节详述）。</li>
+        <li><b>第11行</b>：<code>main</code> 也是函数，返回 <code>0</code> 表示程序正常结束。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>返回值类型若不是 <code>void</code>，所有执行路径都必须 <code>return</code> 一个匹配的值；<code>void</code> 函数可以写 <code>return;</code> 提前结束。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>有返回值的函数“忘了 return”（如控制流走到函数末尾）在 C++ 里是<b>未定义行为</b>（g++ 会警告 <code>-Wreturn-type</code>；<code>main</code> 例外——走到末尾等价于 <code>return 0;</code>）。考试判断题“普通函数不写 return 编译器自动返回 0”为<b>假</b>。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 8, "vars": { "x(形参)": "5" }, "out": "", "note": "调用 square(5)：把实参的值 5 拷贝给形参 x" },
+      { "line": 8, "vars": { "x(形参)": "5" }, "out": "square(5) = 25", "note": "函数体算出 x*x=25，return 送回调用点" },
+      { "line": 9, "vars": { "a": "7" }, "out": "", "note": "定义 a 并初始化为 7" },
+      { "line": 10, "vars": { "a": "7", "x(形参)": "7" }, "out": "", "note": "再次调用：拷贝 a 的值 7 给新的形参 x" },
+      { "line": 10, "vars": { "a": "7", "x(形参)": "7" }, "out": "square(a) = 49", "note": "返回 49 并输出" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 3. 声明与定义 ================= -->
+  <h2>2. 声明与定义：为什么要先声明后使用</h2>
+  <p>编译器从上到下扫描源文件：<b>调用某函数之前，必须已经见过它的声明</b>（函数原型）——只写返回类型、名字、参数类型，不写函数体。给出函数体的才是<b>定义</b>。</p>
+
+  <article class="example-card" id="ch04-ex-02">
+    <div class="ex-head">
+      <h3 class="ex-title">示例2：原型在前，定义在后</h3>
+      <div class="ex-meta"><span class="tag">知识点：声明 vs 定义</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int add(int a, int b);            // 声明（原型）：只有签名，没有函数体
+
+int main() {
+    std::cout &lt;&lt; add(2, 3) &lt;&lt; "\n";   // 编译器已见过原型，允许调用
+    return 0;
+}
+
+int add(int a, int b) {           // 定义：真正的函数体
+    return a + b;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">5</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第3行</b>：原型以分号结尾；参数名可省略，写成 <code>int add(int, int);</code> 完全等价。</li>
+        <li><b>第6行</b>：调用点在定义之前——若删掉第 3 行的原型，g++ 直接报错 <code>error: 'add' was not declared in this scope</code>。</li>
+        <li><b>第10行</b>：定义放最后没问题；若<b>有声明没定义</b>，编译能过、链接失败：<code>undefined reference to `add(int, int)'</code>。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>声明可以出现多次（多个 .cpp 都 include 同一个头文件），<b>定义在整个程序中只能有一个</b>（“一次一定义”规则，ODR）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>原型与定义的<b>返回类型或参数列表不一致</b>时：轻微差异会当成重载（链接时 undefined reference），完全相同的签名不同返回值则是编译错误。</p>
+    </div>
+  </article>
+
+  <p><b>头文件放声明</b>：把一批声明集中到 <code>.h</code> 文件里，谁 <code>include</code> 谁就能调用——这是多文件工程的分工方式。</p>
+
+  <div class="compare">
+    <div class="compare-col badc">
+      <h4>❌ 全塞进一个 .cpp</h4>
+      <pre><code class="cpp">// main.cpp 越写越长，
+// 声明、定义、main 混在一起。
+// 别的文件想用 add？
+// 只能复制粘贴一份 ——
+// 改一处漏一处，迟早出事。</code></pre>
+    </div>
+    <div class="compare-col good">
+      <h4>✅ 声明进 .h，定义进 .cpp</h4>
+      <pre><code class="cpp">// math_utils.h —— 只放声明
+#ifndef MATH_UTILS_H   // 包含保护：
+#define MATH_UTILS_H   // 防止重复包含
+int add(int a, int b); // 参数名可省
+#endif
+
+// math_utils.cpp —— 放定义
+#include "math_utils.h"
+int add(int a, int b) { return a + b; }
+
+// main.cpp —— 一行拿到声明
+#include "math_utils.h"</code></pre>
+    </div>
+  </div>
+
+  <div class="keypoint">一句话：<b>声明立契约，定义给实现</b>。头文件里放声明（原型），源文件里放定义；调用前见过声明即可，链接时才去找定义。</div>
+
+  <!-- ================= 4. 参数传递三方式 ================= -->
+  <h2>3. 参数传递：传值 / 传引用 / 传指针</h2>
+  <p>想让函数“改到”调用方的变量，传值是不行的——它只给了<b>副本</b>。两条路：给<b>别名</b>（引用），或给<b>地址</b>（指针）。下面用同一个 swap 写三遍。</p>
+
+  <article class="example-card" id="ch04-ex-03">
+    <div class="ex-head">
+      <h3 class="ex-title">示例3：三个版本的 swap</h3>
+      <div class="ex-meta"><span class="tag">知识点：参数传递</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+// 版本1：传值 —— 交换的是副本
+void swapByValue(int x, int y) {
+    int t = x; x = y; y = t;
+}
+
+// 版本2：传引用 —— x、y 是实参的别名
+void swapByRef(int&amp; x, int&amp; y) {
+    int t = x; x = y; y = t;
+}
+
+// 版本3：传指针 —— 传入地址，解引用修改
+void swapByPtr(int* px, int* py) {
+    int t = *px; *px = *py; *py = t;
+}
+
+int main() {
+    int a = 1, b = 2;
+    swapByValue(a, b);
+    std::cout &lt;&lt; "传值后 a=" &lt;&lt; a &lt;&lt; " b=" &lt;&lt; b &lt;&lt; "\n";
+    swapByRef(a, b);
+    std::cout &lt;&lt; "传引用后 a=" &lt;&lt; a &lt;&lt; " b=" &lt;&lt; b &lt;&lt; "\n";
+    swapByPtr(&amp;a, &amp;b);
+    std::cout &lt;&lt; "传指针后 a=" &lt;&lt; a &lt;&lt; " b=" &lt;&lt; b &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">传值后 a=1 b=2
+传引用后 a=2 b=1
+传指针后 a=1 b=2</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第20~21行</b>：传值版把 <code>a、b</code> 各拷贝一份到形参 <code>x、y</code>，交换发生在副本上；函数返回副本销毁，实参原样。</li>
+        <li><b>第22~23行</b>：传引用版里 <code>x、y</code> 就是 <code>a、b</code> 的<b>别名</b>，改别名就是改本尊。</li>
+        <li><b>第24~25行</b>：传指针版传入 <code>&amp;a、&amp;b</code>（取地址），函数内 <code>*px、*py</code> 解引用后交换原对象。注意调用时必须写 <code>&amp;</code>。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>三个版本的<b>函数体交换逻辑完全一样</b>，差别只在“形参拿到的是什么”：值的副本、别名、还是地址。因此判断“函数内改动是否影响实参”，只看形参类型即可。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>调用 <code>swapByValue(a, b)</code> 后 a、b 永远<b>不变</b>。想交换内容，形参必须是引用或指针。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 19, "vars": { "a": "1", "b": "2" }, "out": "", "note": "main 里定义 a、b" },
+      { "line": 20, "vars": { "a": "1", "b": "2", "x(副本)": "1", "y(副本)": "2" }, "out": "", "note": "调用 swapByValue：拷贝出两个副本并在副本间交换" },
+      { "line": 21, "vars": { "a": "1", "b": "2" }, "out": "传值后 a=1 b=2", "note": "副本随函数返回销毁，实参纹丝不动" },
+      { "line": 22, "vars": { "a": "2", "b": "1" }, "out": "", "note": "调用 swapByRef：x、y 是 a、b 的别名，交换发生在原对象上" },
+      { "line": 23, "vars": { "a": "2", "b": "1" }, "out": "传引用后 a=2 b=1", "note": "这次真的换过来了" },
+      { "line": 24, "vars": { "a": "1", "b": "2" }, "out": "", "note": "调用 swapByPtr(&a,&b)：传地址，函数内解引用交换原对象" },
+      { "line": 25, "vars": { "a": "1", "b": "2" }, "out": "传指针后 a=1 b=2", "note": "又换回去：效果与引用版完全相同" }
+    ] }</script>
+  </article>
+
+  <div class="memviz"><script type="application/json" class="mem-data">{ "title": "swapByRef(a, b) 执行中：引用是别名，不是新变量",
+    "regions": [
+      { "addr": "0x7ffd…1000", "name": "a（即形参 x）", "type": "int", "value": "2", "note": "交换后" },
+      { "addr": "0x7ffd…1004", "name": "b（即形参 y）", "type": "int", "value": "1", "note": "交换后" }
+    ],
+    "note": "传引用不新建内存：x、y 只是 a、b 的第二个名字。传值则会在 swapByValue 的栈帧里复制出 x=2、y=1 两个新变量，函数返回时随之销毁。" }</script></div>
+
+  <div class="compare">
+    <div class="compare-col badc">
+      <h4>❌ 想改实参却传了值</h4>
+      <pre><code class="cpp">void setToZero(int x) {
+    x = 0;          // 改的是副本
+}
+int main() {
+    int score = 59;
+    setToZero(score);
+    // score 仍是 59，
+    // 函数白调用
+}</code></pre>
+    </div>
+    <div class="compare-col good">
+      <h4>✅ 引用 / 指针直达本尊</h4>
+      <pre><code class="cpp">void setToZero(int&amp; x) {
+    x = 0;          // 改的是原对象
+}
+int main() {
+    int score = 59;
+    setToZero(score);
+    // score 变成 0
+}</code></pre>
+    </div>
+  </div>
+
+  <!-- ================= 5. const 引用参数 ================= -->
+  <h2>4. const 引用参数：零拷贝、只读</h2>
+  <p>函数若只需要“读”一个大对象（字符串、结构体、容器），<b>传值会白白拷贝一份</b>；改用 <code>const</code> 引用则零拷贝，且函数内只读。</p>
+
+  <article class="example-card" id="ch04-ex-04">
+    <div class="ex-head">
+      <h3 class="ex-title">示例4：传值 vs const 引用</h3>
+      <div class="ex-meta"><span class="tag">知识点：const 引用参数</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+// 传值：把整个字符串拷贝一份，大对象开销大
+void printByValue(std::string s) {
+    std::cout &lt;&lt; "[副本] " &lt;&lt; s &lt;&lt; " (长度 " &lt;&lt; s.size() &lt;&lt; ")\n";
+}
+
+// const 引用：不拷贝，且承诺只读
+void printByConstRef(const std::string&amp; s) {
+    std::cout &lt;&lt; "[只读引用] " &lt;&lt; s &lt;&lt; " (长度 " &lt;&lt; s.size() &lt;&lt; ")\n";
+    // s[0] = 'X';   // ⛔ 编译错误：s 是 const，禁止修改
+}
+
+int main() {
+    std::string text = "C++ is fun";
+    printByValue(text);
+    printByConstRef(text);
+    printByConstRef("hello world");   // 字面量是临时值，const 引用能绑定
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">[副本] C++ is fun (长度 10)
+[只读引用] C++ is fun (长度 10)
+[只读引用] hello world (长度 11)</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：<code>std::string s</code> 按值接收——每次调用都完整拷贝字符串，对象越大越亏。</li>
+        <li><b>第10行</b>：<code>const std::string&amp; s</code> 不产生拷贝；<code>const</code> 保证函数体内不能通过 <code>s</code> 修改原对象。</li>
+        <li><b>第19行</b>：字符串字面量先转换成临时 <code>std::string</code>；<b>非 const 引用不能绑定临时值，const 引用可以</b>——这是它适合做只读参数的另一个原因。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <pre><code class="cpp">void upper(std::string&amp; s);   // 不打算修改却用非 const 引用
+upper("hello");               // ⛔ 编译错误：临时值无法绑定非 const 引用</code></pre>
+      <p>小类型（<code>int</code>、<code>double</code>）直接传值即可，加 const 引用没有收益。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>“<code>void f(const int&amp; x)</code> 里给 <code>x</code> 赋值”——编译错误。const 引用参数：只读不写、免拷贝、能绑定字面量。</p>
+    </div>
+  </article>
+
+  <!-- ================= 6. 数组传参退化 ================= -->
+  <h2>5. 数组传参：退化为指针，sizeof 失效</h2>
+  <p>把数组传给函数时，数组名<b>退化</b>成指向首元素的指针——长度信息在传递瞬间丢失（第 5 章详述，这里先看现象）。</p>
+
+  <article class="example-card" id="ch04-ex-05">
+    <div class="ex-head">
+      <h3 class="ex-title">示例5：函数内的 sizeof(arr) 是指针大小</h3>
+      <div class="ex-meta"><span class="tag">知识点：数组退化</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+// 形参写 int arr[] 只是“语法糖”，真实类型是 int*
+void printSize(int arr[]) {
+    std::cout &lt;&lt; "函数内 sizeof(arr) = " &lt;&lt; sizeof(arr) &lt;&lt; "\n";
+}
+
+int main() {
+    int a[10] = {};
+    std::cout &lt;&lt; "main 内 sizeof(a) = " &lt;&lt; sizeof(a) &lt;&lt; "\n";
+    printSize(a);
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出（64 位平台）</div>
+      <pre><code class="output-text">main 内 sizeof(a) = 40
+函数内 sizeof(arr) = 8</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第10行</b>：在数组<b>定义处</b>，<code>a</code> 的类型是 <code>int[10]</code>，<code>sizeof(a)</code> = 10 × 4 = 40 字节。</li>
+        <li><b>第11行</b>：传参瞬间，<code>a</code> 退化为 <code>int*</code>，实际拷贝给形参的是一个 8 字节的地址（64 位平台；32 位平台是 4）。</li>
+        <li><b>第5行</b>：形参 <code>arr</code> 就是个指针，<code>sizeof(arr)</code> 给出<b>指针大小</b>，与数组多长毫无关系。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>想在函数内保住长度信息，可以用<b>数组引用</b>（类型里带长度）：</p>
+      <pre><code class="cpp">void printSize2(int (&amp;arr)[10]) {   // 只能接 int[10]
+    std::cout &lt;&lt; sizeof(arr) &lt;&lt; "\n"; // 40，不再退化
+}</code></pre>
+      <p>更通用的做法是把长度作为独立参数传入（第 5 章详解）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>判断题“函数内 <code>sizeof(数组形参)</code> 等于数组总字节数”为<b>假</b>——它是指针大小。<code>void f(int arr[10])</code> 里的 10 只是给人看的，编译器同样按 <code>int*</code> 处理。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 9, "vars": { "a": "int[10]，共 40 字节" }, "out": "", "note": "定义 10 个 int" },
+      { "line": 10, "vars": { "a": "int[10]，共 40 字节" }, "out": "main 内 sizeof(a) = 40", "note": "定义处数组名保持数组类型，sizeof 取整个数组" },
+      { "line": 11, "vars": { "a": "退化为 int*" }, "out": "", "note": "传参瞬间：数组名退化为首元素地址，拷贝一个 8 字节指针" },
+      { "line": 5, "vars": { "arr": "int*（指针）" }, "out": "函数内 sizeof(arr) = 8", "note": "形参是指针，sizeof 给指针大小；32 位平台此行是 4" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 7. 默认实参 ================= -->
+  <h2>6. 默认实参：从右往左，声明处给</h2>
+  <p>默认实参让调用方可以<b>少写几个实参</b>。它有两条铁律：<b>① 必须从最右边的形参开始连续给出</b>（不能隔空跳）；<b>② 默认值写在声明（原型）处，定义处不能再写</b>。</p>
+
+  <article class="example-card" id="ch04-ex-06">
+    <div class="ex-head">
+      <h3 class="ex-title">示例6：默认实参的基本用法</h3>
+      <div class="ex-meta"><span class="tag">知识点：默认实参</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+// 默认实参：从右往左连续给出
+void greet(std::string name = "同学", int stars = 3) {
+    std::cout &lt;&lt; "你好, " &lt;&lt; name &lt;&lt; " ";
+    for (int i = 0; i &lt; stars; ++i) std::cout &lt;&lt; "*";
+    std::cout &lt;&lt; "\n";
+}
+
+int main() {
+    greet();              // 两个都用默认
+    greet("小明");        // 只给第一个，stars 用默认 3
+    greet("小红", 5);     // 全部显式给出
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">你好, 同学 ***
+你好, 小明 ***
+你好, 小红 *****</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：<code>= "同学"</code>、<code>= 3</code> 是默认实参。实参<b>从左往右</b>依次匹配形参，省略的一定是最右边的。</li>
+        <li><b>第12行</b>：想给 <code>stars</code> 传值就必须连 <code>name</code> 一起给——不存在 <code>greet(, 5)</code> 这种“跳着传”的写法。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>默认值只写一次、写在<b>头文件的声明</b>里，定义处保持干净：</p>
+      <pre><code class="cpp">// log.hpp —— 声明处给默认值
+void logMsg(const std::string&amp; msg, int level = 1);
+
+// log.cpp —— 定义处不能再给
+void logMsg(const std::string&amp; msg, int level) {
+    // ...
+}</code></pre>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>两种写法都是<b>编译错误</b>：① <code>void f(int a = 1, int b);</code>（默认实参右边还有无默认值的形参）；② 声明与定义<b>重复</b>给默认值（g++：<code>default argument given for parameter 2</code>）。</p>
+    </div>
+  </article>
+
+  <div class="compare">
+    <div class="compare-col badc">
+      <h4>❌ 两种常见错误</h4>
+      <pre><code class="cpp">// 错误1：默认实参右边
+// 还有普通形参
+void f(int a = 1, int b);
+// ⛔ 编译错误
+
+// 错误2：声明给过默认值，
+// 定义处又给一遍
+void g(int a, int b = 2);
+void g(int a, int b = 2) { }
+// ⛔ 重复定义默认实参</code></pre>
+    </div>
+    <div class="compare-col good">
+      <h4>✅ 声明处给一次</h4>
+      <pre><code class="cpp">// f.hpp：默认值只在这里
+void f(int a, int b = 2);
+void g(int a, int b = 2);
+
+// f.cpp：定义处干净
+void f(int a, int b) { }
+void g(int a, int b) { }
+
+// 调用：f(1) → b 用 2
+//       f(1, 9) → 两个都给</code></pre>
+    </div>
+  </div>
+
+  <!-- ================= 8. 函数重载 ================= -->
+  <h2>7. 函数重载：同名不同参</h2>
+  <p><b>重载</b>（overload）允许多个函数共用一个名字，靠<b>参数的个数和类型</b>区分。编译器选哪个的过程叫<b>重载决议</b>：先收集候选 → 按实参筛出可行的 → 比较转换代价选出唯一最佳。<b>返回值从头到尾不参与</b>。</p>
+
+  <article class="example-card" id="ch04-ex-07">
+    <div class="ex-head">
+      <h3 class="ex-title">示例7：重载决议按参数类型进行</h3>
+      <div class="ex-meta"><span class="tag">知识点：函数重载</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+void print(int x)         { std::cout &lt;&lt; "print(int): " &lt;&lt; x &lt;&lt; "\n"; }
+void print(double x)      { std::cout &lt;&lt; "print(double): " &lt;&lt; x &lt;&lt; "\n"; }
+void print(const char* x) { std::cout &lt;&lt; "print(const char*): " &lt;&lt; x &lt;&lt; "\n"; }
+
+int main() {
+    print(42);      // 精确匹配 print(int)
+    print(3.14);    // double 字面量 → print(double)
+    print('A');     // char 整型提升为 int → print(int)
+    print("hi");    // 字符串字面量 → print(const char*)
+    print(3.14f);   // float 提升（提升优于转换）→ print(double)
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">print(int): 42
+print(double): 3.14
+print(int): 65
+print(const char*): hi
+print(double): 3.14</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第8行</b>：<code>42</code> 是 int，精确匹配，毫无悬念。</li>
+        <li><b>第10行</b>：<code>'A'</code> 是 char。候选中 char→int 属于<b>整型提升</b>，char→double 属于<b>标准转换</b>；提升优于转换，所以选 <code>print(int)</code>，输出编码值 65。</li>
+        <li><b>第12行</b>：<code>3.14f</code> 是 float，float→double 是<b>浮点提升</b>，同样优于转换。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>删掉 <code>print(int)</code> 后再调 <code>print('A')</code>：唯一可行的是 <code>print(double)</code>，输出 65（char 的编码值转成 double 65.0，默认 6 位有效数字显示为 65）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>返回值不参与重载：<code>int f(int);</code> 和 <code>double f(int);</code> 不是重载，是<b>编译错误</b>（g++：<code>ambiguating new declaration of 'double f(int)'</code>）。判断题“编译器根据返回值选择重载”为<b>假</b>。</p>
+    </div>
+  </article>
+
+  <p>把决议流程记成四步（第 2、3 步同样与返回值无关）：</p>
+
+  <div class="widget-sort"><script type="application/json" class="sort-data">{ "items": [
+    "第一步：收集所有同名的候选函数",
+    "第二步：按实参个数和类型，筛出“可行”的函数",
+    "第三步：比较实参到形参的转换代价，选出唯一最佳匹配",
+    "第四步：若有两个难分高下的匹配，报二义性编译错误"
+  ], "hint": "先海选、再筛选、最后比优。",
+  "explain": "返回值从头到尾不参与重载决议：它既不能帮筛选，也不能打破平局。第 3 步的排序规则是：精确匹配 > 提升（如 char→int）> 标准转换（如 int→double）。" }</script></div>
+
+  <!-- ================= 9. 默认实参 + 重载 = 歧义 ================= -->
+  <h2>8. 默认实参与重载的组合：二义性</h2>
+
+  <article class="example-card" id="ch04-ex-08">
+    <div class="ex-head">
+      <h3 class="ex-title">示例8：默认实参让两个重载都“可行”（错误示范）</h3>
+      <div class="ex-meta"><span class="tag red">错误示范：不能通过编译</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+void f(int x)            { std::cout &lt;&lt; "f(int)\n"; }
+void f(int x, int y = 0) { std::cout &lt;&lt; "f(int, int)\n"; }
+
+int main() {
+    f(1);     // ⛔ 编译错误：调用二义性
+    f(1, 2);  // OK：只有它接得住两个实参
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-pitfall">
+      <h4>⚠ 为什么编译不过？</h4>
+      <p>调用 <code>f(1)</code> 时：<code>f(int)</code> 可以精确匹配；<code>f(int, int)</code> 靠默认实参也能接住。两个候选<b>难分高下</b>，g++ 报错：</p>
+      <pre><code class="text">error: call of overloaded 'f(int)' is ambiguous</code></pre>
+      <div class="ub-warning">这不算未定义行为——它是<b>编译期错误</b>，程序根本不会生成；任何“能编译、输出 f(int)”的说法都不成立。</div>
+      <p>修复：删掉其中一个重载，或去掉默认值让参数个数区分开。类似的还有 <code>void g();</code> 与 <code>void g(int = 1);</code> 并存——调用 <code>g()</code> 同样二义。</p>
+    </div>
+  </article>
+
+  <!-- ================= 10. 返回引用 ================= -->
+  <h2>9. 返回引用：合法与非法场景</h2>
+  <p>返回引用意味着返回的是<b>变量本身</b>而不是副本——调用方可以直接给它赋值。合法前提：被引用的对象在函数返回后<b>仍然活着</b>。</p>
+
+  <article class="example-card" id="ch04-ex-09">
+    <div class="ex-head">
+      <h3 class="ex-title">示例9：返回引用形参——合法场景</h3>
+      <div class="ex-meta"><span class="tag">知识点：返回引用</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+// 返回引用：返回的是“变量本身”
+int&amp; bigger(int&amp; a, int&amp; b) {
+    return (a &gt; b) ? a : b;
+}
+
+int main() {
+    int x = 3, y = 8;
+    bigger(x, y) = 100;     // 给“较大的那个”赋值：等价于 y = 100
+    std::cout &lt;&lt; "x=" &lt;&lt; x &lt;&lt; " y=" &lt;&lt; y &lt;&lt; "\n";
+    ++bigger(x, y);         // 较大的那个自增：y 再加 1
+    std::cout &lt;&lt; "x=" &lt;&lt; x &lt;&lt; " y=" &lt;&lt; y &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">x=3 y=100
+x=3 y=101</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：返回类型是 <code>int&amp;</code>；返回的是 <code>x</code> 或 <code>y</code> 的别名，它们都是 main 里的变量，返回后依然存活——合法。</li>
+        <li><b>第10行</b>：<code>bigger(x, y)</code> 是 <code>y</code> 的别名，赋值 100 写进 <code>y</code> 本尊。若写成 <code>bigger(y, x) = 100;</code> 则写进 <code>x</code>。</li>
+        <li><b>第12行</b>：<code>++bigger(x, y)</code> 对别名自增，同样作用于本尊。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>返回<b>静态变量</b>的引用也合法（生命周期贯穿整个程序）：</p>
+      <pre><code class="cpp">int&amp; counter() {
+    static int n = 0;   // 只初始化一次
+    return ++n;         // 每次调用自增并返回本尊
+}</code></pre>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>返回引用与返回指针机制相似，但<b>引用必须有所指、不能为空</b>。函数可能无结果可返回时，应改用指针（可空）或传引用形参直接写入。</p>
+    </div>
+  </article>
+
+  <article class="example-card" id="ch04-ex-10">
+    <div class="ex-head">
+      <h3 class="ex-title">示例10：返回局部变量的引用 / 指针（UB 示范）</h3>
+      <div class="ex-meta"><span class="tag red">未定义行为示范</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int&amp; badRef() {
+    int local = 42;
+    return local;      // ⛔ 返回局部变量的引用
+}
+
+int* badPtr() {
+    int local = 42;
+    return &amp;local;     // ⛔ 返回局部变量的指针
+}
+
+int main() {
+    std::cout &lt;&lt; badRef() &lt;&lt; "\n";   // ⛔ 未定义行为
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-pitfall">
+      <h4>⚠ 为什么没有“预期输出”？</h4>
+      <div class="ub-warning">局部变量 <code>local</code> 在函数返回时<b>销毁</b>，返回的引用/指针随即<b>悬空</b>；解引用悬空引用/指针是<b>未定义行为</b>——可能“碰巧”打印 42、打印垃圾值、或直接崩溃。因此本例不给出预期输出，考试也不允许把任何确定结果当标准答案。g++ 开警告能当场识破：<code>g++ -Wall</code> 会报 <code>warning: reference to local variable 'local' returned [-Wreturn-local-addr]</code>，指针版则报 <code>warning: address of local variable 'local' returned [-Wreturn-local-addr]</code>。</div>
+      <p>合法的替代：返回<b>引用形参</b>（示例 9）、返回<b>静态/全局变量</b>的引用、或干脆按值返回。</p>
+    </div>
+  </article>
+
+  <!-- ================= 11. 递归 ================= -->
+  <h2>10. 递归：自己调用自己</h2>
+  <p>递归函数把问题<b>缩小一步</b>交给下一次调用，直到碰到能直接回答的<b>基准情形</b>。三要素缺一不可：<b>① 基准情形（什么时候停）；② 递归步骤（怎么缩小问题）；③ 收敛（每次都朝基准靠近）</b>。</p>
+
+  <article class="example-card" id="ch04-ex-11">
+    <div class="ex-head">
+      <h3 class="ex-title">示例11：阶乘——递归调用栈全过程</h3>
+      <div class="ex-meta"><span class="tag">知识点：递归与栈</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+long long factorial(int n) {
+    if (n &lt;= 1) return 1;            // ① 基准情形：0! = 1! = 1
+    return n * factorial(n - 1);     // ② 递归步骤：n! = n × (n-1)!
+}
+
+int main() {
+    std::cout &lt;&lt; "4! = " &lt;&lt; factorial(4) &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">4! = 24</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：基准情形——n 到 1 就直接给答案，递归“到底”了。</li>
+        <li><b>第5行</b>：每次调用 <code>factorial(n-1)</code> 都会<b>压入一个新栈帧</b>（记住自己的 n、算到哪一步）；碰到基准后逐层<b>弹栈回乘</b>：1 → 2×1=2 → 3×2=6 → 4×6=24。</li>
+        <li><b>第3行</b>：用 <code>long long</code> 接结果，因为阶乘增长极快（13! 就已超出 int 范围）。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>把基准写成 <code>if (n &lt;= 0)</code> 结果一样；但若写成 <code>if (n == 1)</code>，用 <code>factorial(0)</code> 调用就会一路算到负数——基准没覆盖所有“最小输入”。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>写第 5 行时不必在脑中展开每一层，只需相信 <code>factorial(n-1)</code> 会正确返回 (n-1)!，再乘 n 即可。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 9, "vars": { "调用": "factorial(4)" }, "stack": ["main", "factorial(4)  n=4"], "out": "", "note": "main 调用 factorial(4)，第 1 个栈帧压入" },
+      { "line": 4, "vars": { "调用": "factorial(4)", "n": "4" }, "stack": ["main", "factorial(4)  n=4"], "out": "", "note": "n = 4 > 1，不是基准情形" },
+      { "line": 5, "vars": { "调用": "factorial(4)→factorial(3)", "n": "4" }, "stack": ["main", "factorial(4)  n=4", "factorial(3)  n=3"], "out": "", "note": "计算 4 × factorial(3)：先调用 factorial(3)，第 2 个栈帧压入" },
+      { "line": 5, "vars": { "调用": "…→factorial(2)", "n": "3" }, "stack": ["main", "factorial(4)  n=4", "factorial(3)  n=3", "factorial(2)  n=2"], "out": "", "note": "factorial(3) 计算 3 × factorial(2)，再压一层" },
+      { "line": 5, "vars": { "调用": "…→factorial(1)", "n": "2" }, "stack": ["main", "factorial(4)  n=4", "factorial(3)  n=3", "factorial(2)  n=2", "factorial(1)  n=1"], "out": "", "note": "factorial(2) 计算 2 × factorial(1)，再压一层" },
+      { "line": 4, "vars": { "调用": "…→factorial(1)", "n": "1" }, "stack": ["main", "factorial(4)  n=4", "factorial(3)  n=3", "factorial(2)  n=2", "factorial(1)  n=1"], "out": "", "note": "n <= 1 命中基准情形，返回 1，递归到底" },
+      { "line": 5, "vars": { "调用": "回溯中", "n": "2" }, "stack": ["main", "factorial(4)  n=4", "factorial(3)  n=3", "factorial(2)  n=2"], "out": "", "note": "factorial(2) = 2 × 1 = 2，弹出栈帧" },
+      { "line": 5, "vars": { "调用": "回溯中", "n": "3" }, "stack": ["main", "factorial(4)  n=4", "factorial(3)  n=3"], "out": "", "note": "factorial(3) = 3 × 2 = 6，弹出栈帧" },
+      { "line": 5, "vars": { "调用": "回溯中", "n": "4" }, "stack": ["main", "factorial(4)  n=4"], "out": "", "note": "factorial(4) = 4 × 6 = 24，弹出栈帧" },
+      { "line": 9, "vars": {}, "stack": ["main"], "out": "4! = 24", "note": "回到 main，输出 24" }
+    ] }</script>
+  </article>
+
+  <article class="example-card" id="ch04-ex-12">
+    <div class="ex-head">
+      <h3 class="ex-title">示例12：斐波那契——正确但低效的递归</h3>
+      <div class="ex-meta"><span class="tag">知识点：递归性能</span><span class="tag purple">性能提醒</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int fib(int n) {
+    if (n &lt;= 1) return n;           // 基准：fib(0)=0, fib(1)=1
+    return fib(n - 1) + fib(n - 2); // 每层分出两个递归
+}
+
+int main() {
+    for (int i = 0; i &lt;= 10; ++i) {
+        std::cout &lt;&lt; fib(i);
+        if (i &lt; 10) std::cout &lt;&lt; " ";
+    }
+    std::cout &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">0 1 1 2 3 5 8 13 21 34 55</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：斐波那契需要<b>两个</b>基准（fib(0)=0、fib(1)=1），少一个就停不下来。</li>
+        <li><b>第5行</b>：每层调用分裂成两支，调用总数呈<b>指数级</b>增长。</li>
+        <li><b>第9~12行</b>：输出前 11 项，结果与数学定义一致。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>三要素自查：① 基准 <code>n &lt;= 1</code> ✔；② 缩小 <code>n-1、n-2</code> ✔；③ 收敛 ✔——所以它<b>正确</b>，只是慢。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 性能提醒</h4>
+      <div class="warn">朴素递归的调用总数约为 <code>2×fib(n+1) − 1</code>：求 <code>fib(40)</code> 就要约 <b>3.3 亿次</b>函数调用，<code>fib(50)</code> 更是要约 <b>400 亿次</b>。改进方向：① 用循环<b>自底向上</b>迭代，只需 n−1 次加法（第 3 章的 for 就够）；② <b>记忆化</b>——把算过的 fib(k) 存进表里，每个 k 只算一次（学完第 6 章数组即可实现）。</div>
+    </div>
+  </article>
+
+  <!-- ================= 12. inline 与名字改编 ================= -->
+  <h2>11. inline 与名字改编</h2>
+  <p><b>inline</b> 是给编译器的<b>建议</b>：在调用点直接展开函数体，省去调用开销；同时它放宽“一次一定义”限制，使 inline 函数可以定义在头文件里。是否真的展开由编译器决定。</p>
+  <p><b>名字改编</b>（name mangling）：为了让重载共存，编译器把“函数名 + 参数类型”改编成唯一内部名——g++ 把 <code>void print(int)</code> 改成 <code>_Z5printi</code>，MSVC 改成 <code>?print@@YAXH@Z</code>。C 语言不做名字改编，所以 C 不能重载。</p>
+
+  <div class="keypoint">inline 管“展开与否”，重载靠“名字改编”区分同名不同参——两者都是编译器层面的机制，源代码语义不变。</div>
+
+  <!-- ================= 13. 练习 ================= -->
+  <h2>12. 练习：函数调用到底发生了什么</h2>
+
+  <article class="example-card" id="ch04-ex-13">
+    <div class="ex-head">
+      <h3 class="ex-title">练习：把“一次传值调用”的过程排成正确顺序</h3>
+      <div class="ex-meta"><span class="tag purple">互动练习</span></div>
+    </div>
+    <p>背景：<code>main</code> 中执行 <code>std::cout &lt;&lt; square(5);</code>（square 是示例 1 的函数）。下面 5 个步骤被打乱了，请拖动（或用 ↑↓ 按钮）恢复正确顺序：</p>
+    <div class="widget-sort"><script type="application/json" class="sort-data">{ "items": [
+      "main 中执行 std::cout << square(5)，发生函数调用",
+      "实参的值 5 拷贝给形参 x",
+      "执行函数体：return x * x; 得到 25",
+      "返回值 25 送回调用点，本次调用的栈帧销毁",
+      "cout 把 25 输出，main 继续往下执行"
+    ], "hint": "从调用点出发，绕函数一圈，最后回到调用点。",
+    "explain": "传值调用的拷贝发生在第 2 步——所以函数内改 x 不影响 main；形参与栈帧同生共死（第 4 步销毁）。这正是“传值改动不影响实参”的完整解释。" }</script></div>
+  </article>
+
+  <!-- ================= 14. 常见错误 ================= -->
+  <h2>13. 常见错误</h2>
+  <div class="warn"><b>1. 调用前没声明</b>：函数定义在 main 之后又不写原型，g++ 报 <code>'add' was not declared in this scope</code>；反过来只声明不定义，则是<b>链接期</b>错误 <code>undefined reference</code>。修复：原型置顶，或声明进头文件。</div>
+  <div class="warn"><b>2. 想改实参却传了值</b>：<code>void f(int x)</code> 里改 <code>x</code> 只改副本。需要写回时用引用 <code>int&amp; x</code> 或指针 <code>int* x</code>（第 5 章详述指针）。</div>
+  <div class="warn"><b>3. 默认实参写错位置</b>：默认实参必须<b>从右往左连续</b>；声明给了定义就不能再给。两种违规都是编译错误，不是警告。</div>
+  <div class="warn"><b>4. 返回值“参与”重载</b>：<code>int f(int); double f(int);</code> 是编译错误；<code>f(1)</code> 遇上 <code>f(int)</code> 与 <code>f(int, int = 0)</code> 也会二义报错 <code>call of overloaded 'f(int)' is ambiguous</code>。</div>
+  <div class="ub-warning"><b>5. 返回局部变量的引用或指针</b>：函数返回后局部变量销毁，引用/指针悬空，解引用是未定义行为。任何“碰巧输出 42”的运行结果都不算数；用 <code>g++ -Wall</code> 编译能直接看到 <code>-Wreturn-local-addr</code> 警告。</div>
+  <div class="ub-warning"><b>6. 无限递归</b>：缺基准情形或参数不朝基准变化（如 <code>if (n == 0) return 1; return n * factorial(n);</code>）时，递归永不收敛——从标准角度看程序没有任何进展，属于未定义行为；实际表现几乎都是栈溢出崩溃（stack overflow / 段错误）。</div>
+  <p>更多同类错误见 <a href="../errors.html">编译错误博物馆</a>（如“函数未声明”“重载调用二义性”），以及 <a href="../exam-pitfalls.html">考试易错点</a> 中的函数专题；常用写法可查 <a href="../cheatsheets.html">速查表</a>。</p>
+
+  <!-- ================= 15. 标准差异 ================= -->
+  <h2>14. C++ 标准差异小结</h2>
+  <table class="data-table">
+    <tr><th>特性</th><th>C++98</th><th>C++11 及以后</th></tr>
+    <tr><td>函数重载、默认实参</td><td>已支持（C 语言没有重载）</td><td>未变</td></tr>
+    <tr><td>尾置返回类型 <code>auto f(int) -&gt; int</code></td><td>不可用</td><td>C++11 起</td></tr>
+    <tr><td><code>constexpr</code> 函数</td><td>不存在</td><td>C++11 引入；C++14 起允许循环、局部变量等更多语句</td></tr>
+    <tr><td><code>[[nodiscard]]</code> 属性</td><td>不存在</td><td>C++17 起：丢弃返回值时提醒调用方</td></tr>
+    <tr><td><code>inline</code> 变量</td><td>不存在（只有 inline 函数）</td><td>C++17 起：头文件里定义全局变量不再冲突</td></tr>
+  </table>
+  <div class="std-diff"><b>名字改编的格式是编译器实现细节，标准不规定</b>：GCC 系用 Itanium ABI（<code>_Z5printi</code>），MSVC 用另一套（<code>?print@@YAXH@Z</code>），两者互不兼容。跨编译器混链 C++ 代码需要 <code>extern "C"</code> 关闭改编。</div>
+
+  <!-- ================= 16. 小结 ================= -->
+  <h2>本章小结</h2>
+  <div class="keypoint">函数是接口的艺术：<b>原型立契约</b>，参数传递定边界——传值给副本、传引用给别名、传指针给地址；默认实参从右往左、声明处给；重载只认参数不认返回值；递归必须能停；返回局部变量的引用/指针永远是 UB。</div>
+  <ul>
+    <li>声明（原型）可多次、定义只一次；声明集中进头文件。</li>
+    <li>三版 swap：<b>传值不生效，传引用/传指针生效</b>；const 引用参数是“只读 + 零拷贝”，还能绑定临时值。</li>
+    <li>数组传参退化为指针，函数内 <code>sizeof(arr)</code> 是指针大小（第 5 章展开）。</li>
+    <li>默认实参两条铁律：从右往左连续、只在声明处给；与重载组合易二义。</li>
+    <li>重载决议：候选 → 可行 → 唯一最佳；返回值不参与。</li>
+    <li>递归三要素：基准、缩小、收敛；朴素 fib 指数级慢，用循环或记忆化。</li>
+    <li>返回引用合法场景：引用形参、静态/全局变量；局部变量一律禁止。</li>
+  </ul>
+
+  <!-- ================= 17. 自测清单 ================= -->
+  <h2>自测清单</h2>
+  <ul class="checklist" data-chapter="ch04">
+    <li><label><input type="checkbox" data-check-id="ch04-c1"><span>我能说出声明与定义的区别，并解释为什么调用前必须有原型</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch04-c2"><span>我能写出传值 / 传引用 / 传指针三个版本的 swap，并说出各自机制</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch04-c3"><span>我知道何时该用 const 引用参数，以及它为什么能绑定字面量</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch04-c4"><span>我能解释数组传参退化为指针，说出函数内 <code>sizeof(arr)</code> 的真实含义</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch04-c5"><span>我能背出默认实参两条规则：从右往左连续、只在声明处给</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch04-c6"><span>我能判断一次重载调用的决议结果，并识别二义性编译错误</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch04-c7"><span>我能说出递归三要素，并解释朴素 fib(40) 为什么慢</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch04-c8"><span>我能区分返回引用的合法与非法场景，说出 -Wreturn-local-addr 警告的含义</span></label></li>
+  </ul>
+
+  <!-- ================= 18. 随堂测验 ================= -->
+  <section class="quiz" data-source="ch04">
+    <script type="application/json" class="quiz-data">{ "title": "随堂测验：函数",
+      "questions": [
+        { "type": "mcq", "q": "<code>void f(int x) { x = 10; }</code>，main 中 <code>int a = 1; f(a); cout &lt;&lt; a;</code> 输出？",
+          "options": ["1", "10", "随机值", "编译错误"], "answer": 0,
+          "explain": "传值调用只把 a 的值拷贝给形参 x，函数内改的是副本，a 保持 1。" },
+        { "type": "mcq", "q": "下列哪个函数声明是合法的？",
+          "options": ["void f(int a = 1, int b);", "void f(int a, int b = 2);", "void f(int a = 1, int b = 2, int c);", "以上都不合法"], "answer": 1,
+          "explain": "默认实参必须从右往左连续给出。A 和 C 的默认参数右边还有无默认值的形参，都是编译错误。" },
+        { "type": "mcq", "q": "有 <code>void g(int);</code> 和 <code>void g(double);</code>，调用 <code>g('A')</code> 选择哪个？",
+          "options": ["g(int)：char 整型提升为 int", "g(double)：char 转换为 double", "二义性编译错误", "都不匹配"], "answer": 0,
+          "explain": "char→int 是整型提升，char→double 是标准转换，提升优于转换，g(int) 胜出（输出 65）。" },
+        { "type": "mcq", "q": "同时声明 <code>int f(int);</code> 与 <code>double f(int);</code>，结果是？",
+          "options": ["构成重载，返回值决定调用哪个", "编译错误：返回值不参与重载", "链接错误", "运行时随机选择"], "answer": 1,
+          "explain": "重载只看参数列表。返回值不同的同名同参函数无法区分，g++ 报 ambiguating new declaration。" },
+        { "type": "mcq", "q": "<code>void h(const std::string&amp; s);</code>，调用 <code>h(\"hi\")</code> 会？",
+          "options": ["编译错误：不能绑定字面量", "合法：const 引用可以绑定临时值", "运行时崩溃", "把字面量转成 char* 再传"], "answer": 1,
+          "explain": "非 const 引用不能绑定临时值，const 引用可以——这是它适合做只读参数的重要原因。" },
+        { "type": "tf", "q": "返回局部变量的引用，只要调用方马上使用就不会出问题。",
+          "answer": false, "explain": "函数返回时局部变量已销毁，引用悬空，使用它是未定义行为，与“快慢”无关。" },
+        { "type": "tf", "q": "传指针和传引用都能让被调函数修改调用方的变量。",
+          "answer": true, "explain": "两者都间接访问实参本身：引用是别名，指针通过解引用。传值则不行。" },
+        { "type": "fill", "q": "递归函数必须有____情形（base case），否则无法终止。",
+          "answer": ["基准", "基准情形", "基线", "base case", "基本"], "explain": "基准情形是递归的“地板”，让递归在最小问题处停下来。" },
+        { "type": "code", "q": "补全原型，使 main 能调用定义在其后的 add：____ add(int a, int b);",
+          "answer": ["int"], "explain": "原型以返回类型开头；写成其他类型也可，但必须与定义一致，否则声明与定义冲突、直接编译报错。" }
+      ] }</script>
+  </section>
+
+</main>
+
+<script src="../assets/js/highlight.js"></script>
+<script src="../assets/js/toc.js"></script>
+<script src="../assets/js/nav.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/interactive.js"></script>
+<script src="../assets/js/teacher.js"></script>
+<script src="../assets/js/mastery.js"></script>
+<script src="../assets/js/bughunt-data.js"></script>
+<script src="../assets/js/bug-hunt.js"></script>
+<script src="../assets/js/present.js"></script>
+<script src="../assets/js/glossary-data.js"></script>
+<script src="../assets/js/glossary.js"></script>
+<script src="../assets/js/page-toc.js"></script>
+<script src="../assets/js/v2-config.js"></script>
+<script src="../assets/js/v2-core.js"></script>
+<script src="../assets/js/v2-lab.js"></script>
+</body>
+</html>

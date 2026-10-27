@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第8章 继承与多态 | 大学C++离线助教</title>
+<script src="../assets/js/theme-init.js"></script>
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/v2.css">
+</head>
+<body>
+<main class="container chapter">
+
+  <p class="crumbs"><a href="../index.html">首页</a> / <a href="../index.html#toc">章节目录</a> / 第8章</p>
+
+  <header>
+    <h1>第8章 继承与多态</h1>
+    <p class="muted"><b>继承</b>让类之间形成“is-a（是一种）”的层次，<b>虚函数</b>让同一调用在不同对象上产生不同行为。</p>
+  </header>
+
+  <!-- ================= 1. 学习目标 ================= -->
+  <section class="card objectives">
+    <h2 style="margin-top:0">学习目标</h2>
+    <ul>
+      <li>用 <code>class Derived : public Base</code> 写 public 继承，说清 <b>is-a 关系</b>与 <code>protected</code> 成员的访问边界。</li>
+      <li>按顺序说出一层继承对象的<b>构造顺序（先基类后派生）</b>与<b>析构顺序（相反）</b>。</li>
+      <li>列出多态发生的三要素，解释<b>按值传参发生切片（slicing）后多态失效</b>。</li>
+      <li>用 <code>override</code> 与 <code>final</code>（C++11）让编译器检查覆盖签名。</li>
+      <li>解释<b>纯虚函数与抽象类</b>（不能实例化、用于接口设计），说清<b>虚析构</b>的必要性。</li>
+      <li>预测“构造/析构函数中调用虚函数”的输出（不分发到派生类），识别<b>名字隐藏</b>与 <code>using Base::f</code> 的修复。</li>
+    </ul>
+    <p class="small muted">前置知识：<a href="ch07-classes.html">第7章 类与对象</a>（构造函数、析构函数、const 成员函数）。</p>
+    </section>
+
+  <!-- ================= 2. public 继承与 protected ================= -->
+  <h2>1. public 继承与 protected 成员</h2>
+  <p><code>class Dog : public Animal</code> 读作“Dog 是一种 Animal”。<b>public 继承表达 is-a 关系</b>：任何需要 Animal 的地方（参数、容器、指针）都能放 Dog。基类的 public 成员在派生类中仍是 public，protected 仍是 protected。三种访问级别复习一遍：</p>
+  <table class="data-table">
+    <tr><th>成员属性</th><th>类内部</th><th>派生类内部</th><th>外界（main 等）</th></tr>
+    <tr><td>public</td><td>可访问</td><td>可访问</td><td>可访问</td></tr>
+    <tr><td>protected</td><td>可访问</td><td>可访问</td><td>不可访问</td></tr>
+    <tr><td>private</td><td>可访问</td><td>不可访问</td><td>不可访问</td></tr>
+  </table>
+  <div class="note">protected 对派生类开放、对外界不可见：派生类的成员函数可以访问它继承来的 protected 成员，外界代码不能。<code>private</code> 继承（<code>class B : private A</code>，可省略 private 时默认）表达“用 A 来实现 B”，本课程只要求认识语法，考试重点在 public 继承。</div>
+
+  <article class="example-card" id="ch08-ex-01">
+    <div class="ex-head">
+      <h3 class="ex-title">示例1：public 继承的基本语法与 protected 成员</h3>
+      <div class="ex-meta"><span class="tag">知识点：继承语法</span><span class="tag green">入门必会</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+class Animal {
+public:
+    std::string name;
+    void eat() const { std::cout &lt;&lt; "吃东西\n"; }
+protected:
+    int age = 1;    // protected：派生类可访问，外界不可
+};
+
+class Dog : public Animal {   // public 继承：Dog is-a Animal
+public:
+    void bark() const { std::cout &lt;&lt; name &lt;&lt; " 汪汪叫\n"; }
+    void grow() { ++age; std::cout &lt;&lt; name &lt;&lt; " 长到 " &lt;&lt; age &lt;&lt; " 岁\n"; }
+};
+
+int main() {
+    Dog d;
+    d.name = "旺财";
+    d.eat();       // 继承自基类的公有成员
+    d.bark();
+    d.grow();
+    // d.age = 5;   // ⛔ 编译错误：age 是 protected，外界不可访问
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">吃东西
+旺财 汪汪叫
+旺财 长到 2 岁</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第12行</b>：<code>: public Animal</code> 定义继承关系。Dog 对象内部包含一个完整的 Animal 子对象。</li>
+        <li><b>第21行</b>：<code>eat</code> 从基类原样继承而来，Dog 直接可用。</li>
+        <li><b>第23行</b>：<code>grow</code> 修改的是继承来的 protected 成员 <code>age</code>（1→2）。派生类成员函数有权访问。</li>
+        <li><b>第24行</b>：注释掉的这行若取消注释就是编译错误——外界访问 protected 成员被拒绝。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>把 <code>age</code> 改成 <code>private</code>：<code>grow()</code> 里的 <code>++age</code> 也会变成编译错误——<b>private 连“子女”都进不去</b>，protected 比 private 只多开放“派生类内部”这一层。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>判断题“派生类可以访问基类的 private 成员”为<b>假</b>；能访问的是 public 和 protected。反过来，“外界可以访问 protected 成员”也是假。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 19, "vars": { "d": "Dog 对象（内含 Animal 子对象）" }, "out": "", "note": "定义派生类对象 d：先构造 Animal 子对象，再构造 Dog 自己的部分" },
+      { "line": 20, "vars": { "d.name": "旺财" }, "out": "", "note": "name 是基类 public 成员，外界可直接赋值" },
+      { "line": 21, "vars": { "d.name": "旺财" }, "out": "吃东西", "note": "eat 继承自基类，无需重写" },
+      { "line": 22, "vars": { "d.name": "旺财" }, "out": "旺财 汪汪叫", "note": "Dog 自己新增的成员函数" },
+      { "line": 23, "vars": { "d.age": "2" }, "out": "旺财 长到 2 岁", "note": "派生类内部访问 protected 成员 age：1→2；外界访问则编译错误" },
+      { "line": 26, "vars": {}, "out": "", "note": "d 离开作用域：先析构 Dog 部分，再析构 Animal 子对象（示例2 详解）" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 3. 构造与析构顺序 ================= -->
+  <h2>2. 构造与析构顺序：先基类，后派生</h2>
+  <p>派生类对象由“基类子对象 + 派生类自己的成员”拼成。构造时<b>先基类、再成员、最后才执行派生类构造函数体</b>；析构严格相反。若基类构造函数需要参数，派生类必须在初始化列表里显式调用它：<code>Derived(int v) : Base(v) {}</code>。</p>
+
+  <article class="example-card" id="ch08-ex-02">
+    <div class="ex-head">
+      <h3 class="ex-title">示例2：构造 1→2→3，析构 4→5→6（严格相反）</h3>
+      <div class="ex-meta"><span class="tag">知识点：构造/析构顺序</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+class Base {
+public:
+    Base()  { std::cout &lt;&lt; "1. Base 构造\n"; }
+    ~Base() { std::cout &lt;&lt; "6. Base 析构\n"; }
+};
+
+class Member {
+public:
+    Member()  { std::cout &lt;&lt; "2. Member 构造\n"; }
+    ~Member() { std::cout &lt;&lt; "5. Member 析构\n"; }
+};
+
+class Derived : public Base {
+public:
+    Member m;   // 成员对象
+    Derived()  { std::cout &lt;&lt; "3. Derived 构造\n"; }
+    ~Derived() { std::cout &lt;&lt; "4. Derived 析构\n"; }
+};
+
+int main() {
+    Derived d;
+    std::cout &lt;&lt; "---- d 的构造已完成 ----\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">1. Base 构造
+2. Member 构造
+3. Derived 构造
+---- d 的构造已完成 ----
+4. Derived 析构
+5. Member 析构
+6. Base 析构</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>构造 1→2→3</b>：先调用基类 <code>Base</code> 构造函数；然后构造成员 <code>m</code>（成员在进入派生类构造函数体<b>之前</b>构造好）；最后才执行 <code>Derived()</code> 函数体——函数体执行时，基类和成员已就绪。</li>
+        <li><b>析构 4→5→6</b>：<code>d</code> 在 <code>main</code> 结束时销毁，顺序与构造<b>严格相反</b>：先派生类析构函数体，再成员，最后基类。</li>
+        <li>多层继承同理：<code>Base</code> → <code>Mid</code> → <code>Derived</code>，析构倒过来。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>基类构造带参数时必须在初始化列表里调用：<code>Derived(int v) : Base(v), m() {}</code>——漏写 <code>Base(v)</code> 且 Base 无默认构造时是编译错误。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>选择题最爱把“成员先于基类构造”当正确项。<b>永远是基类最先构造</b>，成员排在基类之后、派生类函数体之前；析构完全相反。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 23, "vars": {}, "out": "", "note": "构造 d：先执行基类 Base 的构造函数" },
+      { "line": 5, "vars": {}, "out": "1. Base 构造", "note": "基类子对象最先就绪" },
+      { "line": 11, "vars": {}, "out": "2. Member 构造", "note": "成员 m 在进入 Derived 构造函数体之前构造" },
+      { "line": 18, "vars": {}, "out": "3. Derived 构造", "note": "最后才执行派生类构造函数体" },
+      { "line": 24, "vars": {}, "out": "---- d 的构造已完成 ----", "note": "对象完整可用了" },
+      { "line": 26, "vars": {}, "out": "4. Derived 析构", "note": "main 结束，d 销毁：顺序与构造严格相反" },
+      { "line": 12, "vars": {}, "out": "5. Member 析构", "note": "成员随后析构" },
+      { "line": 6, "vars": {}, "out": "6. Base 析构", "note": "基类子对象最后析构" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 4. 虚函数与动态绑定 ================= -->
+  <h2>3. 虚函数与动态绑定：多态的核心</h2>
+  <p>把基类成员函数标成 <code>virtual</code>，再通过<b>基类指针或基类引用</b>去调用，执行哪个版本就由对象的<b>动态类型</b>在运行时决定——这叫<b>动态绑定</b>（动态多态）。发生多态的三个要素缺一不可：① 函数是虚函数；② 通过指针或引用调用；③ 指针/引用实际指向派生类对象。</p>
+
+  <article class="example-card" id="ch08-ex-03">
+    <div class="ex-head">
+      <h3 class="ex-title">示例3：同一调用语句，不同对象不同行为</h3>
+      <div class="ex-meta"><span class="tag">知识点：虚函数 / 动态绑定</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+class Shape {
+public:
+    virtual void draw() const { std::cout &lt;&lt; "画一个 Shape\n"; }
+    virtual ~Shape() {}          // 多态基类配虚析构（第 7 节细讲）
+};
+
+class Circle : public Shape {
+public:
+    void draw() const override { std::cout &lt;&lt; "画一个圆形 ●\n"; }
+};
+
+class Square : public Shape {
+public:
+    void draw() const override { std::cout &lt;&lt; "画一个方块 ■\n"; }
+};
+
+void paint(const Shape&amp; s) { s.draw(); }   // 通过基类引用调用 → 动态绑定
+
+int main() {
+    Circle c;
+    Square sq;
+    Shape* p = &amp;c;
+    p-&gt;draw();        // 基类指针指向 Circle → 调 Circle::draw
+    p = &amp;sq;
+    p-&gt;draw();        // 同一条语句，指向 Square → 调 Square::draw
+    paint(c);         // 基类引用绑定 Circle → 调 Circle::draw
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">画一个圆形 ●
+画一个方块 ■
+画一个圆形 ●</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：<code>virtual</code> 把 <code>draw</code> 声明为虚函数，这是动态绑定的“开关”。派生类里重复写 <code>virtual</code> 可省略（写了也对）。</li>
+        <li><b>第24行</b>：<code>Shape* p = &amp;c;</code> —— 指针的<b>静态类型</b>是 <code>Shape*</code>，但它指向的对象的<b>动态类型</b>是 <code>Circle</code>。</li>
+        <li><b>第25、27行</b>：同一条语句 <code>p-&gt;draw()</code> 执行了两次、打印了不同结果——因为 <code>draw</code> 是虚函数，运行时“看对象本身”选版本。这就是多态。</li>
+        <li><b>第28行</b>：通过基类引用 <code>s.draw()</code> 同样动态绑定；函数参数写成 <code>const Shape&amp;</code> 是多态设计的标准写法。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>若直接用对象调用：<code>c.draw();</code> —— 对象类型在编译期就完全确定，走的是静态绑定（结果同样是 Circle 版本，但机制不同）。<b>只有“指针或引用 + 虚函数”才谈得上动态绑定</b>。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>派生类里的 <code>override</code> 关键字是 C++11 的“保险丝”，本例先混个眼熟，下一节详解它。</p>
+    </div>
+  </article>
+
+  <div class="compare">
+    <div class="compare-col badc">
+      <h4>❌ 没有 virtual（按静态类型调用）</h4>
+      <pre><code class="cpp">// 片段：draw 不是虚函数
+struct Shape {
+    void draw() const {
+        std::cout &lt;&lt; "Shape\n"; }
+};
+struct Circle : Shape {
+    void draw() const {
+        std::cout &lt;&lt; "Circle\n"; }
+};
+
+Shape* p = new Circle;
+p-&gt;draw();   // 看"指针类型"
+             // → Shape</code></pre>
+      <p>输出：</p>
+      <pre><code class="output-text">Shape</code></pre>
+    </div>
+    <div class="compare-col good">
+      <h4>✅ 有 virtual（按动态类型调用）</h4>
+      <pre><code class="cpp">// 片段：draw 是虚函数
+struct Shape {
+    virtual void draw() const {
+        std::cout &lt;&lt; "Shape\n"; }
+    virtual ~Shape() {}  // 配虚析构
+};
+struct Circle : Shape {
+    void draw() const override {
+        std::cout &lt;&lt; "Circle\n"; }
+};
+
+Shape* p = new Circle;
+p-&gt;draw();   // 看"对象类型"
+             // → Circle</code></pre>
+      <p>输出：</p>
+      <pre><code class="output-text">Circle</code></pre>
+    </div>
+  </div>
+
+  <div class="note">底层一句话：每个含虚函数的类有一张“虚函数表”，对象里存一个指向它的指针；调用虚函数时按对象里的指针查表——所以“看对象本身”，而不是“看指针的类型”。虚函数有少量运行期开销。</div>
+
+  <!-- ================= 5. 对象切片 ================= -->
+  <h2>4. 对象切片：按值传递丢失派生部分</h2>
+  <p>用派生类对象去<b>初始化或赋值一个基类对象</b>（注意：是对象，不是指针/引用）时，只有基类子对象被复制，派生类部分被丢弃——这就是<b>对象切片（slicing）</b>。切片出来的对象虚表也是基类的，多态彻底失效。这是“同一份代码，为什么行为不对”的经典考题。</p>
+
+  <article class="example-card" id="ch08-ex-04">
+    <div class="ex-head">
+      <h3 class="ex-title">示例4：按值传参切片，按引用传参多态</h3>
+      <div class="ex-meta"><span class="tag">知识点：对象切片</span><span class="tag amber">高频考点</span><span class="tag red">经典陷阱</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+class Animal {
+public:
+    virtual void speak() const { std::cout &lt;&lt; "Animal 声音\n"; }
+    virtual ~Animal() {}
+};
+
+class Cat : public Animal {
+public:
+    void speak() const override { std::cout &lt;&lt; "喵~\n"; }
+};
+
+void byValue(Animal a)      { a.speak(); }   // 按值：发生切片
+void byRef(const Animal&amp; a) { a.speak(); }   // 按引用：多态保留
+
+int main() {
+    Cat cat;
+    Animal&amp; r = cat;       // 引用：cat 完整无缺
+    Animal  v = cat;       // ⚠ 切片：v 只拷贝了 Animal 子对象
+
+    byValue(cat);          // 喵丢失 → Animal 声音
+    byRef(cat);            // 多态 → 喵~
+    r.speak();             // 喵~
+    v.speak();             // Animal 声音（v 已是纯 Animal）
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">Animal 声音
+喵~
+喵~
+Animal 声音</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第19行</b>：<code>Animal&amp; r = cat;</code> 只是给 cat 起别名，cat 本身不变，<code>r.speak()</code> 动态绑定到 Cat。</li>
+        <li><b>第20行</b>：<code>Animal v = cat;</code> 触发 Animal 的拷贝构造——只复制 Animal 子对象，Cat 的部分被丢弃。v 已是纯 Animal 对象。</li>
+        <li><b>第22行</b>：<code>byValue</code> 的形参是 <code>Animal a</code>，传入时发生一次与第 20 行完全相同的切片——函数里无论做什么都不再多态。</li>
+        <li><b>第23行</b>：<code>byRef</code> 的形参是 <code>const Animal&amp;</code>，引用直接绑到 cat 上，多态完好。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>std::vector&lt;Animal&gt;</code> 里存 <code>Cat</code> 也会切片（容器元素就是按值存的）。要多态请存指针：<code>std::vector&lt;std::unique_ptr&lt;Animal&gt;&gt;</code>（第 9 章详述智能指针）。</p>
+    </div>
+    <div class="memviz"><script type="application/json" class="mem-data">{ "title": "Animal v = cat;（切片）之后的内存示意",
+      "regions": [
+        { "addr": "0x7ffd…20", "name": "cat", "type": "Cat", "value": "Animal 子对象 + Cat 自己的部分", "note": "完整对象，虚表指针指向 Cat 的虚表 → speak() 出喵" },
+        { "addr": "0x7ffd…40", "name": "v", "type": "Animal", "value": "只有 Animal 子对象", "note": "Cat 部分被切掉，虚表指针指向 Animal 的虚表 → speak() 出 Animal 声音" }
+      ],
+      "note": "切片 = 用派生类对象初始化基类对象时只拷贝基类子对象。指针/引用不切片：它们仍指向完整的 cat。" }</script></div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 19, "vars": { "r": "指向 cat（动态类型 Cat）" }, "out": "", "note": "引用绑定，cat 完整无缺" },
+      { "line": 20, "vars": { "v": "纯 Animal（切片副本）" }, "out": "", "note": "Animal v = cat：只拷贝 Animal 子对象，切片发生" },
+      { "line": 22, "vars": {}, "out": "Animal 声音", "note": "byValue 的形参是切片出来的 Animal，speak 静态解析到基类版本" },
+      { "line": 23, "vars": {}, "out": "喵~", "note": "byRef 形参是 const Animal&，动态绑定到 Cat::speak" },
+      { "line": 24, "vars": {}, "out": "喵~", "note": "r 仍指向完整的 cat，多态有效" },
+      { "line": 25, "vars": {}, "out": "Animal 声音", "note": "v 是独立 Animal 对象，与 cat 再无关系" }
+    ] }</script>
+  </article>
+
+  <div class="tip">函数参数永远写 <code>const Shape&amp;</code> 而不是 <code>Shape</code>：既省一次拷贝，又保住多态。</div>
+
+  <!-- ================= 6. override 与 final ================= -->
+  <h2>5. override 与 final（C++11）</h2>
+  <p><code>override</code> 明确告诉编译器“我要覆盖基类虚函数”：签名对不上就<b>编译报错</b>，把运行期才暴露的 bug 消灭在编译期。<code>final</code> 反过来：禁止派生类再覆盖这个虚函数（用在类上则禁止再继承）。这两个关键字没有运行期开销，<b>现代 C++ 中派生类覆盖虚函数必须写 override</b>。</p>
+
+  <article class="example-card" id="ch08-ex-05">
+    <div class="ex-head">
+      <h3 class="ex-title">示例5：少写一个 const，“覆盖”静默变成新函数（经典 bug）</h3>
+      <div class="ex-meta"><span class="tag">知识点：override</span><span class="tag amber">高频考点</span><span class="tag red">经典陷阱</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+class Base {
+public:
+    virtual void show() const { std::cout &lt;&lt; "Base::show\n"; }
+    virtual ~Base() {}
+};
+
+class Derived : public Base {
+public:
+    void show() { std::cout &lt;&lt; "Derived::show\n"; }
+    // ⚠ 少写了 const：签名与 Base::show() const 不同，
+    //   这不是覆盖，而是定义了一个新函数并"隐藏"了基类版本！
+    // 若写成 void show() override { ... } —— 编译错误，bug 当场暴露
+};
+
+int main() {
+    Derived d;
+    Base* p = &amp;d;
+    p-&gt;show();   // 想多态，但 Derived 没覆盖 → 调的仍是 Base::show
+    d.show();    // 直接调用：名字查找选中的是 Derived 的新函数
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">Base::show
+Derived::show</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第11行</b>：虚函数的签名包括<b>参数列表和 const 修饰</b>。<code>show()</code> 与 <code>show() const</code> 是两个不同的函数，前者不能覆盖后者。</li>
+        <li><b>第20行</b>：<code>p-&gt;show()</code> 走动态绑定，但 Derived 根本没有覆盖 <code>show() const</code>，虚表里还是 Base 的版本——程序员以为的多态<b>静默失效</b>。</li>
+        <li><b>第21行</b>：<code>d.show()</code> 直接按对象类型做名字查找，找到 Derived 的新函数（顺带把基类的 <code>show() const</code> 隐藏了）。</li>
+        <li>给第 11 行加上 <code>override</code>：编译器立即报错“标记了 override 但没有匹配的虚函数可覆盖”，bug 在编译期现形。<b>这就是 override 的全部价值：防拼写错、防签名不匹配。</b></li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>同类的坑还有：基类是 <code>show(int)</code>，派生类写成 <code>show(double)</code>；或基类函数名拼错。<code>override</code> 能在编译期拦住这类问题。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>override</code> 不是虚函数的“开关”（开关是基类的 <code>virtual</code>），它是<b>编译期检查标记</b>。判断题“加了 override 才是虚函数”为假。</p>
+    </div>
+  </article>
+
+  <article class="example-card" id="ch08-ex-06">
+    <div class="ex-head">
+      <h3 class="ex-title">示例6：final——禁止再覆盖、禁止再继承</h3>
+      <div class="ex-meta"><span class="tag">知识点：final</span><span class="tag">C++11</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+class Base {
+public:
+    virtual void log() const { std::cout &lt;&lt; "Base::log\n"; }
+    virtual ~Base() {}
+};
+
+class Mid : public Base {
+public:
+    void log() const final { std::cout &lt;&lt; "Mid::log\n"; }
+    // ↑ final：到此为止，任何派生类不得再覆盖 log
+};
+
+// class Bad : public Mid {
+// public:
+//     void log() const override { }   // ⛔ 编译错误：log 已被 final 锁定
+// };
+
+int main() {
+    Mid m;
+    Base* p = &amp;m;
+    p-&gt;log();        // 覆盖链仍然有效：调 Mid::log
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">Mid::log</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第11行</b>：<code>final</code> 加在被覆盖的虚函数上：Mid 覆盖了 Base::log，同时禁止派生类再覆盖。取消注释 <code>Bad</code> 即得编译错误。</li>
+        <li><b>第23行</b>：<code>Mid</code> 对 <code>log</code> 的覆盖本身有效，动态绑定正常发生。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p><code>final</code> 也可以用在类名上：<code>class Mid final : public Base { ... };</code> —— 整个类禁止被继承，安全性检查也更友好。设计“到此为止、不许扩展”的类时使用。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>final</code> 不是“终结这个函数存在”，而是“终结覆盖链/继承链”。final 修饰虚函数时该函数仍可被正常调用与动态绑定。</p>
+    </div>
+  </article>
+
+  <!-- ================= 7. 纯虚函数与抽象类 ================= -->
+  <h2>6. 纯虚函数与抽象类：接口设计</h2>
+  <p><code>virtual double area() const = 0;</code> 是<b>纯虚函数</b>：只声明“我有什么能力”，不给实现。含纯虚函数的类叫<b>抽象类</b>：不能创建对象，只能被继承，是 C++ 表达“接口”的方式。派生类必须实现<b>全部</b>纯虚函数，否则它自己也是抽象类。</p>
+
+  <article class="example-card" id="ch08-ex-07">
+    <div class="ex-head">
+      <h3 class="ex-title">示例7：抽象类 Shape 作为接口，派生类各自实现</h3>
+      <div class="ex-meta"><span class="tag">知识点：纯虚函数 / 抽象类</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+class Shape {                          // 抽象类：含纯虚函数
+public:
+    virtual double area() const = 0;   // 纯虚函数：= 0 表示"无实现，必须覆盖"
+    virtual void   describe() const = 0;
+    virtual ~Shape() {}
+};
+
+class Circle : public Shape {
+public:
+    explicit Circle(double r) : radius(r) {}
+    double area() const override { return 3.14159 * radius * radius; }
+    void   describe() const override {
+        std::cout &lt;&lt; "圆形，面积 " &lt;&lt; area() &lt;&lt; "\n";
+    }
+private:
+    double radius;
+};
+
+class Rect : public Shape {
+public:
+    Rect(double w, double h) : w(w), h(h) {}
+    double area() const override { return w * h; }
+    void   describe() const override {
+        std::cout &lt;&lt; "矩形，面积 " &lt;&lt; area() &lt;&lt; "\n";
+    }
+private:
+    double w, h;
+};
+
+int main() {
+    // Shape s;         // ⛔ 编译错误：抽象类不能实例化
+    Circle c(2.0);
+    Rect r(3.0, 4.0);
+    Shape* shapes[2] = { &amp;c, &amp;r };   // 基类指针数组：统一管理不同图形
+    for (Shape* s : shapes) s-&gt;describe();   // 同一条语句，两种行为
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">圆形，面积 12.5664
+矩形，面积 12</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5~6行</b>：<code>= 0</code> 是纯虚函数的标志。Shape 只规定“图形必须能算面积、能 describe”，自己不实现——所以禁止实例化。</li>
+        <li><b>第33行</b>：抽象类唯一合法的用法就是当基类。注释掉的那行取消注释即编译错误。</li>
+        <li><b>第37行</b>：范围 for 遍历基类指针数组，<code>s-&gt;describe()</code> 一条语句分别调出 Circle、Rect 的版本；describe 内部再调 <code>area()</code>，同样动态绑定到各自的实现。新增图形时只需再加一个派生类，这段循环不用改。</li>
+        <li><b>输出</b>：3.14159×2×2 = 12.56636，cout 默认 6 位有效数字显示 12.5664；3×4 = 12.0 显示为 12。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>派生类只要<b>漏实现任意一个</b>纯虚函数，它自己也成了抽象类——此时 <code>Circle c(2.0);</code> 报编译错误“不能实例化抽象类”。另外，<b>抽象类可以有构造函数</b>（供派生类调用）、可以有数据成员，“抽象 = 什么都没有”是误解。</p>
+    </div>
+  </article>
+
+  <!-- ================= 8. 虚析构 ================= -->
+  <h2>7. 虚析构函数</h2>
+  <p>多态场景里，对象常用 <code>new</code> 创建、用<b>基类指针</b>持有，最后 <code>delete</code> 这个基类指针。此时 <code>delete</code> 调用哪个析构函数，取决于析构函数是不是 virtual——不是，就是<b>未定义行为</b>。</p>
+
+  <article class="example-card" id="ch08-ex-08">
+    <div class="ex-head">
+      <h3 class="ex-title">示例8：基类析构不是 virtual 时 delete 基类指针（UB 示范）</h3>
+      <div class="ex-meta"><span class="tag red">未定义行为示范</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+class Shape {
+public:
+    Shape()  { std::cout &lt;&lt; "Shape 构造\n"; }
+    ~Shape() { std::cout &lt;&lt; "Shape 析构\n"; }   // ⚠ 不是 virtual
+};
+
+class Circle : public Shape {
+public:
+    Circle()  { std::cout &lt;&lt; "  Circle 构造\n"; }
+    ~Circle() { std::cout &lt;&lt; "  Circle 析构\n"; }
+};
+
+int main() {
+    Shape* p = new Circle();   // 基类指针指向派生类对象
+    delete p;                  // ⛔ 静态类型 Shape 的析构不是 virtual
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-pitfall">
+      <h4>⚠ 为什么没有“预期输出”？</h4>
+      <div class="ub-warning">通过基类指针 <code>delete</code> 一个派生类对象，而基类析构函数不是 virtual——这是<b>未定义行为</b>（标准 §expr.delete：静态类型与动态类型不符且基类析构非虚时，结果未定义）。常见症状是只执行 <code>Shape::~Shape</code>（派生类析构被跳过，若派生类持有资源即泄漏），但标准允许任何结果。因此本例<b>不给出预期输出</b>；凡“给出非虚析构 + 基类指针 delete 的确定输出”的考题本身就是错题。</div>
+      <p><b>修复</b>：把 <code>~Shape()</code> 改成 <code>virtual ~Shape() = default;</code>。经验法则：<b>只要一个类会被继承（作为多态基类使用），它的析构函数就声明为 virtual</b>。</p>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比：修复后（虚析构，可安全 delete）</h4>
+      <pre><code class="cpp">#include &lt;iostream&gt;
+
+class Shape {
+public:
+    virtual ~Shape() = default;   // 虚析构
+};
+
+class Circle : public Shape {
+public:
+    ~Circle() { std::cout &lt;&lt; "Circle 析构\n"; }
+};
+
+int main() {
+    Shape* p = new Circle();
+    delete p;      // 先 ~Circle 再 ~Shape，完整析构
+    return 0;
+}</code></pre>
+      <p>预期输出：</p>
+      <pre><code class="output-text">Circle 析构</code></pre>
+      <p>析构从实际类型出发、自上而下走完整条链：先派生类析构函数体，再基类——与栈上对象（示例2）的方向一致。</p>
+    </div>
+  </article>
+
+  <div class="keypoint">记法：构造“自底向上搭积木”（基类 → 成员 → 派生类），析构“自顶向下拆积木”。虚析构保证 <code>delete 基类指针</code> 时从正确的积木开始拆。</div>
+
+  <!-- ================= 9. 构造/析构中调用虚函数 ================= -->
+  <h2>8. 构造/析构函数中调用虚函数：不分发（经典考题）</h2>
+  <p>构造 <code>Base</code> 部分时，对象的“已构造完成的部分”还只是 Base（Derived 部分尚未出生）；析构到 Base 时，Derived 部分“已经没了”。因此标准规定：<b>在构造函数和析构函数中调用虚函数，调用的是“当前正在构造/析构的类”自己的版本，不会动态分发到派生类</b>。</p>
+
+  <article class="example-card" id="ch08-ex-09">
+    <div class="ex-head">
+      <h3 class="ex-title">示例9：构造函数中调用 init() 解析到哪个版本</h3>
+      <div class="ex-meta"><span class="tag">知识点：构造/析构与虚函数</span><span class="tag amber">高频考点</span><span class="tag red">经典陷阱</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+class Base {
+public:
+    Base() { init(); }                              // 构造函数中调用虚函数
+    virtual void init() { std::cout &lt;&lt; "Base::init\n"; }
+    virtual ~Base() {}
+};
+
+class Derived : public Base {
+public:
+    void init() override { std::cout &lt;&lt; "Derived::init\n"; }
+};
+
+int main() {
+    Derived d;    // 构造期间：Base::Base() 里调用了 init()
+    d.init();     // 对象构造完成后：正常动态绑定
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">Base::init
+Derived::init</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：构造 <code>d</code> 时先执行 <code>Base()</code>。此刻 Derived 部分还没构造，对象的动态类型“暂记为 Base”，虚函数机制只能看到 Base 的虚表——<code>init()</code> 解析到 <code>Base::init</code>，<b>不会</b>分发到 Derived 的版本。</li>
+        <li><b>第17行</b>：整个对象构造完成后，动态类型才变成 Derived；这时再调 <code>init()</code>（经对象调用，静态类型即 Derived）走到 <code>Derived::init</code>。</li>
+        <li><b>析构方向同理</b>：<code>~Derived</code> 执行完、进入 <code>~Base</code> 后，对象“退化”回 Base——此时调用虚函数得到的是 Base 的版本。构造越走越“具体”，析构越走越“抽象”，虚分发只能看见“当前这一层”。</li>
+        <li>工程启示：别指望基类构造函数能调用到派生类的初始化逻辑；需要“两段式初始化”时显式提供并调用初始化函数。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>若把 <code>init</code> 改成纯虚函数（Base 不给实现），<code>Base()</code> 里调用它会链接失败/未定义——因为此刻“Base 的版本”根本不存在。这也反证了上面的规则。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>判断题“构造函数中调用虚函数会分发到派生类 override 版本”为<b>假</b>。这不是 UB，是标准明文规定的行为——考试可以考它的<b>确定输出</b>。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 16, "vars": {}, "out": "", "note": "构造 Derived d：先进入基类 Base 的构造函数" },
+      { "line": 5, "vars": {}, "out": "Base::init", "note": "此刻动态类型是 Base，虚分发只看得到 Base 的虚表 → 调 Base::init，不分发到 Derived" },
+      { "line": 16, "vars": {}, "out": "", "note": "Base 部分构造完毕，接着执行 Derived 的默认构造（编译器生成）" },
+      { "line": 17, "vars": {}, "out": "Derived::init", "note": "对象已构造完成，动态类型是 Derived → 调 Derived::init" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 10. 名字隐藏 ================= -->
+  <h2>9. 名字隐藏与 using Base::f</h2>
+  <p>派生类里定义了与基类<b>同名</b>的函数（无论参数是否相同、无论虚不虚），基类的<b>整个同名重载集</b>都被隐藏——这不是重载，是<b>名字隐藏（name hiding）</b>：名字查找先在派生类作用域完成，找到了就不再上溯。要恢复基类的重载集，在派生类里写 <code>using Base::f;</code>。</p>
+
+  <article class="example-card" id="ch08-ex-10">
+    <div class="ex-head">
+      <h3 class="ex-title">示例10：一个 f(int) 隐藏了基类的全部 f</h3>
+      <div class="ex-meta"><span class="tag">知识点：名字隐藏</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+class Base {
+public:
+    void f()      { std::cout &lt;&lt; "Base::f()\n"; }
+    void f(int x) { std::cout &lt;&lt; "Base::f(int)=" &lt;&lt; x &lt;&lt; "\n"; }
+};
+
+class Derived : public Base {
+public:
+    void f() { std::cout &lt;&lt; "Derived::f()\n"; }  // 隐藏了 Base::f() 和 Base::f(int)
+    // using Base::f;  ← 取消注释可恢复基类的全部重载
+};
+
+int main() {
+    Derived d;
+    d.f();       // Derived::f()
+    // d.f(3);   // ⛔ 编译错误：Base::f(int) 被名字隐藏，重载集没有带进来
+    Base&amp; b = d;
+    b.f();       // 非虚函数：按静态类型调用 → Base::f()
+    b.f(3);      // Base::f(int)=3
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">Derived::f()
+Base::f()
+Base::f(int)=3</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第11行</b>：派生类的 <code>f()</code> 与基类的 <code>f(int)</code> 参数不同，<b>不构成重载</b>——按名字查找：先找到 Derived 作用域里的 <code>f</code>，查找停止，基类的所有 <code>f</code> 一律不可见。</li>
+        <li><b>第18行</b>：<code>d.f(3)</code> 因此是编译错误：候选只有 <code>Derived::f()</code>，不接受 int 实参。</li>
+        <li><b>第19~21行</b>：<code>f</code> 不是虚函数，经基类引用调用按<b>静态类型</b> Base 查找 → Base 的两个重载都正常可用。</li>
+        <li><b>修复</b>：在 Derived 里加 <code>using Base::f;</code>，把基类重载集引入派生类作用域，<code>d.f(3)</code> 立刻合法。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>名字隐藏与虚函数互不冲突：若基类 <code>virtual void f()</code>、派生类 <code>void f(int)</code>，前者被隐藏（虚表还在，经基类指针调用仍是多态），后者是普通新函数。分两件事记忆：虚不虚看基类声明，见不见得到看名字查找。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>“派生类的 f(int) 和基类的 f() 构成重载”是<b>假</b>命题——跨类作用域没有重载，只有隐藏。重载只发生在同一个作用域里。</p>
+    </div>
+  </article>
+
+  <!-- ================= 11. 多继承与菱形 ================= -->
+  <h2>10. 多继承、菱形继承与虚继承（点到为止）</h2>
+  <p>语法上一个类可以继承多个基类：<code>class D : public B, public C</code>。多继承容易带来二义性与菱形结构，工程上建议慎用（优先单继承 + 组合），考试一般只考概念。菱形继承：<code>B</code>、<code>C</code> 都继承 <code>A</code>，<code>D</code> 又继承 <code>B</code>、<code>C</code>——D 中会有<b>两份</b> A 子对象，访问 A 的成员产生二义性。让 B、C 用<b>虚继承</b>（<code>virtual public A</code>），则 D 中只保留<b>一份</b> A。</p>
+
+  <article class="example-card" id="ch08-ex-11">
+    <div class="ex-head">
+      <h3 class="ex-title">示例11：菱形继承 + 虚继承，A 只有一份</h3>
+      <div class="ex-meta"><span class="tag">知识点：菱形继承 / 虚继承</span><span class="tag purple">了解即可</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+class A { public: int x = 1; };
+
+class B : virtual public A { };   // 虚继承：声明"我愿意与别人共享这份 A"
+class C : virtual public A { };   // 同上
+class D : public B, public C { }; // 菱形：D 中只有一份 A
+
+int main() {
+    D d;
+    d.x = 42;                      // 若不用虚继承：编译错误（二义性）
+    A* p1 = static_cast&lt;B*&gt;(&amp;d);   // 经 B 看到的 A 子对象
+    A* p2 = static_cast&lt;C*&gt;(&amp;d);   // 经 C 看到的 A 子对象
+    std::cout &lt;&lt; d.x &lt;&lt; "\n";
+    std::cout &lt;&lt; (p1 == p2 ? "同一个 A" : "两个不同的 A") &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">42
+同一个 A</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5~6行</b>：<code>virtual public A</code> 是虚继承的写法（virtual 与 public 顺序可换）。它不代表虚函数，纯粹是继承方式的关键字——一词两用，注意区分。</li>
+        <li><b>第11行</b>：虚继承后 D 只含一份 A，<code>d.x</code> 没有二义性。若去掉两个 virtual，此行直接编译错误：“x 是二义的”。</li>
+        <li><b>第12~13行</b>：两条路径向上取 A 子对象，指针相等（<code>p1 == p2</code> 为真）说明确实只有一份。不用虚继承时是两个不同的 A，两行会打印“两个不同的 A”。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>虚继承的代价：对象里要存额外的“虚基类偏移”信息，访问虚基类成员也多一次间接。标准库 iostream 体系就是最著名的虚继承案例（istream、virtual public ios）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>判断题“菱形继承必然导致编译错误”为<b>假</b>——不虚继承也能编译，只是访问公共基类成员（或把 D* 转成 A*）时二义报错。考概念时答“两份基类子对象、需虚继承合并”即可。</p>
+    </div>
+  </article>
+
+  <!-- ================= 12. 练习：排序 ================= -->
+  <h2>11. 练习：把构造与析构的输出排成正确顺序</h2>
+
+  <article class="example-card" id="ch08-ex-12">
+    <div class="ex-head">
+      <h3 class="ex-title">练习：一层次继承对象的完整生命周期</h3>
+      <div class="ex-meta"><span class="tag purple">互动练习</span></div>
+    </div>
+    <p>程序骨架如下（各类的构造/析构函数都会打印自己的名字）：</p>
+    <pre><code class="cpp">// 片段
+class Base   { /* 打印构造/析构 */ };
+class Member { /* 打印构造/析构 */ };
+class Derived : public Base {
+    Member m;   // 成员对象
+};
+int main() { Derived d; return 0; }</code></pre>
+    <p>下面 6 行输出被打乱了，请拖动（或用 ↑↓ 按钮）恢复真实顺序：</p>
+    <div class="widget-sort"><script type="application/json" class="sort-data">{ "items": [
+      "Base 构造",
+      "Member 构造",
+      "Derived 构造",
+      "Derived 析构",
+      "Member 析构",
+      "Base 析构"
+    ], "hint": "构造从基类到派生类进行，成员对象夹在中间；析构与构造严格相反。",
+    "explain": "构造 d：先 Base，再成员 m，最后 Derived 构造函数体；d 离开作用域时反序析构：Derived 函数体 → m → Base。“先构造的后析构”一类的口诀都成立。" }</script></div>
+  </article>
+
+  <!-- ================= 13. 常见错误 ================= -->
+  <h2>12. 常见错误</h2>
+  <div class="warn"><b>1. 忘写 virtual，“多态”静默失效</b>——基类函数没标 <code>virtual</code>，派生类同签名函数只是隐藏；指针调用永远走基类版本。修复：基类标 virtual，派生类加 <code>override</code> 让编译器验证。</div>
+  <div class="warn"><b>2. 按值传参 / 按值存储导致切片</b>——<code>void f(Shape s)</code>、<code>vector&lt;Shape&gt;</code> 都会斩掉派生部分。修复：参数用 <code>const Shape&amp;</code>，容器存 <code>unique_ptr&lt;Shape&gt;</code>。</div>
+  <div class="warn"><b>3. 覆盖签名不匹配</b>——少写 const、参数类型不同、函数名拼错，都让“覆盖”变成新函数。修复：一律写 <code>override</code>，签名错直接编译报错。</div>
+  <div class="ub-warning"><b>4. 基类析构非虚 + 基类指针 delete 派生类对象</b>——未定义行为（示例 8）：标准不保证派生类析构执行，常见症状是资源泄漏。修复：多态基类的析构函数声明为 <code>virtual</code>。这不是“会输出什么”的问题，考试不考它的输出，只考“这是 UB，必须虚析构”。</div>
+  <div class="warn"><b>5. 名字隐藏误伤基类重载集</b>——派生类定义一个同名函数，基类同名函数全部不可见。修复：派生类内 <code>using Base::f;</code>。</div>
+  <div class="warn"><b>6. 在构造/析构函数中调用虚函数期待派生类版本</b>——调到的是“当前正在构造/析构的类”的版本（示例 9）。这是确定行为，不是 UB，但常被当成 bug 报告；要两段式初始化请显式调用 init 函数。</div>
+  <p>更多同类错误见 <a href="../errors.html">编译错误博物馆</a>（如“不能实例化抽象类”“成员初始化顺序”），以及 <a href="../exam-pitfalls.html">考试易错点</a> 中的“继承与多态”专题。</p>
+
+  <!-- ================= 14. 标准差异 ================= -->
+  <h2>13. C++ 标准差异小结</h2>
+  <table class="data-table">
+    <tr><th>特性</th><th>C++98</th><th>C++11 及以后</th></tr>
+    <tr><td><code>override</code> / <code>final</code></td><td>不存在，签名写错只能静默出 bug</td><td>引入：编译期把关覆盖 / 封锁覆盖与继承</td></tr>
+    <tr><td>虚析构 <code>virtual ~Shape() = default;</code></td><td>只能写空函数体 <code>{}</code></td><td><code>= default</code> 写法更清晰</td></tr>
+    <tr><td>类内成员默认初始化 <code>int age = 1;</code></td><td>不允许</td><td>允许（示例 1 所用写法）</td></tr>
+    <tr><td>范围 for（示例 7 所用）</td><td>不存在</td><td>标准语法</td></tr>
+    <tr><td>纯虚函数 / 抽象类 / 虚继承</td><td colspan="2">C++98 起就有，与标准版本无关</td></tr>
+  </table>
+  <div class="std-diff">本页示例均按 <b>C++11 及以后</b> 编写（g++ 加 <code>-std=c++11</code> 或更高）。用 <code>-std=c++98</code> 编译时，<code>override</code>、<code>final</code>、<code>= default</code>、类内默认初始化、范围 for 都不可用。</div>
+
+  <!-- ================= 15. 小结 ================= -->
+  <h2>本章小结</h2>
+  <div class="keypoint">public 继承是 is-a；多态 = 虚函数 + 基类指针/引用；凡对象要经基类指针 delete，基类析构就必须是 virtual。</div>
+  <ul>
+    <li>构造顺序：基类 → 成员 → 派生类函数体；析构严格相反。</li>
+    <li>多态三要素：虚函数、经指针/引用调用、实际对象是派生类。按值传参必切片。</li>
+    <li><code>override</code> 防签名写错，<code>final</code> 封锁覆盖与继承；抽象类（含纯虚函数）不能实例化，是接口。</li>
+    <li>虚析构缺失时 <code>delete 基类指针</code> 是 UB；非虚析构不是考点输出，是必修修的 bug。</li>
+    <li>构造/析构中调用虚函数只调“当前类”版本，不分发；名字隐藏按名字整体生效，<code>using Base::f;</code> 恢复重载集。</li>
+    <li>多继承语法存在但要慎用；菱形继承用虚继承合并公共基类（点到为止）。</li>
+  </ul>
+
+  <!-- ================= 16. 自测清单 ================= -->
+  <h2>自测清单</h2>
+  <ul class="checklist" data-chapter="ch08">
+    <li><label><input type="checkbox" data-check-id="ch08-c1"><span>我能说清 public 继承的 is-a 语义，以及 protected 成员“谁能访问、谁不能”</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch08-c2"><span>我能按顺序说出一层继承对象的构造顺序（基类→成员→派生类）与相反的析构顺序</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch08-c3"><span>我能列出多态发生的三要素，并解释为什么按值传参会切片、多态失效</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch08-c4"><span>我能说出 override 和 final 各自防的是什么错</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch08-c5"><span>我能解释什么是纯虚函数、抽象类为什么不能实例化</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch08-c6"><span>我能解释为什么多态基类的析构必须是 virtual，不写会发生什么</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch08-c7"><span>我能预测“构造函数中调用虚函数”的输出，并说明为什么不分发到派生类</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch08-c8"><span>我能解释名字隐藏现象，并用 using Base::f 恢复基类重载集</span></label></li>
+  </ul>
+
+  <!-- ================= 17. 随堂测验 ================= -->
+  <section class="quiz" data-source="ch08">
+    <script type="application/json" class="quiz-data">{ "title": "随堂测验：继承与多态",
+      "questions": [
+        { "type": "mcq", "q": "通过基类指针 <code>p</code> 调用虚函数 <code>p-&gt;draw()</code>，实际执行哪个版本由什么决定？",
+          "options": ["指针的静态类型（编译期）", "对象的动态类型（运行期）", "函数是否 inline", "delete 的时机"], "answer": 1,
+          "explain": "动态绑定运行时“看对象本身”：对象里的虚表指针指向哪个类的虚表，就调哪个类的版本。指针的静态类型只决定能调哪些接口。" },
+        { "type": "mcq", "q": "<code>Cat c;</code> 然后 <code>Animal a = c;</code>（Animal 是基类，speak 是虚函数），之后 <code>a.speak()</code> 输出？",
+          "options": ["喵~（Cat 版本）", "Animal 版本的声音", "编译错误", "未定义行为"], "answer": 1,
+          "explain": "按值初始化发生切片：只有 Animal 子对象被拷贝，Cat 的部分被丢弃，虚表也是 Animal 的，不再多态。" },
+        { "type": "tf", "q": "基类声明 <code>virtual void show() const</code>，派生类写 <code>void show()</code>，后者构成覆盖。",
+          "answer": false,
+          "explain": "const 也是签名的一部分，少写 const 是定义新函数并隐藏基类版本，不是覆盖。写 override 会让编译器当场报错。" },
+        { "type": "mcq", "q": "关于抽象类，下列说法正确的是？",
+          "options": ["含纯虚函数、不能实例化", "所有成员都必须是 private", "不能有构造函数", "派生类一定也是抽象类"], "answer": 0,
+          "explain": "抽象类 = 含至少一个纯虚函数（= 0）的类，不能创建对象；可以有构造函数和数据成员；派生类实现全部纯虚函数后就不再是抽象类。" },
+        { "type": "tf", "q": "在基类构造函数中调用虚函数 init()，会动态分发到派生类的 override 版本。",
+          "answer": false,
+          "explain": "构造期间动态类型是“当前正在构造的类”，调用的是当前类的版本；析构同理（方向相反）。这是标准规定的行为，可以考确定输出。" },
+        { "type": "fill", "q": "派生类对象销毁时，最先执行的是____的析构函数，最后执行基类的。（填“派生类”或英文类名均可）",
+          "answer": ["派生类", "Derived", "派生"],
+          "explain": "析构顺序与构造严格相反：先派生类析构函数体，再成员，最后基类。" },
+        { "type": "mcq", "q": "基类析构函数不是 virtual，通过基类指针 <code>delete</code> 一个派生类对象，后果是？",
+          "options": ["一定只调用基类析构，安全", "编译错误", "未定义行为（常见症状：派生类析构被跳过、资源泄漏）", "一定调用完整析构链"], "answer": 2,
+          "explain": "标准规定这是未定义行为。修复：多态基类的析构函数声明为 virtual。考试只考“这是 UB、必须虚析构”，不考它的输出。" },
+        { "type": "fill", "q": "派生类定义了 <code>void f(int)</code> 后，基类的 <code>f()</code> 与 <code>f(double)</code> 都不可见（名字隐藏）。在派生类内写 <code>using ____::f;</code> 可恢复基类重载集。",
+          "answer": ["Base"],
+          "explain": "名字隐藏按名字整体生效、与参数无关；using Base::f 把基类的整个 f 重载集引入派生类作用域。" },
+        { "type": "code", "q": "补全关键字，让编译器检查这是否真的是覆盖：void draw() const ____ { }",
+          "answer": ["override"],
+          "explain": "override（C++11）标记“我要覆盖基类虚函数”，签名不匹配直接编译报错。" },
+        { "type": "mcq", "q": "菱形继承中，让最底层对象只含一份顶部基类子对象的手段是？",
+          "options": ["把基类成员都改成 private", "中间两层的派生列表写 virtual public A（虚继承）", "顶部基类加 final", "无法做到"], "answer": 1,
+          "explain": "虚继承让公共基类在最终对象中只保留一份子对象，消除二义性；代价是额外的间接访问开销。" }
+      ] }</script>
+  </section>
+
+  </main>
+
+<script src="../assets/js/highlight.js"></script>
+<script src="../assets/js/toc.js"></script>
+<script src="../assets/js/nav.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/interactive.js"></script>
+<script src="../assets/js/teacher.js"></script>
+<script src="../assets/js/mastery.js"></script>
+<script src="../assets/js/bughunt-data.js"></script>
+<script src="../assets/js/bug-hunt.js"></script>
+<script src="../assets/js/present.js"></script>
+<script src="../assets/js/glossary-data.js"></script>
+<script src="../assets/js/glossary.js"></script>
+<script src="../assets/js/page-toc.js"></script>
+<script src="../assets/js/v2-config.js"></script>
+<script src="../assets/js/v2-core.js"></script>
+<script src="../assets/js/v2-lab.js"></script>
+</body>
+</html>

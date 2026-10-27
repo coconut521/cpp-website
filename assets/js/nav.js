@@ -123,8 +123,30 @@
     document.body.appendChild(pager);
   }
 
+  /* ---------- v2 测试版提示 ---------- */
+  function buildV2Banner() {
+    var dismissed = false;
+    try { dismissed = localStorage.getItem("cppcourse.v2banner") === "1"; } catch (e) {}
+    if (dismissed) return;
+    var bannerPrefix = /\/chapters\/[^/]*$/.test(path) || /\/templates\/[^/]*$/.test(path) ? "../" : "";
+    var banner = document.createElement("div");
+    banner.className = "v2-test-banner";
+    banner.setAttribute("role", "status");
+    banner.innerHTML =
+      '<span class="v2-test-label">🧪 v2 测试版</span>' +
+      '<span class="v2-test-text">界面重构、学习地图与实验台动画已上线。</span>' +
+      '<a class="v2-test-link" href="' + bannerPrefix + 'v2/index.html" target="_blank" rel="noopener">打开 v2 体验 →</a>' +
+      '<button class="v2-test-close" type="button" aria-label="关闭 v2 提示">×</button>';
+    document.body.insertBefore(banner, document.body.firstChild);
+    banner.querySelector(".v2-test-close").addEventListener("click", function () {
+      try { localStorage.setItem("cppcourse.v2banner", "1"); } catch (e) {}
+      banner.remove();
+    });
+  }
+
   function init() {
     buildHeader();
+    buildV2Banner();
     buildFooter();
     buildPager();
     /* 系统深浅色切换时（跟随系统模式）同步按钮文案 */

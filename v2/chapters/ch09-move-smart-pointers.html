@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第9章 移动语义与智能指针 | 大学C++离线助教</title>
+<script src="../assets/js/theme-init.js"></script>
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/v2.css">
+</head>
+<body>
+<main class="container chapter">
+
+  <p class="crumbs"><a href="../index.html">首页</a> / <a href="../index.html#toc">章节目录</a> / 第9章</p>
+
+  <header>
+    <h1>第9章 移动语义与智能指针</h1>
+    <p class="muted">本章讲 C++11 的<b>移动语义</b>与<b>智能指针</b>：用“搬资源”取代“拷资源”，把 <code>delete</code> 交给对象生命周期自动完成。</p>
+  </header>
+
+  <!-- ================= 1. 学习目标 ================= -->
+  <section class="card objectives">
+    <h2 style="margin-top:0">学习目标</h2>
+    <ul>
+      <li>用“能否取地址 / 有无名字”区分<b>左值与右值</b>，说清 <code>&amp;&amp;</code> 绑定什么；理解 <code>std::move</code> 只是<b>转成右值的类型转换</b>。</li>
+      <li>对比<b>移动构造/移动赋值</b>与拷贝的区别（接管指针、不复制缓冲区），说明移动后原对象处于<b>有效但未指定</b>状态。</li>
+      <li>默写 <b>Rule of Five</b>（五大件）与 <b>Rule of Zero</b>，说明移动构造标 <code>noexcept</code> 的原因。</li>
+      <li>使用 <code>unique_ptr</code>：<code>make_unique</code>、<code>-&gt;</code> 与 <code>*</code>、<code>get/release/reset</code> 的区别。</li>
+      <li>推演 <code>shared_ptr</code> 的 <code>use_count</code> 变化，用 <code>weak_ptr</code> 打破<b>循环引用</b>。</li>
+      <li>用 <code>ofstream</code>、<code>lock_guard</code> 说明 <b>RAII</b>“构造获取、析构释放”的套路；列举裸 <code>new/delete</code> 的问题，知道 <code>auto_ptr</code> 已被 C++17 移除。</li>
+    </ul>
+    <p class="small muted">前置知识：<a href="ch07-classes.html">第7章 类与对象</a>（拷贝构造、析构函数、浅拷贝深拷贝）；<a href="ch08-inheritance-polymorphism.html">第8章 继承与多态</a>。</p>
+    </section>
+
+  <!-- ================= 2. 左值与右值 ================= -->
+  <h2>1. 左值与右值</h2>
+  <p>一个够用的判别法：<b>能取地址、有名字、有确定位置的，是左值；字面量、临时对象、表达式的中间结果，是右值</b>。左值引用 <code>T&amp;</code> 绑定左值；右值引用 <code>T&amp;&amp;</code>（C++11 起）绑定右值。</p>
+
+  <article class="example-card" id="ch09-ex-01">
+    <div class="ex-head">
+      <h3 class="ex-title">示例1：左值、右值与两种引用</h3>
+      <div class="ex-meta"><span class="tag">知识点：左值 / 右值</span><span class="tag green">入门必会</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int a = 10;            // a 是左值：有名字、能取地址 &amp;a
+    int&amp; lref = a;         // 左值引用绑定左值
+    // int&amp; bad = 42;      // ⛔ 编译错误：普通左值引用不能绑定右值
+    const int&amp; cref = 42;  // 特例：const 左值引用可以绑定右值（延长其寿命）
+
+    std::cout &lt;&lt; a &lt;&lt; " " &lt;&lt; lref &lt;&lt; " " &lt;&lt; cref &lt;&lt; "\n";
+    std::cout &lt;&lt; (5 + 3) &lt;&lt; "\n";   // 5+3 是右值：表达式的临时结果
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">10 10 42
+8</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：<code>a</code> 有名字、<code>&amp;a</code> 合法 → 左值。<code>42</code> 是字面量，没有地址可取 → 右值。</li>
+        <li><b>第6行</b>：普通左值引用不能绑定右值。第 7 行的 const 引用是例外：只读，允许绑定临时对象。</li>
+        <li><b>第10行</b>：<code>5 + 3</code> 先算出临时结果 8，打印后即销毁——典型的右值。同理 <code>std::string("hi") + "!"</code>、函数按值返回的对象，都是右值。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>变量是左值，但<b>表达式</b>不一定：<code>a + 1</code> 是右值（临时结果）；<code>a</code> 单独出现才是左值。考试口诀：看的是“这个表达式有没有名字和地址”，不是“它是不是个变量”。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>字符串字面量 <code>"hello"</code> 是左值（类型 <code>const char[6]</code>，静态存储、可取地址）。本课程考题里按“字面量整体当右值处理”不会出错；记住<b>临时对象和表达式结果一定是右值</b>。</p>
+    </div>
+  </article>
+
+  <!-- ================= 3. 右值引用与 std::move ================= -->
+  <h2>2. 右值引用 &amp;&amp; 与 std::move</h2>
+  <p><code>T&amp;&amp;</code> 是右值引用，用来绑定右值。<code>std::move(x)</code> 只做一件事：<b>把左值 x 转换成右值</b>（一个类型转换，cast）。它本身不清空、不释放任何东西——真正的移动发生在随后被选中的<b>移动构造/移动赋值</b>里。</p>
+
+  <article class="example-card" id="ch09-ex-02">
+    <div class="ex-head">
+      <h3 class="ex-title">示例2：std::move 之后原对象不变</h3>
+      <div class="ex-meta"><span class="tag">知识点：std::move 的本质</span><span class="tag amber">高频考点</span><span class="tag red">经典陷阱</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+#include &lt;utility&gt;
+
+void which(std::string&amp; s)  { std::cout &lt;&lt; "左值引用版本: " &lt;&lt; s &lt;&lt; "\n"; }
+void which(std::string&amp;&amp; s) { std::cout &lt;&lt; "右值引用版本: " &lt;&lt; s &lt;&lt; "\n"; }
+
+int main() {
+    std::string a = "hello";
+    which(a);                    // 左值 → 左值引用版本
+    which(std::string("temp"));  // 临时对象（右值）→ 右值引用版本
+    which(a + " world");         // 表达式结果是右值
+    which(std::move(a));         // std::move 把 a 转成右值 → 选中右值引用版本
+    std::cout &lt;&lt; "a 仍在，值有效: " &lt;&lt; a &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">左值引用版本: hello
+右值引用版本: temp
+右值引用版本: hello world
+右值引用版本: hello
+a 仍在，值有效: hello</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5~6行</b>：一对重载分别绑定左值引用与右值引用，重载决议按实参是左值还是右值选择。</li>
+        <li><b>第13行</b>：<code>std::move(a)</code> 把左值 a 转成右值 → <code>string&amp;&amp;</code> 版本被选中，仅此而已。</li>
+        <li><b>第14行</b>：<b>关键证据</b>——a 仍是 <code>"hello"</code>，因为 <code>which</code> 只是绑定了引用，没有从中移动。<code>std::move</code> 本身不动任何数据。</li>
+        <li><b>真正发生移动</b>是在“右值去初始化/赋值另一个对象”时：比如 <code>std::string b = std::move(a);</code> 会选中 string 的移动构造——那一步才把 a 的内部缓冲区偷走（示例 3、4）。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>把第 13 行改成 <code>std::string b = std::move(a);</code>：这次移动构造真的发生，a 的缓冲区被接管（示例 4 演示其状态）。<b>move 只是把对象标记为可移动；实际移动由接下来的构造/赋值完成。</b></p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>判断题“std::move 会把对象的内容搬走”为<b>假</b>。它只是 cast（实现上就是 <code>static_cast&lt;T&amp;&amp;&gt;</code>），标准里甚至没有“move 函数移动了什么”这回事。</p>
+    </div>
+    <div class="keypoint"><code>std::move(x)</code> 只是宣布 x 可被移动。移动本身由移动构造/移动赋值执行；在那之前，x 照常能用。</div>
+  </article>
+
+  <!-- ================= 4. 移动构造与移动赋值 ================= -->
+  <h2>3. 移动构造与移动赋值</h2>
+  <p>拷贝构造做深拷贝：分配一块新内存，把内容逐个元素复制过来。移动构造只做一件事：<b>接管源对象的内部指针，再把源对象置为空状态</b>——成本是常数次指针操作，O(n) 次元素复制归零。</p>
+
+  <article class="example-card" id="ch09-ex-03">
+    <div class="ex-head">
+      <h3 class="ex-title">示例3：Buffer 的拷贝构造 vs 移动构造</h3>
+      <div class="ex-meta"><span class="tag">知识点：移动构造</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;cstring&gt;
+#include &lt;utility&gt;
+
+class Buffer {
+public:
+    explicit Buffer(size_t n) : size_(n), data_(new int[n]) {
+        std::cout &lt;&lt; "构造：分配 " &lt;&lt; n &lt;&lt; " 个 int\n";
+    }
+    Buffer(const Buffer&amp; other)                       // 拷贝构造：深拷贝
+        : size_(other.size_), data_(new int[other.size_]) {
+        std::memcpy(data_, other.data_, size_ * sizeof(int));
+        std::cout &lt;&lt; "拷贝构造：复制了 " &lt;&lt; size_ &lt;&lt; " 个元素\n";
+    }
+    Buffer(Buffer&amp;&amp; other) noexcept                   // 移动构造：偷指针
+        : size_(other.size_), data_(other.data_) {
+        other.data_ = nullptr;   // 掏空对方，防止双重释放
+        other.size_ = 0;
+        std::cout &lt;&lt; "移动构造：只偷走了指针，0 次元素复制\n";
+    }
+    ~Buffer() { delete[] data_; }   // 各自 delete 自己的指针，互不干扰
+private:
+    size_t size_;
+    int*   data_;
+};
+
+int main() {
+    Buffer a(1000);
+    Buffer b = a;             // 拷贝构造
+    Buffer c = std::move(a);  // 移动构造：std::move 把 a 转成右值
+    return 0;                 // 析构顺序 c → b → a，各自清理各自的
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">构造：分配 1000 个 int
+拷贝构造：复制了 1000 个元素
+移动构造：只偷走了指针，0 次元素复制</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第29行</b>：<code>b = a</code> 中 a 是左值 → 选中拷贝构造：new 一块新内存 + 逐元素复制。两个对象各有一份完整数据。</li>
+        <li><b>第30行</b>：<code>std::move(a)</code> 把 a 转成右值 → 选中移动构造：只把 <code>data_</code> 指针抄给 c，然后让 a 的 <code>data_ = nullptr</code>。缓冲区从头到尾只有一份，只是换了主人。</li>
+        <li><b>第17行</b>：<code>noexcept</code> 承诺“移动不抛异常”。<code>std::vector</code> 扩容搬元素时，只有 noexcept 的移动构造才会被采用（搬一半抛异常无法回滚）；否则 vector 退回用拷贝，移动优化失效。</li>
+        <li><b>第31行</b>：c、b、a 依次析构，各自 <code>delete[]</code> 自己的指针：a 是空壳、b 是副本、c 是原缓冲区——无泄漏、无双重释放。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>移动赋值同理：<code>c = std::move(b);</code> 会先释放 c 原来的资源，再把 b 的指针偷过来。拷贝构造 + 拷贝赋值 + 移动构造 + 移动赋值 + 析构，就是下一节的“五大件”。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>移动构造里<b>必须</b>把源对象的指针置空，否则两个对象析构时对同一块内存 <code>delete[]</code> 两次——未定义行为（本章示例 11）。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 28, "vars": { "a": "拥有 1000 个 int 的缓冲区" }, "out": "构造：分配 1000 个 int", "note": "new int[1000]，a 是唯一拥有者" },
+      { "line": 29, "vars": { "a": "原缓冲区", "b": "新缓冲区（1000 个 int 的深拷贝）" }, "out": "拷贝构造：复制了 1000 个元素", "note": "a 是左值 → 选中拷贝构造：分配新内存 + 逐元素复制" },
+      { "line": 30, "vars": { "a": "空壳（data_ = nullptr）", "b": "自己的副本", "c": "原 a 的缓冲区" }, "out": "移动构造：只偷走了指针，0 次元素复制", "note": "std::move(a) 把 a 转成右值 → 选中移动构造：指针搬家，a 被置成空壳" },
+      { "line": 31, "vars": {}, "out": "", "note": "main 结束：按 c、b、a 的顺序析构，各自 delete[] 自己的指针，无泄漏无双重释放" }
+    ] }</script>
+  </article>
+
+  <article class="example-card" id="ch09-ex-04">
+    <div class="ex-head">
+      <h3 class="ex-title">示例4：被移动后的对象处于“有效但未指定”状态</h3>
+      <div class="ex-meta"><span class="tag">知识点：移动后状态</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+#include &lt;utility&gt;
+
+int main() {
+    std::string s1 = "hello";
+    std::string s2 = s1;               // 拷贝构造：s1 保持 "hello"
+    std::string s3 = std::move(s1);    // 移动构造：s1 被掏空
+
+    std::cout &lt;&lt; "s2 = " &lt;&lt; s2 &lt;&lt; "\n";
+    std::cout &lt;&lt; "s3 = " &lt;&lt; s3 &lt;&lt; "\n";
+    // ⚠ 此刻不要读 s1 的值：标准只保证它"有效但未指定"
+    s1 = "reborn";                     // 但可以析构、可以重新赋值
+    std::cout &lt;&lt; "s1 = " &lt;&lt; s1 &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">s2 = hello
+s3 = hello
+s1 = reborn</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第8行</b>：移动构造真的发生（与示例 2 不同）：<code>s3</code> 接管了 s1 的内部缓冲区，s3 的值就是原来的 <code>"hello"</code>。</li>
+        <li><b>第12行</b>：s1 被移动后处于<b>有效但未指定</b>状态——“有效”= 能析构、能赋新值、能调用无前提要求的成员函数；“未指定”= 它的<b>值</b>标准不承诺（通常是空串，但别依赖）。</li>
+        <li><b>第14行</b>：给 s1 赋新值完全合法，赋完一切如常。本例因此不打印被移动后的 s1。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>“被移动的 string 一定是空串”是<b>错误</b>说法——那是常见实现的巧合，不是标准承诺。考试问“移动后还能做什么”，答：析构、赋新值、调用无前置条件的成员函数；不能答“读它的值”。</p>
+    </div>
+  </article>
+
+  <!-- ================= 5. Rule of Five / Zero ================= -->
+  <h2>4. Rule of Five 与 Rule of Zero</h2>
+  <p>第 7 章的“三大件”（析构、拷贝构造、拷贝赋值）在 C++11 后升级为<b>五大件</b>：一旦你因为管理资源手写了其中任何一个，另外四个的默认行为多半就不对了，要成套考虑。</p>
+
+  <article class="example-card" id="ch09-ex-05">
+    <div class="ex-head">
+      <h3 class="ex-title">示例5：五大件长什么样（片段）</h3>
+      <div class="ex-meta"><span class="tag">知识点：Rule of Five / Rule of Zero</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">// Rule of Five（片段）：只要手动管理资源（写了析构函数），
+// 下面五个特殊成员就要成套考虑 —— 简称"五大件"
+class Buffer {
+public:
+    Buffer(size_t n);                           // 普通构造（不算五大件）
+    ~Buffer();                                  // ① 析构函数
+    Buffer(const Buffer&amp; other);                // ② 拷贝构造
+    Buffer&amp; operator=(const Buffer&amp; other);     // ③ 拷贝赋值
+    Buffer(Buffer&amp;&amp; other) noexcept;            // ④ 移动构造
+    Buffer&amp; operator=(Buffer&amp;&amp; other) noexcept; // ⑤ 移动赋值
+private:
+    int*   data_;
+    size_t size_;
+};
+
+// Rule of Zero：不手写任何资源管理代码 ——
+// 成员用 std::vector / std::string / std::unique_ptr 托管，
+// 五大件一个都不写，编译器生成的默认版本恰好全对。
+class Document {
+    std::string title_;                 // 自会拷贝、自会移动、自会释放
+    std::vector&lt;int&gt; data_;
+};</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-explain">
+      <h4>逐条解释</h4>
+      <ul>
+        <li><b>为什么成套</b>：手写析构通常意味着浅拷贝会双重释放（第 7 章示例 9）；而一旦声明了拷贝构造，编译器不再隐式生成移动版本——<code>std::move</code> 会静默退化成拷贝。</li>
+        <li><b>不想拷贝就删掉</b>：<code>Buffer(const Buffer&amp;) = delete;</code>（C++11 起）直接禁用拷贝，比 C++98 的“声明为 private 且不实现”清楚得多。</li>
+        <li><b>Rule of Zero 是默认答案</b>：本课程写类时，除非题目明确要求管理裸资源，否则一律用容器和智能指针托管成员——零手写、零泄漏、零双重释放。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>判断题“写了析构函数就该把五个特殊成员都写齐”对资源管理类成立；但对“根本不管理资源的普通类”，什么都不写（Rule of Zero）才是正解。Rule of Five 说的是“要考虑”，不是“都要手写”——用 <code>= default</code> 显式表态也算数。</p>
+    </div>
+  </article>
+
+  <div class="tip">考试简答题模板：“为什么移动构造要标 noexcept？”——vector 等容器扩容搬移元素时，为保证异常安全，只有 noexcept 的移动构造才会被采用；否则退回拷贝，性能优化失效。</div>
+
+  <!-- ================= 6. unique_ptr ================= -->
+  <h2>5. unique_ptr：独占所有权的智能指针</h2>
+  <p><code>std::unique_ptr&lt;T&gt;</code> 独占一个堆对象：出作用域（或被 reset）时自动销毁管理的对象。它不能拷贝（拷贝意味着两个主人、双重释放），<b>只能移动</b>：所有权随之转移。</p>
+
+  <article class="example-card" id="ch09-ex-06">
+    <div class="ex-head">
+      <h3 class="ex-title">示例6：make_unique、-> 与 *、所有权转移</h3>
+      <div class="ex-meta"><span class="tag">知识点：unique_ptr</span><span class="tag amber">高频考点</span><span class="tag">C++14</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;memory&gt;
+#include &lt;string&gt;
+#include &lt;utility&gt;
+
+class Cat {
+public:
+    explicit Cat(std::string name) : name_(std::move(name)) {
+        std::cout &lt;&lt; name_ &lt;&lt; " 出生\n";
+    }
+    ~Cat() { std::cout &lt;&lt; name_ &lt;&lt; " 离开\n"; }
+    const std::string&amp; name() const { return name_; }
+    void meow() const { std::cout &lt;&lt; name_ &lt;&lt; "：喵\n"; }
+private:
+    std::string name_;
+};
+
+int main() {
+    auto p = std::make_unique&lt;Cat&gt;("咪咪");   // C++14 起推荐的创建方式
+    p-&gt;meow();                                 // 用 -&gt; 访问成员
+    std::cout &lt;&lt; "它叫 " &lt;&lt; (*p).name() &lt;&lt; "\n";  // 用 * 解引用
+
+    // std::unique_ptr&lt;Cat&gt; q = p;            // ⛔ 编译错误：不能拷贝（独占！）
+    auto q = std::move(p);                     // ✅ 只能移动：所有权 p → q
+    std::cout &lt;&lt; "p 现在是 " &lt;&lt; (p ? "非空" : "空") &lt;&lt; "\n";
+    return 0;                                  // q 离开作用域：自动 delete
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">咪咪 出生
+咪咪：喵
+它叫 咪咪
+p 现在是 空
+咪咪 离开</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第19行</b>：<code>make_unique&lt;Cat&gt;("咪咪")</code> 在堆上构造 Cat 并立刻交给 unique_ptr 管理——<b>全程没有出现裸 new</b>，不会忘记释放，异常时也不泄漏。</li>
+        <li><b>第20~21行</b>：<code>p-&gt;meow()</code> 与裸指针手感完全相同；<code>(*p).name()</code> 演示 <code>*</code> 解引用拿到对象本身。</li>
+        <li><b>第23行</b>：注释掉的那行是编译错误——unique_ptr 的拷贝构造被 <code>= delete</code>，所有权必须唯一。</li>
+        <li><b>第24行</b>：<code>std::move(p)</code> 走移动构造：q 接管 Cat，p 变成空指针，所以打印“空”。第 27 行 <code>q</code> 离开作用域自动 <code>delete</code>，“咪咪 离开”就是析构输出——全程没有手写 delete。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比：数组特化</h4>
+      <p>管理动态数组用 <code>std::unique_ptr&lt;int[]&gt; arr = std::make_unique&lt;int[]&gt;(10);</code>：用 <code>arr[i]</code> 访问元素，析构时自动用 <code>delete[]</code> 而不是 <code>delete</code>。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>unique_ptr</code> 转移所有权后，旧指针立即变空；再用旧指针（<code>p-&gt;meow()</code>）就是对空指针解引用，运行时崩溃。</p>
+    </div>
+    <div class="memviz"><script type="application/json" class="mem-data">{ "title": "移动前：p 独占堆上的 Cat 对象",
+      "regions": [
+        { "addr": "栈 · main", "name": "p", "type": "unique_ptr<Cat>", "value": "0x55d1…a0", "note": "唯一拥有者" },
+        { "addr": "0x55d1…a0", "name": "Cat 对象", "type": "Cat", "value": "咪咪", "note": "堆上的本体，恰好一个" }
+      ],
+      "note": "此刻 q 尚未创建。所有权链：p → 堆对象，一条。" }</script></div>
+    <div class="memviz"><script type="application/json" class="mem-data">{ "title": "auto q = std::move(p); 之后：指针搬家，对象原地不动",
+      "regions": [
+        { "addr": "栈 · main", "name": "p", "type": "unique_ptr<Cat>", "value": "nullptr", "note": "交出了所有权：可安全析构、可重新赋值" },
+        { "addr": "栈 · main", "name": "q", "type": "unique_ptr<Cat>", "value": "0x55d1…a0", "note": "新的唯一拥有者" },
+        { "addr": "0x55d1…a0", "name": "Cat 对象", "type": "Cat", "value": "咪咪", "note": "本体没有任何搬动——移动的是指针，不是对象" }
+      ],
+      "note": "std::move 依然只是 cast；真正的工作由 unique_ptr 的移动构造完成：把“谁负责 delete”从 p 改成 q。" }</script></div>
+  </article>
+
+  <article class="example-card" id="ch09-ex-07">
+    <div class="ex-head">
+      <h3 class="ex-title">示例7：get / release / reset 的区别</h3>
+      <div class="ex-meta"><span class="tag">知识点：get / release / reset</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;memory&gt;
+
+int main() {
+    auto p = std::make_unique&lt;int&gt;(42);
+
+    int* raw = p.get();            // get：取裸指针，所有权仍归 p
+    std::cout &lt;&lt; "get 后 *raw = " &lt;&lt; *raw &lt;&lt; "，p 非空? " &lt;&lt; (p ? "是" : "否") &lt;&lt; "\n";
+
+    int* released = p.release();   // release：交出所有权，p 变空
+    std::cout &lt;&lt; "release 后 p 非空? " &lt;&lt; (p ? "是" : "否")
+              &lt;&lt; "，*released = " &lt;&lt; *released &lt;&lt; "\n";
+    delete released;               // 调用方必须自己 delete，否则泄漏
+
+    p = std::make_unique&lt;int&gt;(7);
+    p.reset();                     // reset：立即销毁管理的对象，p 变空
+    std::cout &lt;&lt; "reset 后 p 非空? " &lt;&lt; (p ? "是" : "否") &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">get 后 *raw = 42，p 非空? 是
+release 后 p 非空? 否，*released = 42
+reset 后 p 非空? 否</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>get()：只借不拿</b>。返回裸指针给外部“看一眼”，所有权仍在 p 手里，p 不变空，p 析构时照常释放。<b>绝不许</b>把 get 的结果拿去 delete——那会和 p 构成双重释放。</li>
+        <li><b>release()：只还不销毁</b>。交出所有权、自己变空，把“删除责任”移交给调用方：所以第 13 行必须 <code>delete released</code>。典型用途是把托管对象交给某个只收裸指针的旧接口。</li>
+        <li><b>reset()：立刻销毁</b>。当场 delete 管理的对象（无参调用即“现在就空”）；也可 <code>reset(newPtr)</code> 换一个管。三兄弟记忆：<b>get 借、release 交、reset 销</b>。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>bool 判断 <code>(p ? ... : ...)</code> 用的不是比较，是 unique_ptr 的显式转换：<b>有对象为 true，空为 false</b>。判断“还管不管着东西”就问它本身。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>release 之后忘记 delete 返回的指针 = 内存泄漏；delete 之后还写 <code>*released</code> = 悬空指针解引用（UB）。</p>
+    </div>
+  </article>
+
+  <!-- ================= 7. shared_ptr ================= -->
+  <h2>6. shared_ptr：引用计数的共享所有权</h2>
+  <p><code>std::shared_ptr&lt;T&gt;</code> 允许多个指针<b>共同拥有</b>同一个对象。内部有一个隐藏的<b>控制块</b>记录引用计数：<b>拷贝一次 +1，析构一次 -1，计数归零的那一刻销毁对象</b>。</p>
+
+  <article class="example-card" id="ch09-ex-08">
+    <div class="ex-head">
+      <h3 class="ex-title">示例8：use_count 的变化</h3>
+      <div class="ex-meta"><span class="tag">知识点：引用计数</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;memory&gt;
+#include &lt;string&gt;
+#include &lt;utility&gt;
+
+class Res {
+public:
+    explicit Res(std::string tag) : tag_(std::move(tag)) {
+        std::cout &lt;&lt; tag_ &lt;&lt; " 构造\n";
+    }
+    ~Res() { std::cout &lt;&lt; tag_ &lt;&lt; " 析构\n"; }
+private:
+    std::string tag_;
+};
+
+int main() {
+    std::shared_ptr&lt;Res&gt; a = std::make_shared&lt;Res&gt;("资源R");
+    std::cout &lt;&lt; "创建 a 后 use_count = " &lt;&lt; a.use_count() &lt;&lt; "\n";
+    {
+        std::shared_ptr&lt;Res&gt; b = a;      // 拷贝：计数 +1
+        std::cout &lt;&lt; "拷贝出 b 后 use_count = " &lt;&lt; a.use_count() &lt;&lt; "\n";
+        std::shared_ptr&lt;Res&gt; c = a;      // 再 +1
+        std::cout &lt;&lt; "拷贝出 c 后 use_count = " &lt;&lt; a.use_count() &lt;&lt; "\n";
+    }                                    // b、c 离开作用域：各 -1
+    std::cout &lt;&lt; "离开作用域后 use_count = " &lt;&lt; a.use_count() &lt;&lt; "\n";
+    return 0;                            // a 析构：计数归零 → 资源销毁
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">资源R 构造
+创建 a 后 use_count = 1
+拷贝出 b 后 use_count = 2
+拷贝出 c 后 use_count = 3
+离开作用域后 use_count = 1
+资源R 析构</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第17行</b>：<code>make_shared</code> 把“对象本体”和“控制块”一次性分配好（比 <code>shared_ptr&lt;Res&gt;(new Res)</code> 更快也更安全），a 是第一个持有者，计数 1。</li>
+        <li><b>第20、22行</b>：每拷贝一个 <code>shared_ptr</code>，控制块计数 +1。b、c、a 是三个不同的指针变量，但它们指向同一个 Res 对象。</li>
+        <li><b>第24行</b>：内层作用域结束，b、c 按声明的反序析构，计数 3→2→1。计数没归零，Res 活着。</li>
+        <li><b>第26行</b>：<code>main</code> 结束，最后一个持有者 a 析构，计数 1→0——此刻才执行 <code>~Res</code>，打印“资源R 析构”。<b>析构打印永远出现在计数归零之后</b>。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>同一个裸指针初始化两个 shared_ptr（<code>shared_ptr&lt;Res&gt; p1(raw); shared_ptr&lt;Res&gt; p2(raw);</code>）不是“共享”，是<b>两套独立计数管同一块内存</b>——析构时双重释放。要共享就永远从已有的 shared_ptr 拷贝。</p>
+    </div>
+    <div class="note">线程安全一句话：不同线程操作指向<b>同一控制块</b>的多个 shared_ptr 副本时，计数增减是原子操作（C++11 起保证）；但多个线程同时读写<b>同一个 shared_ptr 对象本身</b>仍需加锁——计数安全，指针本身不安全。</div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 17, "vars": { "计数": "1" }, "out": "资源R 构造", "note": "make_shared 一次性分配对象与控制块，a 是第一个持有者" },
+      { "line": 18, "vars": { "计数": "1" }, "out": "创建 a 后 use_count = 1", "note": "唯一持有者" },
+      { "line": 20, "vars": { "计数": "2" }, "out": "", "note": "b = a 拷贝：控制块计数 1→2" },
+      { "line": 21, "vars": { "计数": "2" }, "out": "拷贝出 b 后 use_count = 2", "note": "a、b 共同持有同一个 Res" },
+      { "line": 22, "vars": { "计数": "3" }, "out": "", "note": "c = a 拷贝：计数 2→3" },
+      { "line": 23, "vars": { "计数": "3" }, "out": "拷贝出 c 后 use_count = 3", "note": "三个持有者" },
+      { "line": 24, "vars": { "计数": "1" }, "out": "", "note": "内层作用域结束：b、c 按反序析构，计数 3→2→1，Res 仍活着" },
+      { "line": 25, "vars": { "计数": "1" }, "out": "离开作用域后 use_count = 1", "note": "只剩 a 一个持有者" },
+      { "line": 26, "vars": { "计数": "0" }, "out": "资源R 析构", "note": "main 结束，a 析构，计数 1→0 → 此刻才销毁 Res" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 8. 循环引用与 weak_ptr ================= -->
+  <h2>7. 循环引用与 weak_ptr</h2>
+  <p>引用计数有个问题：<b>两个对象用 shared_ptr 互相持有</b>时，外部的指针全消失后，两个计数各剩 1，永远到不了 0，谁也不析构——这就是<b>循环引用</b>导致的内存泄漏。<code>std::weak_ptr</code> 只观察对象、<b>不增加强计数</b>，可用来打破循环。</p>
+
+  <article class="example-card" id="ch09-ex-09">
+    <div class="ex-head">
+      <h3 class="ex-title">示例9：循环引用导致析构不执行</h3>
+      <div class="ex-meta"><span class="tag">知识点：循环引用 / weak_ptr</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;memory&gt;
+#include &lt;string&gt;
+
+struct Person {
+    std::string name;
+    std::shared_ptr&lt;Person&gt; partner;   // 强引用：会把对方"撑住"
+    ~Person() { std::cout &lt;&lt; name &lt;&lt; " 析构\n"; }
+};
+
+int main() {
+    auto a = std::make_shared&lt;Person&gt;();
+    auto b = std::make_shared&lt;Person&gt;();
+    a-&gt;name = "A";
+    b-&gt;name = "B";
+    a-&gt;partner = b;    // b 的计数 1→2
+    b-&gt;partner = a;    // a 的计数 1→2
+    std::cout &lt;&lt; "a.use_count = " &lt;&lt; a.use_count() &lt;&lt; "\n";
+    std::cout &lt;&lt; "b.use_count = " &lt;&lt; b.use_count() &lt;&lt; "\n";
+    std::cout &lt;&lt; "main 结束：注意下面没有任何析构输出 —— 泄漏！\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">a.use_count = 2
+b.use_count = 2
+main 结束：注意下面没有任何析构输出 —— 泄漏！</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第16~17行</b>：互指之后每个对象被两处强持有（局部变量 + 对方的 partner），计数都是 2。</li>
+        <li><b>main 结束</b>：局部 a、b 按反序析构，A 的计数 2→1（B.partner 还持有），B 同理。<b>计数永远到不了 0</b>，两个 <code>~Person</code> 都不会执行——输出里没有析构行，这就是泄漏。</li>
+        <li><b>修复</b>：把其中一方的 <code>partner</code> 改成 <code>std::weak_ptr&lt;Person&gt;</code>。weak_ptr 只观察不撑计数；要用时 <code>partner.lock()</code> 临时升级成 shared_ptr（对象已死则得到空），配 <code>expired()</code> 判断是否还在。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比：partner 改成 weak_ptr 之后</h4>
+      <pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;memory&gt;
+#include &lt;string&gt;
+
+struct Person {
+    std::string name;
+    std::weak_ptr&lt;Person&gt; partner;   // 弱引用：只观察，不撑计数
+    ~Person() { std::cout &lt;&lt; name &lt;&lt; " 析构\n"; }
+};
+
+int main() {
+    auto a = std::make_shared&lt;Person&gt;();
+    auto b = std::make_shared&lt;Person&gt;();
+    a-&gt;name = "A";
+    b-&gt;name = "B";
+    a-&gt;partner = b;   // 不增加 b 的强计数
+    b-&gt;partner = a;   // 不增加 a 的强计数
+    std::cout &lt;&lt; "a.use_count = " &lt;&lt; a.use_count() &lt;&lt; "\n";   // 1
+    std::cout &lt;&lt; "b.use_count = " &lt;&lt; b.use_count() &lt;&lt; "\n";   // 1
+    return 0;
+}</code></pre>
+      <p>预期输出：</p>
+      <pre><code class="output-text">a.use_count = 1
+b.use_count = 1
+B 析构
+A 析构</code></pre>
+      <p>每个对象只剩局部变量一个强持有（计数 1）。main 结束时局部变量按<b>声明反序</b>析构：先 b（B 计数 1→0，“B 析构”），再 a（“A 析构”）。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>weak_ptr 不能直接解引用（<code>*partner</code> 不存在）——必须 <code>lock()</code> 拿到临时 shared_ptr 才能用，这是防悬空的设计。设计双向关系（父/子、夫妻、观察者）时，“一方强、一方弱”是固定套路。</p>
+    </div>
+    <div class="memviz"><script type="application/json" class="mem-data">{ "title": "循环引用：两个对象互相撑住，计数永不归零",
+      "regions": [
+        { "addr": "堆 0xA1", "name": "Person A", "type": "强引用 ×2", "value": "use_count = 2", "note": "被局部 a 和 B.partner 同时持有" },
+        { "addr": "堆 0xB2", "name": "Person B", "type": "强引用 ×2", "value": "use_count = 2", "note": "被局部 b 和 A.partner 同时持有" }
+      ],
+      "note": "main 结束后局部 a、b 消失，两个对象的计数各剩 1（被对方撑着）→ 析构永不执行。把其中一方的 partner 改成 weak_ptr，环即断裂。" }</script></div>
+  </article>
+
+  <!-- ================= 9. RAII ================= -->
+  <h2>8. RAII：资源获取即初始化</h2>
+  <p>前面所有工具共享同一个思想——<b>RAII（Resource Acquisition Is Initialization，资源获取即初始化）</b>：<b>获取资源放在构造函数里，释放资源放在析构函数里</b>，让资源生命周期与对象生命周期绑定。栈上对象一定会析构（哪怕中途抛异常、栈展开时也照析构），所以资源一定会释放。文件、锁、内存都适用这一模式。</p>
+
+  <article class="example-card" id="ch09-ex-10">
+    <div class="ex-head">
+      <h3 class="ex-title">示例10：ofstream 管文件，lock_guard 管锁——同一套路</h3>
+      <div class="ex-meta"><span class="tag">知识点：RAII</span><span class="tag green">工程必备</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;fstream&gt;
+#include &lt;mutex&gt;
+
+int findAnswer() { return 42; }
+
+void writeFile() {
+    std::ofstream out("answer.txt");            // 构造 = 打开文件（获取资源）
+    out &lt;&lt; "answer = " &lt;&lt; findAnswer() &lt;&lt; "\n";
+}                                               // out 析构 = 自动关闭文件
+
+std::mutex g_mutex;
+int g_counter = 0;
+
+void addCounter() {
+    std::lock_guard&lt;std::mutex&gt; lock(g_mutex);  // 构造 = 加锁
+    g_counter += findAnswer();
+}                                               // lock 析构 = 自动解锁
+
+int main() {
+    writeFile();
+    addCounter();
+    std::cout &lt;&lt; "counter = " &lt;&lt; g_counter &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">counter = 42</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第8~10行</b>：<code>ofstream</code> 在构造时打开文件，函数结束时自动关闭——<b>全程没有 close、没有异常泄漏</b>。若第 9 行中途抛异常，栈展开仍会析构 out，文件照样关好。</li>
+        <li><b>第16~18行</b>：<code>lock_guard</code> 构造时加锁、析构时解锁，忘记解锁的典型多线程 bug 因此不会发生。</li>
+        <li><b>统一套路</b>：文件（ofstream/fstream）、锁（lock_guard/unique_lock）、内存（unique_ptr/shared_ptr）、甚至网络连接——全是“构造获取、析构释放”。unique_ptr 就是“内存版的 lock_guard”。</li>
+        <li><b>为什么异常时也对</b>：C++ 保证异常传播路径上的局部对象被逐个析构（栈展开）。RAII 释放逻辑写对了，异常安全随之得到保证。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>C 风格写法 <code>FILE* f = fopen(...); ... fclose(f);</code> 中间任何一处 <code>return</code> 或抛异常，<code>fclose</code> 就被跳过。RAII 版本无论有几条退出路径，都只有一份释放代码——藏在析构函数里，人写不写都会执行。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>简答题把 RAII 翻译成“在初始化列表里 new”就错了。关键词是<b>“资源的获取与释放绑定到对象的构造与析构”</b>——初始化只是获取资源的时机，核心是对象生命周期兜底。</p>
+    </div>
+  </article>
+
+  <!-- ================= 10. 裸 new/delete ================= -->
+  <h2>9. 裸 new/delete 的问题：为什么现代 C++ 不再手写</h2>
+
+  <article class="example-card" id="ch09-ex-11">
+    <div class="ex-head">
+      <h3 class="ex-title">示例11：泄漏、双重释放、悬空指针</h3>
+      <div class="ex-meta"><span class="tag red">错误示范</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    // 问题1：忘记 delete → 内存泄漏
+    int* leak = new int(1);
+
+    // 问题2/3：双重释放与悬空指针（UB，切勿真的这样写）
+    int* q = new int(2);
+    int* alias = q;            // 两个指针指向同一块内存
+    delete q;
+    // delete alias;           // ⛔ 同一块内存 delete 两次：未定义行为
+    // std::cout &lt;&lt; *alias;    // ⛔ 悬空指针解引用：同样是未定义行为
+
+    std::cout &lt;&lt; "裸指针时代：new 与 delete 必须人肉配对\n";
+    delete leak;               // 这次记得了，真实工程里经常忘
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出（仅指本例按注释安全运行的输出）</div>
+      <pre><code class="output-text">裸指针时代：new 与 delete 必须人肉配对</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>问题1（泄漏）</b>：new 出来的内存没有归属者，函数一结束指针消失，内存再也找不到、无法释放。</li>
+        <li><b>问题2（双重释放）</b>：同一块内存 delete 两次，堆管理结构被破坏。</li>
+        <li><b>问题3（悬空指针）</b>：delete 之后指针的值还在，但指向的内存已经归还——再用就是解引用悬空指针。</li>
+        <li><b>根治</b>：用 unique_ptr 管独占、shared_ptr 管共享——释放逻辑写进析构函数，自动执行。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 其中两个是未定义行为</h4>
+      <div class="ub-warning"><b>双重释放</b>与<b>悬空指针解引用</b>都是<b>未定义行为</b>：程序可能崩溃（glibc 下常见 <code>double free or corruption</code>）、可能静默算错、可能看起来一切正常——标准不规定结果，本例代码里它们被注释掉正是因此，考试也不会（不应）考它们的“输出”。<b>内存泄漏不是 UB</b>（行为有定义，只是资源浪费），但同样是必须消灭的 bug。</div>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比：同样的需求，现代写法</h4>
+      <pre><code class="cpp">#include &lt;iostream&gt;
+#include &lt;memory&gt;
+
+int main() {
+    auto p = std::make_unique&lt;int&gt;(10);   // 出作用域自动释放，忘不掉
+    std::cout &lt;&lt; *p &lt;&lt; "\n";
+    return 0;                             // 无需 delete：p 析构自动回收
+}</code></pre>
+      <p>预期输出：</p>
+      <pre><code class="output-text">10</code></pre>
+    </div>
+  </article>
+
+  <div class="std-diff">历史教训：<code>std::auto_ptr</code> 是 C++98 的“智能指针”，但它的拷贝语义是“拷贝时偷偷转移所有权”（拷贝出来的指针是空的），严重违反直觉。它<b>C++11 起被弃用，C++17 起从标准中移除</b>——现在的题目和工程里见到它，答案一律是“已废弃，用 unique_ptr 替代”。</div>
+
+  <!-- ================= 11. 练习：排序 ================= -->
+  <h2>10. 练习：unique_ptr 的所有权转移时间线</h2>
+
+  <article class="example-card" id="ch09-ex-12">
+    <div class="ex-head">
+      <h3 class="ex-title">练习：把程序运行的 5 个时刻排成正确顺序</h3>
+      <div class="ex-meta"><span class="tag purple">互动练习</span></div>
+    </div>
+    <p>假设 <code>Res</code> 构造时打印“R 构造”、析构时打印“R 析构”，其成员函数 <code>hello()</code> 打印 hi。下面是某程序运行中的 5 个时刻（含注释说明的输出），被打乱了，请拖动（或用 ↑↓ 按钮）恢复正确的时间顺序：</p>
+    <div class="widget-sort"><script type="application/json" class="sort-data">{ "items": [
+      "auto p = std::make_unique<Res>(\"R\");   // 输出：R 构造",
+      "auto q = std::move(p);                  // 无输出：只是指针搬家，p 变空",
+      "std::cout << (p ? \"非空\" : \"空\");       // 输出：空",
+      "q->hello();                             // 输出：hi",
+      "} // main 结束：q 析构                    // 输出：R 析构"
+    ], "hint": "std::move 只搬指针不搬对象；资源销毁发生在拥有它的那个 unique_ptr 析构的那一刻。",
+    "explain": "make_unique 在堆上构造 Res 并交给 p 独占；std::move 把所有权交给 q（p 变空，判断得“空”）；hello 经 q 正常调用；main 结束时 q 析构，自动 delete，最后打印 R 析构。全程没有手写 new/delete。" }</script></div>
+  </article>
+
+  <!-- ================= 12. 常见错误 ================= -->
+  <h2>11. 常见错误</h2>
+  <div class="warn"><b>1. 把 std::move 当“移动指令”</b>——它只是转右值的 cast；移动后原对象有效但未指定。修复：move 后只析构或重赋值，不读它的值。</div>
+  <div class="warn"><b>2. 移动构造忘写 noexcept</b>——vector 扩容悄悄退回拷贝，性能优化静默失效。修复：资源管理类的移动构造/移动赋值一律 <code>noexcept</code>。</div>
+  <div class="ub-warning"><b>3. 双重释放 / 悬空指针</b>——同一块内存 delete 两次、delete 后继续解引用，都是<b>未定义行为</b>（示例 11）；get() 拿到的指针绝不能 delete。修复：不手写 new/delete，交给智能指针。</div>
+  <div class="warn"><b>4. 用同一裸指针初始化两个 shared_ptr</b>——两套计数管同一块内存，析构即双重释放。修复：要共享就永远从已有 shared_ptr 拷贝，创建用 make_shared。</div>
+  <div class="warn"><b>5. shared_ptr 循环引用泄漏</b>——双向互指导致计数永不归零。修复：一方改 weak_ptr，“一方强、一方弱”。</div>
+  <div class="warn"><b>6. release() 之后忘了 delete 返回的指针</b>——所有权已移交，不删就是泄漏。修复：能不 release 就不 release；用了就立即接管。</div>
+  <p>更多同类错误见 <a href="../errors.html">编译错误博物馆</a>（如“cannot bind rvalue to lvalue reference”），以及 <a href="../exam-pitfalls.html">考试易错点</a> 中的“移动语义与智能指针”专题。</p>
+
+  <!-- ================= 13. 标准差异 ================= -->
+  <h2>12. C++ 标准差异小结</h2>
+  <table class="data-table">
+    <tr><th>特性</th><th>引入版本</th><th>备注</th></tr>
+    <tr><td>右值引用 <code>T&amp;&amp;</code>、<code>std::move</code>、移动构造/移动赋值</td><td>C++11</td><td>移动语义的地基</td></tr>
+    <tr><td><code>unique_ptr</code> / <code>shared_ptr</code> / <code>weak_ptr</code></td><td>C++11</td><td>取代 auto_ptr</td></tr>
+    <tr><td><code>std::make_shared</code></td><td>C++11</td><td>对象与控制块一次分配</td></tr>
+    <tr><td><code>std::make_unique</code></td><td><b>C++14</b></td><td>C++11 时代只能手写 <code>unique_ptr&lt;T&gt;(new T(...))</code></td></tr>
+    <tr><td><code>= default</code> / <code>= delete</code></td><td>C++11</td><td>显式表态“要默认版/禁用”</td></tr>
+    <tr><td><code>std::auto_ptr</code></td><td>C++98 引入</td><td><b>C++11 弃用，C++17 移除</b>；拷贝即转移所有权的坑</td></tr>
+  </table>
+  <div class="std-diff">本页示例按 <b>C++14 及以后</b> 编写（g++ 加 <code>-std=c++14</code> 或更高）——<code>make_unique</code> 需要 C++14；其余特性（移动语义、shared_ptr、weak_ptr）C++11 即可。用 <code>-std=c++11</code> 编译时，只需把 <code>make_unique</code> 换成 <code>std::unique_ptr&lt;T&gt;(new T(...))</code>。</div>
+
+  <!-- ================= 14. 小结 ================= -->
+  <h2>本章小结</h2>
+  <div class="keypoint">std::move 不移动（它只是转右值的许可）；unique_ptr 独占、shared_ptr 共享、weak_ptr 观察；资源释放交给析构函数（RAII），人就不需要记得 delete。</div>
+  <ul>
+    <li>左值有名字可取地址，右值是字面量/临时/表达式结果；<code>&amp;&amp;</code> 绑定右值。</li>
+    <li>移动构造 = 偷指针 + 掏空源对象；源对象此后有效但未指定；noexcept 才能被 vector 信任。</li>
+    <li>Rule of Five：管资源就成套考虑五大件；Rule of Zero：交给容器和智能指针，一个都不写。</li>
+    <li>unique_ptr：make_unique 创建、不能拷贝只能移动、get 借 / release 交 / reset 销；数组用 <code>unique_ptr&lt;T[]&gt;</code>。</li>
+    <li>shared_ptr：make_shared、拷贝 +1 / 析构 -1 / 归零销毁；计数增减线程安全，指针本身不是。</li>
+    <li>循环引用靠 weak_ptr 打破；RAII 覆盖文件/锁/内存且异常安全；auto_ptr 已在 C++17 移除。</li>
+  </ul>
+
+  <!-- ================= 15. 自测清单 ================= -->
+  <h2>自测清单</h2>
+  <ul class="checklist" data-chapter="ch09">
+    <li><label><input type="checkbox" data-check-id="ch09-c1"><span>我能用“能否取地址/有无名字”判断左值与右值，并说出 &amp;&amp; 绑定什么</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch09-c2"><span>我能说清 std::move 只是类型转换，以及移动后原对象处于“有效但未指定”状态</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch09-c3"><span>我能对比移动构造与拷贝构造（偷指针 vs 深拷贝），并说出 noexcept 为什么重要</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch09-c4"><span>我能默写 Rule of Five 的五个成员，并解释 Rule of Zero 为什么是默认推荐</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch09-c5"><span>我能熟练使用 unique_ptr：make_unique、-&gt; 与 *、get/release/reset 的区别</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch09-c6"><span>我能推演 shared_ptr 的 use_count 变化，并用 weak_ptr 解决循环引用</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch09-c7"><span>我能用 ofstream / lock_guard 举例说清 RAII 的“构造获取、析构释放”套路</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch09-c8"><span>我能列举裸 new/delete 的三大问题，并说出 auto_ptr 的下落（C++17 移除）</span></label></li>
+  </ul>
+
+  <!-- ================= 16. 随堂测验 ================= -->
+  <section class="quiz" data-source="ch09">
+    <script type="application/json" class="quiz-data">{ "title": "随堂测验：移动语义与智能指针",
+      "questions": [
+        { "type": "mcq", "q": "关于 <code>std::move(x)</code>，下列说法正确的是？",
+          "options": ["它把 x 的内容搬到了目标对象", "它只是一个“把 x 转成右值”的类型转换，本身不移动任何东西", "它会立刻释放 x 的内存", "它只能作用于指针"], "answer": 1,
+          "explain": "move 是 cast（static_cast&lt;T&amp;&amp;&gt; 的包装）：真正的搬运发生在随后被选中的移动构造/移动赋值里。" },
+        { "type": "mcq", "q": "对象被移动之后处于什么状态？",
+          "options": ["未定义，之后不能使用", "有效但未指定：可析构、可重新赋值，但不要读它的值", "一定是 nullptr", "和移动前完全一样"], "answer": 1,
+          "explain": "标准保证“有效但未指定”：能析构、能赋新值；但值不承诺（“一定是空串”是常见实现的巧合，不是承诺）。" },
+        { "type": "tf", "q": "<code>std::unique_ptr</code> 可以拷贝构造。",
+          "answer": false,
+          "explain": "独占所有权，拷贝构造被 = delete；转移所有权只能 std::move。" },
+        { "type": "mcq", "q": "<code>a</code> 是某对象的唯一 <code>shared_ptr</code>（use_count()==1）。执行 <code>auto b = a;</code> 后，<code>a.use_count()</code> 是？",
+          "options": ["0", "1", "2", "未定义"], "answer": 2,
+          "explain": "拷贝一次计数 +1：a、b 共同持有，计数 2。对象本体始终只有一个。" },
+        { "type": "tf", "q": "不同线程操作指向同一控制块的多个 shared_ptr 副本时，引用计数的增减本身是原子的、线程安全的。",
+          "answer": true,
+          "explain": "C++11 起控制块计数是原子操作；但多个线程同时读写“同一个 shared_ptr 对象本身”仍需同步。" },
+        { "type": "fill", "q": "两个对象互持 <code>shared_ptr</code> 导致计数永不归零，这叫____引用；把其中一方改成 weak_ptr 即可打破。",
+          "answer": ["循环"],
+          "explain": "循环引用：A 撑着 B、B 撑着 A，外部的指针全消失后计数各剩 1。weak_ptr 只观察不强持。" },
+        { "type": "mcq", "q": "std::vector 扩容搬移元素时，会采用移动构造而不是拷贝构造的前提是？",
+          "options": ["移动构造存在即可", "移动构造标了 noexcept", "元素个数是偶数", "开了 O2 优化"], "answer": 1,
+          "explain": "搬一半抛异常无法回滚，所以只有 noexcept 的移动构造才被 vector 信任；否则静默退回拷贝。" },
+        { "type": "fill", "q": "推荐的创建方式补全（C++14 起）：auto p = std::____&lt;int&gt;(42);  （创建 unique_ptr）",
+          "answer": ["make_unique"],
+          "explain": "make_unique 免去手写 new，异常安全且类型简短；注意它是 C++14 才加入的。" },
+        { "type": "code", "q": "补全：让 p 交出所有权并返回裸指针、自己变空的成员函数 —— int* raw = p.____();",
+          "answer": ["release"],
+          "explain": "release 交出所有权但不释放内存，之后调用方负责 delete；get 只借不给所有权；reset 立即销毁。" },
+        { "type": "mcq", "q": "下列关于 RAII 的说法，不正确的是？",
+          "options": ["资源的获取在构造函数中完成", "资源的释放绑定在析构函数中", "即使中途抛异常，已构造的局部对象也会析构", "RAII 只能管理内存，不能管理文件和锁"], "answer": 3,
+          "explain": "RAII 是通用套路：ofstream 管文件、lock_guard 管锁、unique_ptr 管内存——同一招。异常路径栈展开时析构照常执行。" }
+      ] }</script>
+  </section>
+
+  </main>
+
+<script src="../assets/js/highlight.js"></script>
+<script src="../assets/js/toc.js"></script>
+<script src="../assets/js/nav.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/interactive.js"></script>
+<script src="../assets/js/teacher.js"></script>
+<script src="../assets/js/mastery.js"></script>
+<script src="../assets/js/bughunt-data.js"></script>
+<script src="../assets/js/bug-hunt.js"></script>
+<script src="../assets/js/present.js"></script>
+<script src="../assets/js/glossary-data.js"></script>
+<script src="../assets/js/glossary.js"></script>
+<script src="../assets/js/page-toc.js"></script>
+<script src="../assets/js/v2-config.js"></script>
+<script src="../assets/js/v2-core.js"></script>
+<script src="../assets/js/v2-lab.js"></script>
+</body>
+</html>

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>编译错误博物馆 | 大学C++离线助教</title>
+<script src="assets/js/theme-init.js"></script>
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/v2.css">
+</head>
+<body>
+<main class="container">
+
+  <p class="crumbs"><a href="index.html">首页</a> / 编译错误博物馆</p>
+
+  <header>
+    <h1>编译错误博物馆</h1>
+    <p class="muted"><span id="n-errors">…</span> 条常见错误：出错的代码、g++ 报错原文、原因、修复与预防。遇到报错先搜关键词。MSVC 变体单独标注；「IDE 与工具链」条目以 Visual Studio 2026 的输出/症状为准。</p>
+  </header>
+
+  <div class="filter-bar">
+    <input type="search" id="q" class="search-input" placeholder="搜索标题 / 报错原文 / 代码关键词…" autocomplete="off">
+    <select id="cat" class="filter-select"><option value="">全部分类</option></select>
+    <div class="filter-chips" id="compilers"></div>
+    <button class="btn btn-small" id="expand-all">展开全部</button>
+    <button class="btn btn-small" id="collapse-all">折叠全部</button>
+    <span class="result-count" id="count"></span>
+  </div>
+
+  <div id="list"></div>
+  <div id="empty" hidden class="card center muted">没有匹配的条目。</div>
+
+</main>
+
+<script src="assets/js/highlight.js"></script>
+<script src="assets/js/toc.js"></script>
+<script src="assets/js/nav.js"></script>
+<script src="assets/js/interactive.js"></script>
+<script src="assets/js/teacher.js"></script>
+<script src="assets/js/mastery.js"></script>
+<script src="assets/js/errors-data.js"></script>
+<script>
+(function () {
+  "use strict";
+  var DATA = window.ERRORS_DATA || [];
+  document.getElementById("n-errors").textContent = DATA.length;
+  var esc = function (s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); };
+
+  /* 相关链接解析 */
+  function linkFor(id) {
+    var toc = window.COURSE_TOC || [];
+    for (var i = 0; i < toc.length; i++) if (toc[i].id === id) return { title: toc[i].title, href: "../" + toc[i].file, prefix: "../" };
+    if (id === "exam-pitfalls") return { title: "考试易错点", href: "exam-pitfalls.html", prefix: "" };
+    if (id === "cheatsheets") return { title: "速查表", href: "cheatsheets.html", prefix: "" };
+    if (id === "errors") return { title: "错误博物馆", href: "errors.html", prefix: "" };
+    return null;
+  }
+
+  /* 渲染单条 */
+  function renderItem(d) {
+    var item = document.createElement("article");
+    item.className = "error-item";
+    item.id = d.id;
+
+    var badges = '<span class="tag">' + esc(d.category) + "</span>";
+    (d.compilers || []).forEach(function (c) { badges += '<span class="badge">' + esc(c) + "</span>"; });
+    if (d.level) badges += '<span class="badge">' + esc(d.level) + "</span>";
+
+    var relLinks = (d.related || []).map(function (r) {
+      var l = linkFor(r);
+      return l ? '<a href="' + l.href + '">' + esc(l.title) + "</a>" : "";
+    }).filter(Boolean).join(" · ");
+
+    item.innerHTML =
+      '<div class="err-head">' +
+      '<span class="err-arrow">▶</span>' +
+      "<h3>" + esc(d.title) + "</h3>" +
+      '<div class="ex-meta">' + badges + "</div>" +
+      "</div>" +
+      '<div class="err-body">' +
+      '<div class="err-section"><div class="err-label">❌ 出错的代码 <button class="btn btn-small" data-copy="bad">📋 复制</button></div>' +
+      '<pre><code class="cpp">' + esc(d.bad) + "</code></pre></div>" +
+      '<div class="err-section"><div class="err-label">🔥 编译器报错原文</div>' +
+      '<div class="error-msg">' + esc(d.message).replace(/^(.*?error:)/m, '<span class="em-tag">$1</span>').replace(/^(.*?warning:)/m, '<span class="em-tag">$1</span>') + "</div>" +
+      (d.messageNote ? '<div class="error-msg" style="margin-top:6px">' + esc(d.messageNote) + "</div>" : "") +
+      "</div>" +
+      '<div class="err-section"><div class="err-label">🔍 原因</div><p>' + d.cause + "</p></div>" +
+      '<div class="err-section"><div class="err-label">✅ 修复 <button class="btn btn-small" data-copy="fixed">📋 复制</button></div>' +
+      '<pre><code class="cpp">' + esc(d.fixed) + "</code></pre></div>" +
+      '<div class="err-section"><div class="err-label">🛡 预防建议</div><p>' + d.prevention + "</p></div>" +
+      (relLinks ? '<div class="err-section"><div class="err-label">📚 相关章节</div><p>' + relLinks + "</p></div>" : "") +
+      "</div>";
+
+    item.querySelector(".err-head").addEventListener("click", function () {
+      item.classList.toggle("open");
+    });
+    item.querySelectorAll("[data-copy]").forEach(function (btn) {
+      btn.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        var code = btn.getAttribute("data-copy") === "bad" ? d.bad : d.fixed;
+        if (window.Interact) window.Interact.copyText(code, function (ok) {
+          btn.textContent = ok ? "✅ 已复制" : "❌ 失败";
+          setTimeout(function () { btn.textContent = "📋 复制"; }, 1200);
+        });
+      });
+    });
+    return item;
+  }
+
+  /* 筛选状态 */
+  var state = { q: "", cat: "", compiler: "" };
+
+  function apply() {
+    var list = document.getElementById("list");
+    list.innerHTML = "";
+    var kw = state.q.trim().toLowerCase();
+    var shown = 0;
+    DATA.forEach(function (d) {
+      if (state.cat && d.category !== state.cat) return;
+      if (state.compiler && (d.compilers || []).indexOf(state.compiler) === -1) return;
+      if (kw) {
+        var hay = (d.title + " " + d.message + " " + (d.messageNote || "") + " " + d.cause + " " + d.bad + " " + d.fixed + " " + (d.prevention || "")).toLowerCase();
+        if (hay.indexOf(kw) === -1) return;
+      }
+      list.appendChild(renderItem(d));
+      shown++;
+    });
+    document.getElementById("count").textContent = "共 " + shown + " / " + DATA.length + " 件展品";
+    document.getElementById("empty").hidden = shown > 0;
+    if (window.CppLight) window.CppLight.highlightAll(list);
+  }
+
+  /* 初始化筛选控件 */
+  (function initControls() {
+    var cats = [];
+    DATA.forEach(function (d) { if (cats.indexOf(d.category) === -1) cats.push(d.category); });
+    var sel = document.getElementById("cat");
+    cats.forEach(function (c) {
+      var o = document.createElement("option");
+      o.value = c; o.textContent = c;
+      sel.appendChild(o);
+    });
+    sel.addEventListener("change", function () { state.cat = sel.value; apply(); });
+
+    var comps = [];
+    DATA.forEach(function (d) { (d.compilers || []).forEach(function (c) { if (comps.indexOf(c) === -1) comps.push(c); }); });
+    var chipBox = document.getElementById("compilers");
+    var all = document.createElement("button");
+    all.className = "filter-chip active"; all.textContent = "全部编译器";
+    all.addEventListener("click", function () {
+      state.compiler = "";
+      chipBox.querySelectorAll(".filter-chip").forEach(function (c) { c.classList.remove("active"); });
+      all.classList.add("active"); apply();
+    });
+    chipBox.appendChild(all);
+    comps.forEach(function (c) {
+      var b = document.createElement("button");
+      b.className = "filter-chip"; b.textContent = c;
+      b.addEventListener("click", function () {
+        state.compiler = (state.compiler === c) ? "" : c;
+        chipBox.querySelectorAll(".filter-chip").forEach(function (x) { x.classList.remove("active"); });
+        if (state.compiler) b.classList.add("active"); else all.classList.add("active");
+        apply();
+      });
+      chipBox.appendChild(b);
+    });
+
+    var q = document.getElementById("q");
+    q.addEventListener("input", function () { state.q = q.value; apply(); });
+
+    document.getElementById("expand-all").addEventListener("click", function () {
+      document.querySelectorAll(".error-item").forEach(function (el) { el.classList.add("open"); });
+    });
+    document.getElementById("collapse-all").addEventListener("click", function () {
+      document.querySelectorAll(".error-item").forEach(function (el) { el.classList.remove("open"); });
+    });
+  })();
+
+  apply();
+
+  /* 锚点定位：errors.html#err-xxx */
+  if (location.hash) {
+    var target = document.getElementById(location.hash.slice(1));
+    if (target) {
+      target.classList.add("open");
+      setTimeout(function () { target.scrollIntoView({ behavior: "smooth", block: "start" }); }, 60);
+    }
+  }
+})();
+</script>
+<script src="assets/js/present.js"></script>
+<script src="assets/js/glossary-data.js"></script>
+<script src="assets/js/glossary.js"></script>
+<script src="assets/js/page-toc.js"></script>
+<script src="assets/js/v2-config.js"></script>
+<script src="assets/js/v2-core.js"></script>
+<script src="assets/js/v2-lab.js"></script>
+</body>
+</html>

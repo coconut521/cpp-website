@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第6章 数组与字符串 | 大学C++离线助教</title>
+<script src="../assets/js/theme-init.js"></script>
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/v2.css">
+</head>
+<body>
+<main class="container chapter">
+
+  <p class="crumbs"><a href="../index.html">首页</a> / <a href="../index.html#toc">章节目录</a> / 第6章</p>
+
+  <header>
+    <h1>第6章 数组与字符串</h1>
+    <p class="muted">一组同类型的数据排成一行，就是<b>数组</b>；字符串本质是“以 <code>'\0'</code> 结尾的字符数组”。C++ 同时保留 C 风格数组与 <code>std::string</code>，需按场景选用。</p>
+  </header>
+
+  <!-- ================= 1. 学习目标 ================= -->
+  <section class="card objectives">
+    <h2 style="margin-top:0">学习目标</h2>
+    <ul>
+      <li>用三种写法定义并初始化数组（全量 / 部分 / 省略长度），说清部分初始化的<b>自动补 0</b> 规则。</li>
+      <li>解释下标为什么<b>从 0 开始</b>、越界为什么是<b>未定义行为</b>。</li>
+      <li>说清 <code>'\0'</code> 的作用，区分 <code>sizeof</code> 与 <code>strlen</code>。</li>
+      <li>指出 <code>strcpy</code> / <code>strcat</code> 等函数的边界风险，写出 <code>std::string</code> 的安全等价写法。</li>
+      <li>用 <code>std::string</code> 完成拼接、按内容比较、截取、查找、修改与数字互转，记住 <code>find</code> 失败返回 <code>npos</code>。</li>
+      <li>用 <code>getline</code> 读整行并避开残留换行符坑，用 range-for 逐字符处理字符串。</li>
+    </ul>
+    <p class="small muted">前置知识：<a href="../chapters/ch01-variables.html">第1章 变量与基本类型</a>。部分示例用到 for 循环与函数，用法可现场照抄。</p>
+    </section>
+
+  <!-- ================= 2. C 风格数组 ================= -->
+  <h2>1. C 风格数组</h2>
+  <p><b>数组</b>是“同类型元素的连续内存”，定义时必须给出<b>编译期已知</b>的长度。<b>下标从 0 开始</b>：<code>a[0]</code> 是第一个元素，<code>a[n-1]</code> 是最后一个。C++ 对数组<b>没有任何边界检查</b>——下标合不合法，全靠你自己。</p>
+
+  <article class="example-card" id="ch06-ex-01">
+    <div class="ex-head">
+      <h3 class="ex-title">示例1：数组的三种初始化写法</h3>
+      <div class="ex-meta"><span class="tag">知识点：数组定义与初始化</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int a[5] = {10, 20, 30, 40, 50};  // 全量初始化
+    int b[5] = {1, 2};                // 部分初始化：其余元素自动补 0
+    int c[]  = {7, 8, 9};             // 省略长度：由初始值个数决定
+
+    std::cout &lt;&lt; sizeof(a) / sizeof(a[0]) &lt;&lt; "\n";  // 元素个数
+    std::cout &lt;&lt; b[0] &lt;&lt; " " &lt;&lt; b[3] &lt;&lt; "\n";       // 没写到的元素是 0
+    std::cout &lt;&lt; sizeof(c) / sizeof(c[0]) &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">5
+1 0
+3</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：全量初始化，5 个元素依次拿到 10、20、30、40、50。</li>
+        <li><b>第5行</b>：<b>部分初始化</b>——只写了前 2 个，标准规定其余元素<b>自动补 0</b>（<code>int x;</code> 没有这种保证）。</li>
+        <li><b>第6行</b>：省略长度时，编译器数一数初始值个数，<code>c</code> 就是 3 个元素。</li>
+        <li><b>第8行</b>：<code>sizeof(a) / sizeof(a[0])</code> = 总字节数 ÷ 单个元素字节数 = 20 / 4 = 5，是求“元素个数”的经典写法。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p><code>sizeof</code> 求元素个数只在数组“原地可见”时有效：数组一旦作为参数传进函数就<b>退化为指针</b>（第 5 章主题），此时 <code>sizeof</code> 拿到的是指针大小（64 位平台是 8）而不是数组大小——所以函数里必须额外传一个 <code>n</code> 表示长度。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>int b[5] = {1, 2};</code> 之后 <code>b[3]</code> 是 <b>0</b>（不是垃圾值、不是 2）——部分初始化补 0 是标准保证。判断题“数组只初始化一部分时其余元素不确定”为<b>假</b>。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "a": "10 20 30 40 50" }, "out": "", "note": "全量初始化：5 个元素依次获得初值" },
+      { "line": 5, "vars": { "a": "10 20 30 40 50", "b": "1 2 0 0 0" }, "out": "", "note": "部分初始化：只写了前 2 个，其余自动补 0" },
+      { "line": 6, "vars": { "a": "10 20 30 40 50", "b": "1 2 0 0 0", "c": "7 8 9" }, "out": "", "note": "省略长度：编译器数初始值个数，c 是 3 个元素" },
+      { "line": 8, "vars": { "a": "10 20 30 40 50", "b": "1 2 0 0 0", "c": "7 8 9" }, "out": "5", "note": "sizeof(a)=20 字节，每个 int 4 字节 → 5 个元素" },
+      { "line": 9, "vars": { "a": "10 20 30 40 50", "b": "1 2 0 0 0", "c": "7 8 9" }, "out": "1 0", "note": "b[0] 是写过的 1；b[3] 没写过，是补上的 0" },
+      { "line": 10, "vars": { "a": "10 20 30 40 50", "b": "1 2 0 0 0", "c": "7 8 9" }, "out": "3", "note": "c 的长度由初始值个数决定" }
+    ] }</script>
+  </article>
+
+  <div class="memviz"><script type="application/json" class="mem-data">{ "title": "int a[5] = {10, 20, 30, 40, 50}; 的内存布局（示意）",
+    "regions": [
+      { "addr": "0x7ffd…0100", "name": "a[0]", "type": "int", "value": "10", "note": "第一个元素，下标 0" },
+      { "addr": "0x7ffd…0104", "name": "a[1]", "type": "int", "value": "20", "note": "地址依次 +4（int 占 4 字节）" },
+      { "addr": "0x7ffd…0108", "name": "a[2]", "type": "int", "value": "30", "note": "a[i] 的地址 = 首地址 + i × 4" },
+      { "addr": "0x7ffd…010c", "name": "a[3]", "type": "int", "value": "40", "note": "连续存放，中间没有缝隙" },
+      { "addr": "0x7ffd…0110", "name": "a[4]", "type": "int", "value": "50", "note": "最后一个元素，下标 n-1 = 4" }
+    ],
+    "note": "数组是连续内存，这就是“下标从 0 开始”能一步算出地址的原因；也是越界会踩到相邻内存的原因。" }</script></div>
+
+  <article class="example-card" id="ch06-ex-02">
+    <div class="ex-head">
+      <h3 class="ex-title">示例2：越界访问 —— 无边界检查</h3>
+      <div class="ex-meta"><span class="tag">知识点：数组越界</span><span class="tag red">未定义行为示范</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int scores[5] = {90, 85, 77, 68, 92};
+    std::cout &lt;&lt; scores[4] &lt;&lt; "\n";   // OK：最后一个元素，下标 4
+    std::cout &lt;&lt; scores[5] &lt;&lt; "\n";   // ⛔ 越界！合法下标只有 0~4
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：5 个元素，合法下标是 0~4。<code>a[n-1]</code> 永远是最后一个，<code>a[n]</code> 永远越界。</li>
+        <li><b>第5行</b>：合法访问，打印 92。</li>
+        <li><b>第6行</b>：越界访问（见下方红框）。注意：<b>原生数组没有 <code>.at()</code> 成员</b>——带越界检查的 <code>at()</code> 只属于 <code>std::vector</code>、<code>std::array</code>、<code>std::string</code> 等容器，数组长度只能自己管。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 为什么没有“预期输出”？</h4>
+      <div class="ub-warning">读写 <code>scores[5]</code> 是<b>未定义行为</b>：标准只保证下标 0~4 有效。程序可能打印相邻内存的垃圾值、可能崩溃、也可能在优化下产生完全无法预测的结果。<b>g++ 在 <code>-O2</code> 及以上会激活 <code>-Warray-bounds</code></b>，对“长度已知 + 编译期常量下标”的越界常能直接警告（array subscript 5 is above array bounds）；配合 <code>-fsanitize=address</code> 可在运行时捕获。但<b>编译器不警告 ≠ 合法</b>，标准从不要求检查。写越界更危险：可能悄悄破坏相邻变量的值。考试中出现“越界后输出 X”的题目，题目本身就是错的。</div>
+      <p>规避习惯：循环条件写 <code>i &lt; n</code> 不写 <code>i &lt;= n</code>；把元素个数存成常量 <code>constexpr int N = 5;</code> 并全程用 <code>N</code> 代替字面量。</p>
+    </div>
+  </article>
+
+  <div class="std-diff">标准 C++ 不允许<b>变长数组</b> <code>int a[n];</code>（n 是运行期变量）——数组长度必须是编译期常量（<code>constexpr</code> 或字面量）。GCC 会把它当语言扩展放行，但这不可移植，考试按标准作答；运行期长度请用 <code>std::vector&lt;int&gt; a(n);</code>（第 10 章）。</div>
+
+  <!-- ================= 3. 二维数组 ================= -->
+  <h2>2. 二维数组：按行存放的表格</h2>
+  <p><code>int m[2][3];</code> 是“2 行 3 列”的表格。内存里没有真正的“二维”——元素<b>按行连续存放</b>（先放第 0 行的 3 个，再放第 1 行的 3 个），这叫<b>行主序</b>。</p>
+
+  <article class="example-card" id="ch06-ex-03">
+    <div class="ex-head">
+      <h3 class="ex-title">示例3：二维数组的定义与双重循环遍历</h3>
+      <div class="ex-meta"><span class="tag">知识点：二维数组</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    int m[2][3] = {
+        {1, 2, 3},
+        {4, 5, 6}
+    };
+
+    for (int i = 0; i &lt; 2; ++i) {        // 外层：行
+        for (int j = 0; j &lt; 3; ++j) {    // 内层：列
+            std::cout &lt;&lt; m[i][j] &lt;&lt; " ";
+        }
+        std::cout &lt;&lt; "\n";
+    }
+    std::cout &lt;&lt; "sizeof(m) = " &lt;&lt; sizeof(m) &lt;&lt; " 字节\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">1 2 3 
+4 5 6 
+sizeof(m) = 24 字节</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4~7行</b>：用嵌套的大括号按行给初值；也可以写成一行 <code>int m[2][3] = {1, 2, 3, 4, 5, 6};</code>，编译器照样按行填充。</li>
+        <li><b>第9~14行</b>：外层循环走行、内层循环走列，是二维遍历的标准写法。<code>m[i][j]</code> 读作“第 i 行第 j 列”。</li>
+        <li><b>第15行</b>：<code>sizeof(m)</code> = 2 × 3 × 4 = 24 字节——二维数组也是一块连续内存。</li>
+        <li>输出中每个数字后面多一个空格（<code>&lt;&lt; " "</code> 无条件输出），这是教学示例的简化写法。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>两个下标写成 <code>m[1, 2]</code> 是错的（逗号表达式的坑），必须写 <code>m[1][2]</code>。另外 <code>m[2][3]</code> 定义的是 2 行 3 列，但<b>没有下标 [2]</b>——行下标同样只有 0~1。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": { "m": "2行3列，按行连续存放" }, "out": "", "note": "定义 2×3 的二维数组；内存先放第 0 行，再放第 1 行" },
+      { "line": 9, "vars": { "i": "0" }, "out": "", "note": "外层循环控制行，i 先取 0" },
+      { "line": 13, "vars": { "i": "0" }, "out": "1 2 3 ", "note": "内层 j 走完 0~2，第 0 行打印为 1 2 3（行尾多一个空格），再换行" },
+      { "line": 13, "vars": { "i": "1" }, "out": "4 5 6 ", "note": "i=1 的第二轮同理，第 1 行打印为 4 5 6" },
+      { "line": 15, "vars": { "i": "1" }, "out": "sizeof(m) = 24 字节", "note": "2 × 3 个 int = 24 字节" }
+    ] }</script>
+  </article>
+
+  <div class="memviz"><script type="application/json" class="mem-data">{ "title": "int m[2][3] 的行主序存储（示意）",
+    "regions": [
+      { "addr": "0x7ffd…0300", "name": "m[0][0]", "type": "int", "value": "1", "note": "第 0 行开头" },
+      { "addr": "0x7ffd…0304", "name": "m[0][1]", "type": "int", "value": "2", "note": "" },
+      { "addr": "0x7ffd…0308", "name": "m[0][2]", "type": "int", "value": "3", "note": "第 0 行结束" },
+      { "addr": "0x7ffd…030c", "name": "m[1][0]", "type": "int", "value": "4", "note": "第 1 行紧挨着第 0 行" },
+      { "addr": "0x7ffd…0310", "name": "m[1][1]", "type": "int", "value": "5", "note": "" },
+      { "addr": "0x7ffd…0314", "name": "m[1][2]", "type": "int", "value": "6", "note": "整块结束：共 24 字节" }
+    ],
+    "note": "m[i][j] 的地址 = 首地址 + (i × 3 + j) × 4 —— 每行的长度必须知道，这正是二维数组传参要给列数的原因。" }</script></div>
+
+  <article class="example-card" id="ch06-ex-04">
+    <div class="ex-head">
+      <h3 class="ex-title">示例4：二维数组传参 —— 列数必须写死</h3>
+      <div class="ex-meta"><span class="tag">知识点：数组作函数参数</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+// 二维数组作参数：列数必须写出，只能省行数
+int sumAll(int m[][4], int rows) {
+    int total = 0;
+    for (int i = 0; i &lt; rows; ++i)
+        for (int j = 0; j &lt; 4; ++j)
+            total += m[i][j];
+    return total;
+}
+
+int main() {
+    int grid[3][4] = {
+        {1,  2,  3,  4},
+        {5,  6,  7,  8},
+        {9, 10, 11, 12}
+    };
+    std::cout &lt;&lt; "sum = " &lt;&lt; sumAll(grid, 3) &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">sum = 78</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：形参写成 <code>int m[][4]</code>（等价于 <code>int (*m)[4]</code>）。数组传参退化为指针，编译器要靠<b>列数</b>才能算出 <code>m[i][j]</code> 的地址：首地址 + (i×4 + j)×每元素大小。行数无所谓（由 <code>rows</code> 传入），列数缺了就算不了地址——所以<b>第一维可省、第二维必须给</b>。</li>
+        <li><b>第8行</b>：<code>1+2+…+12 = 78</code>。</li>
+        <li><b>第18行</b>：传数组名 <code>grid</code> 时它退化为指针，所以函数内改 <code>m[i][j]</code> 会直接改到原数组——数组传参天生就是“引用语义”。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>int sumAll(int m[][], int rows)</code> 是<b>编译错误</b>：两个维度都不能全省。常见考题：二维数组作参数时，哪个维度可以省？（答：只省第一维。）</p>
+    </div>
+  </article>
+
+  <!-- ================= 4. 字符数组与 '\0' ================= -->
+  <h2>3. 字符数组与 '\0'</h2>
+  <p>C 风格字符串 = 字符数组 + 结尾的 <b>null 字符 <code>'\0'</code></b>。字符串字面量 <code>"hi"</code> 在内存里其实是 <b>3 个字节</b>：<code>'h'</code>、<code>'i'</code>、<code>'\0'</code>——<b>字面量永远自带结尾的 '\0'</b>。没有 '\0'，<code>strlen</code>、<code>cout</code> 就不知道字符串到哪结束。</p>
+
+  <article class="example-card" id="ch06-ex-05">
+    <div class="ex-head">
+      <h3 class="ex-title">示例5：sizeof 与 strlen —— 容量 ≠ 长度</h3>
+      <div class="ex-meta"><span class="tag">知识点：sizeof vs strlen</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;cstring&gt;
+
+int main() {
+    char s1[] = "hi";    // 长度省略：自动 3 字节（'h' 'i' '\0'）
+    char s2[10] = "hi";  // 部分初始化：其余 8 字节全部填 '\0'
+
+    std::cout &lt;&lt; "sizeof(s1) = " &lt;&lt; sizeof(s1) &lt;&lt; "\n";
+    std::cout &lt;&lt; "strlen(s1) = " &lt;&lt; strlen(s1) &lt;&lt; "\n";
+    std::cout &lt;&lt; "sizeof(s2) = " &lt;&lt; sizeof(s2) &lt;&lt; "\n";
+    std::cout &lt;&lt; "strlen(s2) = " &lt;&lt; strlen(s2) &lt;&lt; "\n";
+    std::cout &lt;&lt; "s1 = " &lt;&lt; s1 &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">sizeof(s1) = 3
+strlen(s1) = 2
+sizeof(s2) = 10
+strlen(s2) = 2
+s1 = hi</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第8行</b>：<code>sizeof(s1)</code> = <b>3</b>——问的是“数组总共几个字节”，含结尾的 <code>'\0'</code>。</li>
+        <li><b>第9行</b>：<code>strlen(s1)</code> = <b>2</b>——数的是“到第一个 '\0' 为止有几个字符”，<b>不含</b> '\0'。</li>
+        <li><b>第10~11行</b>：<code>s2</code> 声明为 10 字节，<code>sizeof</code> 永远是 10；但有效内容仍是 2 个字符，<code>strlen</code> 照样是 2。</li>
+        <li><b>第12行</b>：<code>cout</code> 遇到 <code>char</code> 数组会一直打印到 '\0' 为止。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>经典考题：<code>char s[] = "abc";</code>——<code>sizeof(s)</code> 是 <b>4</b>，<code>strlen(s)</code> 是 <b>3</b>。<b>sizeof 问容量（含 '\0'），strlen 问长度（不含 '\0'）</b>。另外 <code>strlen</code> 是运行期函数，<code>sizeof</code> 是编译期运算符。</p>
+    </div>
+    <div class="memviz"><script type="application/json" class="mem-data">{ "title": "char s1[] = \"hi\"; 与 char s2[10] = \"hi\"; 的存储",
+      "regions": [
+        { "addr": "0x7ffd…0210", "name": "s1[0..2]", "type": "char[3]", "value": "'h' 'i' '\\0'", "note": "省略长度：按字面量算 3 字节，含结尾 '\\0'" },
+        { "addr": "0x7ffd…0220", "name": "s2[0..1]", "type": "char[10]", "value": "'h' 'i'", "note": "写进去的两个字符" },
+        { "addr": "0x7ffd…0222", "name": "s2[2..9]", "type": "char[10]", "value": "'\\0' ×8", "note": "部分初始化把其余 8 字节全部填 '\\0'" }
+      ],
+      "note": "strlen 从首字符数到第一个 '\\0'（不含它）；sizeof 问的是数组总共多少字节。s2 之所以安全，是因为其余字节都是 '\\0'。" }</script></div>
+  </article>
+
+  <article class="example-card" id="ch06-ex-06">
+    <div class="ex-head">
+      <h3 class="ex-title">示例6：char s[5] = "hello"; —— 装不下的经典错误</h3>
+      <div class="ex-meta"><span class="tag red">编译错误示范</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    char s[5] = "hello";   // ⛔ 编译错误
+    std::cout &lt;&lt; s &lt;&lt; "\n";
+    return 0;
+}
+
+/* g++ 报错（节选，措辞随版本略有差异）：
+   error: initializer-string for array of chars is too long
+   "hello" 有 5 个字符，加上结尾的 '\0' 共需 6 字节，
+   而 s 只有 5 字节，装不下 */</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第4行</b>：初始化用的字符串字面量<b>必须连 '\0' 一起装下</b>：装 <code>"hello"</code> 至少要 <code>char s[6]</code>。C++ 把“装不下”定为编译错误，直接拒绝。</li>
+        <li>正确写法：<code>char s[6] = "hello";</code> 或干脆 <code>char s[] = "hello";</code>（自动 6 字节）。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p><b>C 语言</b>里 <code>char s[5] = "hello";</code> 合法（放弃结尾的 '\0'），但之后 <code>strlen(s)</code> 会一直读到越界。C++ 从第一个标准起就禁止这种写法。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>题目问“<code>char s[] = "hello";</code> 的 <code>sizeof</code>”，答 6 不是 5；问“装下 "hello" 至少多大”，答 6 不是 5。差异都来自结尾的 '\0'。</p>
+    </div>
+  </article>
+
+  <!-- ================= 5. C 字符串函数 ================= -->
+  <h2>4. C 字符串函数一览与风险</h2>
+  <p>这些函数都来自 <code>&lt;cstring&gt;</code>。它们今天主要用于读懂旧代码；<b>新代码请直接用 <code>std::string</code></b>（下一节）。共同特点是：<b>不做任何边界检查</b>，安全性完全由调用者负责。</p>
+
+  <table class="data-table">
+    <tr><th>函数</th><th>用途</th><th>风险 / 注意</th></tr>
+    <tr><td><code>strlen(s)</code></td><td>字符长度（不含 '\0'）</td><td>数组没有 '\0' 时会一直读到越界（UB）</td></tr>
+    <tr><td><code>strcpy(dst, src)</code></td><td>把 src 复制进 dst</td><td><b>无边界检查</b>：dst 装不下就写越界</td></tr>
+    <tr><td><code>strncpy(dst, src, n)</code></td><td>至多复制 n 个字符</td><td>src 长度 ≥ n 时<b>不会补 '\0'</b>，需手动 <code>dst[n-1] = '\0';</code></td></tr>
+    <tr><td><code>strcat(dst, src)</code></td><td>把 src 接到 dst 末尾</td><td><b>无边界检查</b>，危险</td></tr>
+    <tr><td><code>strcmp(a, b)</code></td><td>按字典序比较：小于返回负、等于返回 <b>0</b>、大于返回正</td><td>判断相等要写 <code>strcmp(a,b) == 0</code>；<code>==</code> 比较的是地址</td></tr>
+  </table>
+
+  <article class="example-card" id="ch06-ex-07">
+    <div class="ex-head">
+      <h3 class="ex-title">示例7：strcpy —— 往 5 字节数组写入 14 字节</h3>
+      <div class="ex-meta"><span class="tag red">未定义行为示范</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;cstring&gt;
+
+int main() {
+    char src[] = "Hello, world!";  // 13 个字符 + '\0' = 14 字节
+    char dst[5];
+    strcpy(dst, src);   // ⛔ 往 5 字节的数组里写 14 字节
+    std::cout &lt;&lt; dst &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第6行</b>：<code>dst</code> 只有 5 字节。</li>
+        <li><b>第7行</b>：<code>strcpy</code> 从 src 一路复制到 '\0' 为止，<b>完全不看 dst 有多大</b>——多出来的 9 个字节会踩到栈上相邻的数据。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 为什么没有“预期输出”？</h4>
+      <div class="ub-warning">用 <code>strcpy</code> 写越界是<b>未定义行为</b>：它破坏栈上相邻内存（甚至函数返回地址），程序可能“看起来正常”、可能崩溃、也可能被恶意利用（经典的缓冲区溢出攻击）。g++ 配合 <code>-D_FORTIFY_SOURCE=2</code> 优化时会把 <code>strcpy</code> 换成带检查的版本并中止程序（stack smashing detected），<code>-fsanitize=address</code> 则报 stack-buffer-overflow。标准不规定结果，考试不得把它当“输出题”。</div>
+      <p>相对安全的 C 写法是 <code>strncpy(dst, src, sizeof(dst) - 1); dst[sizeof(dst) - 1] = '\0';</code>——更简单的做法是下一节的 <code>std::string</code>。</p>
+    </div>
+  </article>
+
+  <div class="compare">
+    <div class="compare-col badc">
+      <h4>❌ C 风格字符串</h4>
+      <pre><code class="cpp">char a[16] = "abc";
+char b[16] = "abd";
+
+if (a == b) { }        // 比较的是
+                       // 地址！
+strcpy(a, long_str);   // 装不下？
+                       // 没人管
+strlen(a) + strlen(b); // O(n) 扫描</code></pre>
+    </div>
+    <div class="compare-col good">
+      <h4>✅ std::string（推荐）</h4>
+      <pre><code class="cpp">#include &lt;string&gt;
+std::string a = "abc";
+std::string b = "abd";
+
+if (a == b) { }    // 按内容比较
+a = long_str;      // 自动扩容，
+                   // 永不越界
+a + b;             // 拼接，自动
+                   // 管理内存</code></pre>
+    </div>
+  </div>
+
+  <!-- ================= 6. std::string ================= -->
+  <h2>5. std::string：现代 C++ 的字符串</h2>
+  <p><code>std::string</code>（头文件 <code>&lt;string&gt;</code>）把“字符数组 + 长度 + 内存管理”打包成一个类型：<b>自动扩容、自动释放、按内容比较</b>。它重载了 <code>+</code>、<code>==</code>、<code>&lt;</code> 等运算符，用起来几乎像内置类型。</p>
+
+  <article class="example-card" id="ch06-ex-08">
+    <div class="ex-head">
+      <h3 class="ex-title">示例8：定义、拼接与按内容比较</h3>
+      <div class="ex-meta"><span class="tag green">入门必会</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+int main() {
+    std::string s1 = "Hello";              // 拷贝初始化
+    std::string s2("World");               // 直接初始化
+    std::string s3 = s1 + ", " + s2 + "!"; // 拼接
+
+    std::cout &lt;&lt; s3 &lt;&lt; "\n";
+    std::cout &lt;&lt; "size = " &lt;&lt; s3.size() &lt;&lt; "\n";
+    std::cout &lt;&lt; (s1 == "Hello") &lt;&lt; "\n";  // == 按内容比较！
+    std::cout &lt;&lt; (s1 &lt; s2) &lt;&lt; "\n";        // 字典序：H 在 W 之前
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">Hello, World!
+size = 13
+1
+1</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第7行</b>：<code>+</code> 依次拼接，得到 <code>"Hello, World!"</code>，13 个字符。</li>
+        <li><b>第10行</b>：<code>size()</code> 与 <code>length()</code> 完全等价；<code>empty()</code> 判断是否为空。</li>
+        <li><b>第11行</b>：<code>==</code> 被 string 重载为<b>逐字符比较内容</b>，返回 true → 输出 1。对比 C 数组：<code>==</code> 比的是地址，内容相同也可能“不相等”。</li>
+        <li><b>第12行</b>：<code>&lt;</code> 按字典序：逐字符比，<code>'H'(72) &lt; 'W'(87)</code>，true → 1。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>std::string s = "a" + "b";</code> 是<b>编译错误</b>：两个 C 字符串字面量（指针）不能相加。<code>+</code> 的两侧<b>至少要有一个</b>是 <code>std::string</code>，例如 <code>std::string s = std::string("a") + "b";</code> 或 <code>s += "b";</code>。</p>
+    </div>
+  </article>
+
+  <article class="example-card" id="ch06-ex-09">
+    <div class="ex-head">
+      <h3 class="ex-title">示例9：[] 与 .at() —— 不检查与检查下标</h3>
+      <div class="ex-meta"><span class="tag">知识点：下标访问</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+#include &lt;stdexcept&gt;
+
+int main() {
+    std::string s = "abc";
+
+    std::cout &lt;&lt; s[0] &lt;&lt; " " &lt;&lt; s[2] &lt;&lt; "\n";   // [] 不检查下标
+
+    try {
+        std::cout &lt;&lt; s.at(5) &lt;&lt; "\n";           // at 检查下标，越界抛异常
+    } catch (const std::out_of_range&amp;) {
+        std::cout &lt;&lt; "越界！捕获 out_of_range\n";
+    }
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">a c
+越界！捕获 out_of_range</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第8行</b>：<code>s[i]</code> 假定你给的合法，为速度<b>不做检查</b>。</li>
+        <li><b>第11行</b>：<code>s.at(5)</code>：size 是 3，下标 5 非法。<code>at()</code> 抛出 <code>std::out_of_range</code> 异常——这是<b>定义好的报错方式</b>，不是 UB。</li>
+        <li><b>第12~14行</b>：<code>try/catch</code> 把异常接住（第 11 章详讲），程序继续运行。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>把 <code>s.at(5)</code> 换成 <code>s[5]</code>：<b>没有异常、没有检查</b>——读越界下标是<b>未定义行为</b>。特例：<code>s[s.size()]</code>（此处 <code>s[3]</code>）对 std::string 是合法的，返回字符 '\0'（C++11 起）；再往外的下标就是 UB 了。同一个字符串 <code>.at()</code> 略慢但安全，<code>[]</code> 快但需自己保证不越界——确定不越界时用 <code>[]</code>，拿不准时用 <code>.at()</code>。</p>
+    </div>
+  </article>
+
+  <article class="example-card" id="ch06-ex-10">
+    <div class="ex-head">
+      <h3 class="ex-title">示例10：substr 截取与 find 查找（npos）</h3>
+      <div class="ex-meta"><span class="tag">知识点：substr / find</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+int main() {
+    std::string email = "zhang.san@univ.edu.cn";
+
+    std::size_t pos = email.find('@');           // 找子串/字符，返回下标
+    std::cout &lt;&lt; "pos = " &lt;&lt; pos &lt;&lt; "\n";
+
+    std::string user   = email.substr(0, pos);   // 从 0 起取 pos 个字符
+    std::string domain = email.substr(pos + 1);  // 从 pos+1 取到末尾
+
+    std::cout &lt;&lt; user &lt;&lt; "\n";
+    std::cout &lt;&lt; domain &lt;&lt; "\n";
+
+    std::cout &lt;&lt; email.find("edu") &lt;&lt; "\n";      // 子串首次出现的位置
+    std::cout &lt;&lt; (email.find("qq.com") == std::string::npos) &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">pos = 9
+zhang.san
+univ.edu.cn
+15
+1</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第7行</b>：<code>'@'</code> 在下标 9（zhang.san 共 9 个字符，占 0~8）。</li>
+        <li><b>第10行</b>：<code>substr(起点, <b>个数</b>)</code>——第二个参数是<b>个数</b>不是“结束下标”。<code>substr(0, 9)</code> 得 <code>"zhang.san"</code>。</li>
+        <li><b>第11行</b>：<code>substr(pos + 1)</code> 省略第二个参数 = 一直取到末尾。</li>
+        <li><b>第16行</b>：<code>"edu"</code> 从下标 15 开始（univ. 占 10~14）。</li>
+        <li><b>第17行</b>：找不到时 <code>find</code> 返回 <b><code>std::string::npos</code></b>（<code>size_t</code> 的最大值，64 位平台是 18446744073709551615），所以判断“没找到”要写 <code>!= std::string::npos</code>，判断“找到了”写 <code>== std::string::npos</code> 的反义。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>直接 <code>cout &lt;&lt; email.find("qq.com");</code> 会打印出巨大的数字而不是“找不到”——npos 是个真实的数值。正确写法是先和 <code>std::string::npos</code> 比较。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 5, "vars": { "email": "zhang.san@univ.edu.cn" }, "out": "", "note": "长度 21；@ 在下标 9" },
+      { "line": 7, "vars": { "email": "zhang.san@univ.edu.cn", "pos": "9" }, "out": "", "note": "find 返回第一次出现的下标" },
+      { "line": 8, "vars": { "email": "zhang.san@univ.edu.cn", "pos": "9" }, "out": "pos = 9", "note": "" },
+      { "line": 10, "vars": { "email": "zhang.san@univ.edu.cn", "pos": "9", "user": "zhang.san" }, "out": "", "note": "substr(0, 9)：从 0 起取 9 个字符（个数！）" },
+      { "line": 11, "vars": { "email": "zhang.san@univ.edu.cn", "pos": "9", "user": "zhang.san", "domain": "univ.edu.cn" }, "out": "", "note": "substr(10)：从 10 取到末尾" },
+      { "line": 13, "vars": { "email": "zhang.san@univ.edu.cn", "pos": "9", "user": "zhang.san", "domain": "univ.edu.cn" }, "out": "zhang.san", "note": "" },
+      { "line": 14, "vars": { "email": "zhang.san@univ.edu.cn", "pos": "9", "user": "zhang.san", "domain": "univ.edu.cn" }, "out": "univ.edu.cn", "note": "" },
+      { "line": 16, "vars": { "email": "zhang.san@univ.edu.cn", "pos": "9", "user": "zhang.san", "domain": "univ.edu.cn" }, "out": "15", "note": "edu 在下标 15（u n i v . 占 10~14）" },
+      { "line": 17, "vars": { "email": "zhang.san@univ.edu.cn", "pos": "9", "user": "zhang.san", "domain": "univ.edu.cn" }, "out": "1", "note": "find(qq.com) 返回 npos，== npos 成立，输出 1" }
+    ] }</script>
+  </article>
+
+  <h3 style="margin-bottom:0.4em">string 的修改操作速查</h3>
+  <table class="data-table">
+    <tr><th>操作</th><th>写法示例（s = "Hello"）</th><th>效果</th></tr>
+    <tr><td>追加</td><td><code>s += "!";</code></td><td>末尾追加，得到 <code>Hello!</code>（比 <code>s = s + "!"</code> 高效）</td></tr>
+    <tr><td>插入</td><td><code>s.insert(2, "XX");</code></td><td>在下标 2 处插入，得到 <code>HeXXllo</code></td></tr>
+    <tr><td>删除</td><td><code>s.erase(1, 3);</code></td><td>从下标 1 起删 3 个字符，得到 <code>Hlo</code></td></tr>
+    <tr><td>替换</td><td><code>s.replace(0, 2, "He");</code></td><td>把下标 0 起的 2 个字符换成新内容</td></tr>
+    <tr><td>清空 / 判空</td><td><code>s.clear(); s.empty();</code></td><td>clear 后 <code>empty()</code> 为 true，<code>size()</code> 为 0</td></tr>
+  </table>
+  <div class="note">与 C 函数交互时用 <code>s.c_str()</code> 拿到 <code>const char*</code>（如 <code>strlen(s.c_str())</code>）。它是只读视图，string 一变就可能失效，别长期保存它。</div>
+
+  <!-- ================= 7. 数字与字符串互转 ================= -->
+  <h2>6. 数字与字符串互转（C++11）</h2>
+
+  <article class="example-card" id="ch06-ex-11">
+    <div class="ex-head">
+      <h3 class="ex-title">示例11：to_string 与 stoi / stod</h3>
+      <div class="ex-meta"><span class="tag">知识点：数字 ↔ 字符串</span><span class="tag">C++11</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+int main() {
+    int n = 42;
+    double pi = 3.14;
+    std::string s1 = std::to_string(n);    // "42"
+    std::string s2 = std::to_string(pi);   // "3.140000"
+
+    std::cout &lt;&lt; s1 + "!" &lt;&lt; "\n";   // 变成字符串后可直接拼接
+    std::cout &lt;&lt; s2 &lt;&lt; "\n";
+
+    int a = std::stoi("123");        // 字符串 → int
+    double d = std::stod("2.5e1");   // 字符串 → double（支持科学计数法）
+    std::cout &lt;&lt; a + 1 &lt;&lt; "\n";
+    std::cout &lt;&lt; d &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">42!
+3.140000
+124
+25</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第7~8行</b>：<code>std::to_string</code> 把数值变成字符串。注意浮点版固定 6 位小数（同 <code>printf</code> 的 %f），所以 3.14 变成 <code>"3.140000"</code>。</li>
+        <li><b>第13行</b>：<code>std::stoi</code> 从头开始读数字，遇到非数字字符就停（<code>stoi("12abc")</code> 得 12）；<code>stod</code>/<code>stof</code>/<code>stoll</code> 等同理。</li>
+        <li><b>第14行</b>：<code>stod("2.5e1")</code> = 2.5 × 10¹ = 25.0，输出 25。</li>
+        <li><b>第15行</b>：转换回来的 <code>a</code> 是真 int，能参与算术，得 124。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p><code>stoi("abc")</code> 一个数字都读不到，会抛出 <code>std::invalid_argument</code> 异常（第 11 章）；不要把“转换失败”当作返回 0。另外 <code>to_string(3.14)</code> 的结果是 <code>"3.140000"</code>，想要别的精度得先用 <code>ostringstream</code> 或格式化手段。</p>
+    </div>
+  </article>
+
+  <!-- ================= 8. getline ================= -->
+  <h2>7. getline 与 cin &gt;&gt;</h2>
+
+  <article class="example-card" id="ch06-ex-12">
+    <div class="ex-head">
+      <h3 class="ex-title">示例12：读一整行 —— 与 cin >> 混用的坑</h3>
+      <div class="ex-meta"><span class="tag">知识点：getline</span><span class="tag amber">高频考点</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+int main() {
+    int age;
+    std::string name;
+
+    std::cin &gt;&gt; age;               // 读数字：遇到空白就停
+    std::cin.ignore();             // ⭐ 吃掉残留在缓冲区的换行符
+    std::getline(std::cin, name);  // 读整行：可以包含空格
+
+    std::cout &lt;&lt; "age = " &lt;&lt; age &lt;&lt; "\n";
+    std::cout &lt;&lt; "name = " &lt;&lt; name &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出（输入两行：20 ↵ 和 Li Hua ↵）</div>
+      <pre><code class="output-text">age = 20
+name = Li Hua</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第8行</b>：<code>cin &gt;&gt; age</code> 读到 <code>20</code> 就停，<b>换行符留在输入缓冲区里</b>。</li>
+        <li><b>第9行</b>：<code>cin.ignore()</code> 丢掉一个字符（正是那个换行符）。</li>
+        <li><b>第10行</b>：<code>getline(cin, name)</code> 从当前位置一直读到换行符（换行符被取走但不进 name），所以 <code>"Li Hua"</code> 中的空格完好。</li>
+        <li><b>若删掉第 9 行</b>：getline 一上来就遇到残留的 <code>'\n'</code>，读到<b>空字符串</b>——name 为空，<code>"Li Hua"</code> 留在缓冲区，影响后面的读取。</li>
+      </ul>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>两个方向都会踩坑：<code>cin &gt;&gt; s</code> 遇空格截断（读不到带空格的整行）；<code>getline</code> 前混用过 <code>cin &gt;&gt;</code> 却忘了 <code>cin.ignore()</code>。另外 getline 后再用 <code>cin &gt;&gt;</code> 是安全的（getline 已把换行符取走）。</p>
+    </div>
+  </article>
+
+  <div class="compare">
+    <div class="compare-col badc">
+      <h4>❌ cin &gt;&gt; 读带空格的名字</h4>
+      <pre><code class="cpp">std::string name;
+std::cin &gt;&gt; name;
+// 输入：Li Hua
+// name == "Li"
+// "Hua" 留在缓冲区，
+// 可能污染下一次读取</code></pre>
+    </div>
+    <div class="compare-col good">
+      <h4>✅ getline 读整行</h4>
+      <pre><code class="cpp">std::string name;
+std::getline(std::cin, name);
+// 输入：Li Hua
+// name == "Li Hua"
+// 换行符被消耗，
+// 空格原样保留</code></pre>
+    </div>
+  </div>
+
+  <!-- ================= 9. range-for ================= -->
+  <h2>8. range-for：逐字符处理</h2>
+
+  <article class="example-card" id="ch06-ex-13">
+    <div class="ex-head">
+      <h3 class="ex-title">示例13：统计元音 + 整串转大写</h3>
+      <div class="ex-meta"><span class="tag">知识点：range-for 与逐字符处理</span><span class="tag">C++11</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+#include &lt;string&gt;
+
+int main() {
+    std::string text = "Hello, C++";
+    int vowels = 0;
+
+    for (char c : text) {          // 值拷贝：只读每个字符
+        if (c=='a'||c=='e'||c=='i'||c=='o'||c=='u'||
+            c=='A'||c=='E'||c=='I'||c=='O'||c=='U') {
+            ++vowels;
+        }
+    }
+    std::cout &lt;&lt; "vowels = " &lt;&lt; vowels &lt;&lt; "\n";
+
+    for (char&amp; c : text) {         // 引用：可以修改原字符串
+        if (c &gt;= 'a' &amp;&amp; c &lt;= 'z') {
+            c = c - 'a' + 'A';     // 小写转大写
+        }
+    }
+    std::cout &lt;&lt; text &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">vowels = 2
+HELLO, C++</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第8行</b>：range-for（C++11）对 <code>text</code> 中每个字符执行循环体；<code>char c</code> 是<b>拷贝</b>，改它不影响原串。</li>
+        <li><b>第11行</b>：<code>"Hello, C++"</code> 里的元音是 e、o，共 2 个。</li>
+        <li><b>第16行</b>：<code>char&amp; c</code> 是<b>引用</b>，绑定到当前字符——对 c 赋值就是改原串。</li>
+        <li><b>第18行</b>：<code>c - 'a' + 'A'</code> 利用小写与大写字母 ASCII 值的固定差（32）换算；大写与标点不满足条件，原样保留。也可用 <code>std::toupper(c)</code>（头文件 <code>&lt;cctype&gt;</code>）。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>只读遍历也可以用 <code>for (const char&amp; c : text)</code>（避免拷贝）；想要下标（如“每隔一个字符处理一次”）就得回到普通 for 循环 <code>for (std::size_t i = 0; i &lt; text.size(); ++i)</code>。</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>想在循环里改字符串却写成 <code>for (char c : text)</code>——改的是拷贝，原串不变。要修改就写 <code>char&amp;</code>。</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 5, "vars": { "text": "Hello, C++", "vowels": "0" }, "out": "", "note": "text 共 10 个字符" },
+      { "line": 8, "vars": { "text": "Hello, C++", "vowels": "0", "c": "'H'" }, "out": "", "note": "第一轮 c 是 'H' 的拷贝，非元音" },
+      { "line": 11, "vars": { "text": "Hello, C++", "vowels": "1", "c": "'e'" }, "out": "", "note": "c 是 'e'，计数 +1" },
+      { "line": 11, "vars": { "text": "Hello, C++", "vowels": "2", "c": "'o'" }, "out": "", "note": "c 是 'o'，计数 +1；之后不再有元音" },
+      { "line": 14, "vars": { "text": "Hello, C++", "vowels": "2" }, "out": "vowels = 2", "note": "第一个循环结束" },
+      { "line": 17, "vars": { "text": "Hello, C++", "c": "'H'" }, "out": "", "note": "第二个循环：c 是引用，'H' 已是大写，不动" },
+      { "line": 18, "vars": { "text": "Hello, C++", "c": "'e'" }, "out": "", "note": "'e' 满足小写条件，写回 'E'；其余小写同理" },
+      { "line": 21, "vars": { "text": "HELLO, C++" }, "out": "HELLO, C++", "note": "所有小写已转大写" }
+    ] }</script>
+  </article>
+
+  <!-- ================= 10. 互动练习 ================= -->
+  <h2>9. 互动练习</h2>
+
+  <article class="example-card" id="ch06-ex-14">
+    <div class="ex-head">
+      <h3 class="ex-title">练习：把语句排成能倒序输出数组的完整程序</h3>
+      <div class="ex-meta"><span class="tag purple">互动练习</span></div>
+    </div>
+    <p>目标：程序输出 <code>8 6 4 2</code>（倒序）。下面 9 行被打乱了，请拖动（或用 ↑↓ 按钮）恢复正确顺序：</p>
+    <div class="widget-sort"><script type="application/json" class="sort-data">{ "items": [
+      "#include <iostream>",
+      "int main() {",
+      "    int a[4] = {2, 4, 6, 8};",
+      "    for (int i = 3; i >= 0; --i) {",
+      "        std::cout << a[i] << \" \";",
+      "    }",
+      "    std::cout << \"\\n\";",
+      "    return 0;",
+      "}"
+    ], "hint": "头文件在最前，main 包住全部；要倒序打印，就让下标从 3 走到 0。",
+    "explain": "数组 4 个元素下标 0~3；循环变量从最后一个下标 3 开始、每次 --i 减到 0，依次输出 8、6、4、2，最后换行。若起点写成 i = 0、方向仍是 --i，就只能输出 2 一个数——起点和方向要配套。" }</script></div>
+  </article>
+
+  <!-- ================= 11. 常见错误 ================= -->
+  <h2>10. 常见错误</h2>
+  <div class="warn"><b>1. 边界差一（off-by-one）</b>：循环写 <code>i &lt;= n</code> 访问了 <code>a[n]</code>。修复：牢记 <b>n 个元素下标 0~n-1</b>，条件一律 <code>i &lt; n</code>。</div>
+  <div class="warn"><b>2. char s[5] = "hello";</b>：字面量含 '\0' 共 6 字节装不下，编译错误。修复：<code>char s[6]</code> 或 <code>char s[]</code>。</div>
+  <div class="warn"><b>3. 用 == 比较 C 字符串</b>：<code>if (a == b)</code>（a、b 是 char 数组）比较的是<b>地址</b>，永远不等于内容比较。修复：<code>strcmp(a, b) == 0</code>，或直接改用 <code>std::string</code> 的 <code>==</code>。</div>
+  <div class="warn"><b>4. strncpy 后忘补 '\0'</b>：src 长度 ≥ n 时 <code>strncpy</code> 不写结尾。修复：紧跟一句 <code>dst[n-1] = '\0';</code>，否则后续 <code>strlen</code>/<code>cout</code> 越界读。</div>
+  <div class="warn"><b>5. cin >> 与 getline 混用忘 ignore</b>：getline 读到空行。修复：在 <code>cin &gt;&gt;</code> 之后、<code>getline</code> 之前加 <code>cin.ignore();</code>。</div>
+  <div class="warn"><b>6. 把“局部数组碰巧是 0”当规律</b>：<code>int a[5];</code>（函数内，不初始化）的元素是<b>不确定值</b>，全量/部分初始化才有“补 0”保证。要全 0 就写 <code>int a[5] = {};</code>。</div>
+  <div class="ub-warning">一切数组越界——读 <code>a[n]</code>、写 <code>a[n+1]</code>、对没有 '\0' 的字符数组调用 <code>strlen</code>/<code>cout</code>——都是<b>未定义行为</b>：可能破坏相邻变量、可能崩溃、可能被编译器按“不会发生”优化掉。请勿把任何“越界后的输出”当标准答案。</div>
+  <p>更多同类报错见 <a href="../errors.html">编译错误博物馆</a>（如 “initializer-string too long”），考前再刷一遍 <a href="../exam-pitfalls.html">考试易错点</a> 的“数组越界”专题。</p>
+
+  <!-- ================= 12. 标准差异 ================= -->
+  <h2>11. C++ 标准差异</h2>
+  <table class="data-table">
+    <tr><th>特性</th><th>C++98</th><th>C++11 及以后</th></tr>
+    <tr><td><code>std::string</code> 及其运算符</td><td>可用（本课主力）</td><td>不变，持续增强</td></tr>
+    <tr><td><code>std::to_string</code> / <code>stoi</code> / <code>stod</code></td><td>不可用</td><td>可用（<code>&lt;string&gt;</code>）</td></tr>
+    <tr><td>range-for（<code>for (char c : s)</code>）</td><td>不可用</td><td>可用</td></tr>
+    <tr><td><code>std::string_view</code></td><td>不可用</td><td><b>C++17</b> 起可用</td></tr>
+    <tr><td><code>char s[5] = "hello";</code></td><td>编译错误</td><td>仍是编译错误（各版本一致）</td></tr>
+  </table>
+
+  <div class="std-diff"><b>string_view（C++17 新增）</b>：只读字符串视图，只记录“从哪开始、有多长”，<b>不复制内容</b>，传参零开销，用法与 string 几乎一致：</div>
+
+  <pre><code class="cpp">// 片段（C++17，节选，不可直接编译——省略了 main）
+#include &lt;string_view&gt;
+
+void print(std::string_view sv) {   // 按值传递也很轻量
+    std::cout &lt;&lt; sv &lt;&lt; "\n";
+}
+
+std::string s = "Hello";
+print(s);                 // sv 指向 s 的内存，零拷贝
+print("字面量同样适用");   // 也能直接接收字面量</code></pre>
+
+  <div class="std-diff">代价是它<b>不拥有数据</b>：如果被指的 string 先被销毁（或扩容搬家），视图就<b>悬空</b>，再使用是未定义行为——用 string_view 前要保证底层字符串还活着。工程上它常用于“只读参数”，本课考试仍以 <code>std::string</code> 为主。</div>
+
+  <!-- ================= 13. 小结 ================= -->
+  <h2>本章小结</h2>
+  <div class="keypoint">数组没有边界检查：下标从 0 开始，<code>a[n]</code> 永远越界，越界即 UB。字符串优先用 <code>std::string</code>：== 按内容、at() 带检查、find 失败返回 npos；C 风格字符数组依赖结尾的 '\0'。</div>
+  <ul>
+    <li>三种初始化：全量 / 部分补 0 / 省略长度；元素个数 = <code>sizeof(a)/sizeof(a[0])</code>（仅数组原地可见时有效，传参即退化为指针）。</li>
+    <li>二维数组按<b>行主序</b>连续存放；作参数时<b>列数必须写出</b>，只可省行数。</li>
+    <li><code>'\0'</code> 结束 C 字符串：<b>sizeof 问容量（含它），strlen 问长度（不含它）</b>；<code>char s[5] = "hello";</code> 装不下，编译错误。</li>
+    <li>C 字符串函数（strcpy/strcat/strncpy…）无边界检查；<code>strcmp(a,b)==0</code> 才是比内容。</li>
+    <li>string：+ 拼接（至少一侧是 string）、== 按内容、size/empty、<code>at()</code> 越界抛 <code>out_of_range</code>、substr 第二参数是<b>个数</b>、修改用 +=/insert/erase/replace。</li>
+    <li><code>to_string</code> / <code>stoi</code> / <code>stod</code>（C++11）；<code>getline</code> 读整行，混用 <code>cin &gt;&gt;</code> 后记得 <code>cin.ignore()</code>。</li>
+    <li>range-for 只读用 <code>char c</code>，要修改用 <code>char&amp; c</code>；<code>string_view</code>（C++17）零拷贝只读视图，警惕悬空。</li>
+  </ul>
+
+  <!-- ================= 14. 自测清单 ================= -->
+  <h2>自测清单</h2>
+  <ul class="checklist" data-chapter="ch06">
+    <li><label><input type="checkbox" data-check-id="ch06-c1"><span>我能写出数组的三种初始化写法，并说清部分初始化“自动补 0”的规则</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch06-c2"><span>我能解释下标为什么从 0 开始，以及为什么越界是 UB 而不是“读到相邻内存”</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch06-c3"><span>我能用 sizeof(a)/sizeof(a[0]) 求元素个数，并说出它对传入函数的数组失效的原因</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch06-c4"><span>我能说清 '\0' 的作用，并区分 sizeof 与 strlen（对 char s[] = "abc" 报出 4 和 3）</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch06-c5"><span>我能指出 strcpy/strcat 的边界风险，并写出 strncpy 忘补 '\0' 的后果</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch06-c6"><span>我能解释 string 的 == 按内容比较、[] 与 .at() 的区别（at 越界抛 out_of_range）</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch06-c7"><span>我能用 substr/find 拆出邮箱的用户名和域名，并解释 npos 该怎么判断</span></label></li>
+    <li><label><input type="checkbox" data-check-id="ch06-c8"><span>我能用 getline 读带空格的一行，并说清 cin &gt;&gt; 与 getline 混用时残留换行符的坑</span></label></li>
+  </ul>
+
+  <!-- ================= 15. 随堂测验 ================= -->
+  <section class="quiz" data-source="ch06">
+    <script type="application/json" class="quiz-data">{ "title": "随堂测验：数组与字符串",
+      "questions": [
+        { "type": "mcq", "q": "<code>int a[5];</code> 的合法下标范围是？",
+          "options": ["1 ~ 5", "0 ~ 5", "0 ~ 4", "1 ~ 4"], "answer": 2,
+          "explain": "5 个元素下标 0~4，a[4] 是最后一个；写 a[5] 是越界（UB）。" },
+        { "type": "mcq", "q": "<code>int b[5] = {1, 2};</code> 之后，<code>b[3]</code> 的值是？",
+          "options": ["不确定的垃圾值", "2", "1", "0"], "answer": 3,
+          "explain": "部分初始化时，写出的元素取初值，其余元素自动补 0——这是标准保证。" },
+        { "type": "tf", "q": "<code>char s[5] = \"hello\";</code> 能通过编译。",
+          "answer": false,
+          "explain": "\"hello\" 含结尾 '\\0' 共 6 字节，s 只有 5 字节，C++ 各版本都判编译错误（initializer-string too long）。" },
+        { "type": "mcq", "q": "<code>char s[] = \"abc\";</code> 关于 <code>sizeof(s)</code> 与 <code>strlen(s)</code>，正确的是？",
+          "options": ["都是 3", "sizeof 是 4，strlen 是 3", "sizeof 是 3，strlen 是 4", "都是 4"], "answer": 1,
+          "explain": "sizeof 问容量：3 个字符 + '\\0' = 4 字节；strlen 数到 '\\0' 为止且不含它，得 3。" },
+        { "type": "mcq", "q": "<code>std::string a = \"abc\", b = \"abd\";</code> 表达式 <code>(a &lt; b)</code> 的值是？",
+          "options": ["编译错误，string 不能用 &lt;", "比较地址，结果不确定", "true（按内容逐字符比较）", "false"], "answer": 2,
+          "explain": "string 重载了比较运算符，按内容（字典序）逐字符比较：前两个字符相同，'c' &lt; 'd'，所以 a &lt; b 为 true，输出 1。" },
+        { "type": "tf", "q": "对长度为 3 的 string 调用 <code>s.at(100)</code> 会抛出 <code>std::out_of_range</code>，这是定义好的行为，不是 UB。",
+          "answer": true,
+          "explain": "at() 带边界检查，越界抛异常、可被 catch；不做检查的 [] 越界才是 UB。" },
+        { "type": "fill", "q": "<code>std::string s = \"Hello\";</code>，则 <code>s.substr(1, 3)</code> 的值是 ____。",
+          "answer": ["ell"],
+          "explain": "substr(起点, 个数)：从下标 1 起取 3 个字符 e、l、l。第二个参数是“个数”，不是结束下标。" },
+        { "type": "fill", "q": "string 的 find 找不到子串时返回的特殊值是 <code>std::string::</code>____（填标识符）。",
+          "answer": ["npos"],
+          "explain": "npos 是 size_t 的最大值；判断“没找到”的惯例写法是 s.find(x) != std::string::npos。" },
+        { "type": "mcq", "q": "执行 <code>std::cin &gt;&gt; age;</code> 后紧跟 <code>std::getline(std::cin, name);</code>，输入为「20 ↵ Li Hua ↵」，name 读到什么？",
+          "options": ["Li Hua", "空字符串", "20", "Li"], "answer": 1,
+          "explain": "cin >> 把换行符留在缓冲区，getline 一上来就读到空行。应在两者之间加 cin.ignore()。" },
+        { "type": "code", "q": "补全 range-for：遍历 string s 统计字符，<code>for (char c ____ s) { ... }</code>",
+          "answer": [":", " : "],
+          "explain": "range-for 用冒号：for (char c : s)。要修改原字符串时写 for (char&amp; c : s)。" }
+      ] }</script>
+  </section>
+
+  </main>
+
+<script src="../assets/js/highlight.js"></script>
+<script src="../assets/js/toc.js"></script>
+<script src="../assets/js/nav.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/interactive.js"></script>
+<script src="../assets/js/teacher.js"></script>
+<script src="../assets/js/mastery.js"></script>
+<script src="../assets/js/bughunt-data.js"></script>
+<script src="../assets/js/bug-hunt.js"></script>
+<script src="../assets/js/present.js"></script>
+<script src="../assets/js/glossary-data.js"></script>
+<script src="../assets/js/glossary.js"></script>
+<script src="../assets/js/page-toc.js"></script>
+<script src="../assets/js/v2-config.js"></script>
+<script src="../assets/js/v2-core.js"></script>
+<script src="../assets/js/v2-lab.js"></script>
+</body>
+</html>

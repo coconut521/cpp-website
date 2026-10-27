@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>易错点 | 大学C++离线助教</title>
+<script src="assets/js/theme-init.js"></script>
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/v2.css">
+</head>
+<body>
+<main class="container">
+
+  <p class="crumbs"><a href="index.html">首页</a> / 易错点</p>
+
+  <header>
+    <h1>易错点</h1>
+    <p class="muted">20 个经典陷阱专题：错误示例、原因、正确写法、常考问法与自测题。正确写法默认折叠，先自己想再看。</p>
+  </header>
+
+  <div class="filter-bar">
+    <input type="search" id="q" class="search-input" placeholder="搜索专题或标签…" autocomplete="off">
+    <button class="btn btn-small btn-primary" id="random-btn">随机练习 10 题</button>
+    <span class="result-count" id="count"></span>
+  </div>
+
+  <section id="practice" class="card" hidden>
+    <h2 style="margin-top:0">随机练习</h2>
+    <section class="quiz" data-source="practice" id="practice-quiz"></section>
+    <button class="btn" id="practice-close">关闭练习</button>
+  </section>
+
+  <section id="bughunt" class="card">
+    <h2 style="margin-top:0">🔥 火眼金睛：找 Bug 练习</h2>
+    <p class="muted" style="margin-top:-4px">每段代码都藏着一个问题（编译错误、逻辑错误或未定义行为）。先通读代码，点击你认为<b>出问题的那一行</b>，再点「提交判断」看解析。可按章节筛选，也可打乱顺序练。</p>
+    <div class="bh-filter" id="bh-filter"></div>
+    <section class="bug-hunt" id="bh-all" data-ch="all" data-shuffle="1"></section>
+  </section>
+
+  <div id="list"></div>
+  <div id="empty" hidden class="card center muted">没有匹配的专题。</div>
+
+</main>
+
+<script src="assets/js/highlight.js"></script>
+<script src="assets/js/toc.js"></script>
+<script src="assets/js/nav.js"></script>
+<script src="assets/js/quiz.js"></script>
+<script src="assets/js/interactive.js"></script>
+<script src="assets/js/teacher.js"></script>
+<script src="assets/js/mastery.js"></script>
+<script src="assets/js/pitfalls-data.js"></script>
+<script src="assets/js/bughunt-data.js"></script>
+<script src="assets/js/bug-hunt.js"></script>
+<script>
+(function () {
+  "use strict";
+  var DATA = window.PITFALLS_DATA || [];
+  var esc = function (s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); };
+
+  function linkFor(id) {
+    var toc = window.COURSE_TOC || [];
+    for (var i = 0; i < toc.length; i++) if (toc[i].id === id) return { title: toc[i].title, href: "../" + toc[i].file };
+    if (id === "errors") return { title: "编译错误博物馆", href: "errors.html" };
+    if (id === "cheatsheets") return { title: "速查表", href: "cheatsheets.html" };
+    return null;
+  }
+
+  function codeBlock(label, code) {
+    return '<div class="pitfall-section ' + label.cls + '"><div class="ps-label">' + label.text + "</div>" +
+      '<pre><code class="cpp">' + esc(code) + "</code></pre></div>";
+  }
+
+  function renderItem(p) {
+    var el = document.createElement("article");
+    el.className = "pitfall-item";
+    el.id = p.id;
+    var tags = (p.tags || []).map(function (t) { return '<span class="tag amber">' + esc(t) + "</span>"; }).join("");
+    var rel = (p.related || []).map(function (r) {
+      var l = linkFor(r);
+      return l ? '<a href="' + l.href + '">' + esc(l.title) + "</a>" : "";
+    }).filter(Boolean).join(" · ");
+
+    el.innerHTML =
+      "<h2>" + esc(p.title) + "</h2>" +
+      '<div class="ex-meta" style="margin-bottom:10px">' + tags + "</div>" +
+      codeBlock({ cls: "bad", text: "错误示例" }, p.bad) +
+      '<div class="pitfall-section why"><div class="ps-label">为什么错</div><p>' + p.why + "</p></div>" +
+      codeBlock({ cls: "good", text: "正确写法" }, p.good) +
+      '<div class="pitfall-section examq"><div class="ps-label">常见问法</div><p>' + p.examQ + "</p></div>" +
+      '<section class="quiz" data-source="' + esc(p.id) + '">' +
+      '<script type="application/json" class="quiz-data">' + JSON.stringify({ title: "自测 " + (p.quiz.length) + " 题", questions: p.quiz }) + "<\/script>" +
+      "</section>" +
+      (rel ? '<p class="small">相关章节：' + rel + "</p>" : "");
+
+    var goodSec = el.querySelector(".pitfall-section.good");
+    var examSec = el.querySelector(".pitfall-section.examq");
+    fold(goodSec, "显示正确写法");
+    fold(examSec, "显示常见问法");
+    return el;
+  }
+
+  function fold(section, summaryText) {
+    var body = section.innerHTML;
+    section.innerHTML =
+      '<details class="fold"><summary>' + summaryText + "</summary><div class=\"details-body\">" + body + "</div></details>";
+  }
+
+  var state = { q: "" };
+  function apply() {
+    var list = document.getElementById("list");
+    list.innerHTML = "";
+    var kw = state.q.trim().toLowerCase();
+    var shown = 0;
+    DATA.forEach(function (p) {
+      if (kw && (p.title + " " + (p.tags || []).join(" ") + " " + p.why + " " + p.examQ).toLowerCase().indexOf(kw) === -1) return;
+      list.appendChild(renderItem(p));
+      shown++;
+    });
+    document.getElementById("count").textContent = "共 " + shown + " / " + DATA.length + " 个专题";
+    document.getElementById("empty").hidden = shown > 0;
+    if (window.CppLight) window.CppLight.highlightAll(list);
+    if (window.Quiz) window.Quiz.renderAll(list);
+  }
+
+  function startPractice() {
+    var pool = [];
+    DATA.forEach(function (p) {
+      p.quiz.forEach(function (q, qi) {
+        var clone = JSON.parse(JSON.stringify(q));
+        clone.id = p.id + "/" + qi;
+        pool.push(clone);
+      });
+    });
+    var picked = (window.Quiz ? window.Quiz.shuffle(pool) : pool).slice(0, Math.min(10, pool.length));
+    var sec = document.getElementById("practice");
+    sec.hidden = false;
+    var quizSec = document.getElementById("practice-quiz");
+    quizSec.innerHTML = "";
+    quizSec.setAttribute("data-source", "practice");
+    var dataEl = document.createElement("script");
+    dataEl.type = "application/json";
+    dataEl.className = "quiz-data";
+    dataEl.textContent = JSON.stringify({ title: "随机 " + picked.length + " 题", questions: picked });
+    quizSec.appendChild(dataEl);
+    quizSec.removeAttribute("data-rendered");
+    window.Quiz.renderAll(quizSec.parentNode);
+    sec.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  document.getElementById("q").addEventListener("input", function (ev) { state.q = ev.target.value; apply(); });
+  document.getElementById("random-btn").addEventListener("click", startPractice);
+  document.getElementById("practice-close").addEventListener("click", function () {
+    document.getElementById("practice").hidden = true;
+  });
+
+  /* 火眼金睛：章节筛选按钮（引擎渲染见 bug-hunt.js） */
+  (function buildBugHuntFilter() {
+    var box = document.getElementById("bh-filter");
+    var sec = document.getElementById("bh-all");
+    if (!box || !sec || !window.BugHunt) return;
+    var chips = [{ id: "all", label: "全部" }].concat(
+      (window.COURSE_TOC || []).map(function (c) { return { id: c.id, label: c.title }; })
+    );
+    chips.forEach(function (cp) {
+      var b = document.createElement("button");
+      b.className = "filter-chip" + (cp.id === "all" ? " active" : "");
+      b.textContent = cp.label;
+      b.addEventListener("click", function () {
+        sec.setAttribute("data-ch", cp.id);
+        box.querySelectorAll(".filter-chip").forEach(function (x) { x.classList.remove("active"); });
+        b.classList.add("active");
+        window.BugHunt.renderOne(sec);
+      });
+      box.appendChild(b);
+    });
+  })();
+
+  apply();
+
+  if (location.hash) {
+    var t = document.getElementById(location.hash.slice(1));
+    if (t) setTimeout(function () { t.scrollIntoView({ behavior: "smooth", block: "start" }); }, 60);
+  }
+})();
+</script>
+<script src="assets/js/present.js"></script>
+<script src="assets/js/glossary-data.js"></script>
+<script src="assets/js/glossary.js"></script>
+<script src="assets/js/page-toc.js"></script>
+<script src="assets/js/v2-config.js"></script>
+<script src="assets/js/v2-core.js"></script>
+<script src="assets/js/v2-lab.js"></script>
+</body>
+</html>

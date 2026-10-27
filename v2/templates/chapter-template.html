@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第N章 章节标题 | 大学C++离线助教</title>
+<script src="../assets/js/theme-init.js"></script>
+<link rel="stylesheet" href="../assets/css/style.css">
+<link rel="stylesheet" href="../assets/css/v2.css">
+</head>
+<body>
+<main class="container chapter">
+
+  <p class="crumbs"><a href="../index.html">首页</a> / <a href="../index.html#toc">章节目录</a> / 第N章</p>
+
+  <!-- ================= 1. 学习目标 ================= -->
+  <section class="card objectives">
+    <h2 style="margin-top:0">学习目标</h2>
+    <ul>
+      <li>学完本章，你能够 <b>……</b></li>
+      <li>你能够 <b>……</b></li>
+      <li>你能够分辨 <b>……</b></li>
+    </ul>
+    <p class="small muted">前置知识：<a href="../chapters/ch01-variables.html">第1章 变量与基本类型</a>（建议先完成其自测清单）</p>
+  </section>
+
+  <!-- ================= 2. 正文小节（按需增减） ================= -->
+  <h2>1. 第一个小节标题</h2>
+  <p>讲解文字，行内代码写 <code>int a = 1;</code> 这样。</p>
+
+  <!-- 示例卡片完整写法见 templates/authoring-guide.md 第 2 节 -->
+  <article class="example-card" id="chXX-ex-01">
+    <div class="ex-head">
+      <h3 class="ex-title">示例1：一句话概括这个示例演示什么</h3>
+      <div class="ex-meta"><span class="tag">知识点：XXX</span></div>
+    </div>
+    <pre class="ex-code"><code class="cpp">#include &lt;iostream&gt;
+
+int main() {
+    std::cout &lt;&lt; "Hello, C++!\n";
+    return 0;
+}</code></pre>
+    <div class="ex-btns"></div>
+    <div class="ex-output">
+      <div class="ex-output-label">▶ 预期输出</div>
+      <pre><code class="output-text">Hello, C++!</code></pre>
+    </div>
+    <div class="ex-explain">
+      <h4>逐行解释</h4>
+      <ul>
+        <li><b>第5行</b>：向标准输出打印字符串；<code>\n</code> 换行。</li>
+        <li><b>第6行</b>：<code>return 0</code> 表示程序正常结束。</li>
+      </ul>
+    </div>
+    <div class="ex-variants">
+      <h4>变体对比</h4>
+      <p>改用 <code>std::endl</code> 会额外刷新缓冲区……</p>
+    </div>
+    <div class="ex-pitfall">
+      <h4>⚠ 易错点</h4>
+      <p>忘记分号是新手最常见的编译错误……</p>
+    </div>
+    <script type="application/json" class="ex-steps">{ "steps": [
+      { "line": 4, "vars": {}, "out": "", "note": "进入 main 函数" },
+      { "line": 5, "vars": {}, "out": "Hello, C++!", "note": "输出字符串并换行" },
+      { "line": 6, "vars": {}, "out": "", "note": "返回 0，程序结束" }
+    ] }</script>
+  </article>
+
+  <!-- 其他互动元件写法（内存可视化 / 左右对比 / 拖拽排序 / 自增动画）见 authoring-guide.md 第 3 节 -->
+
+  <!-- ================= 3. 常见错误 ================= -->
+  <h2>N. 常见错误</h2>
+  <div class="warn"><b>错误1：……</b>—— 现象与修复 …</div>
+  <div class="ub-warning">把未定义行为写在这里并解释：标准不规定结果，考试不会也不应考它的“输出”。</div>
+
+  <!-- ================= 4. 标准差异 ================= -->
+  <h2>N. C++ 标准差异</h2>
+  <div class="std-diff">C++98 只能 ……；<b>C++11</b> 起 ……；<b>C++17</b> 起 ……。</div>
+
+  <!-- ================= 5. 小结 ================= -->
+  <h2>本章小结</h2>
+  <div class="keypoint">一句话核心结论 …</div>
+  <ul>
+    <li>要点 1</li>
+    <li>要点 2</li>
+  </ul>
+
+  <!-- ================= 6. 自测清单 ================= -->
+  <h2>自测清单</h2>
+  <ul class="checklist">
+    <li><label><input type="checkbox"><span>……</span></label></li>
+    <li><label><input type="checkbox"><span>……</span></label></li>
+  </ul>
+
+  <!-- ================= 7. 随堂测验 ================= -->
+  <section class="quiz" data-source="chXX">
+    <script type="application/json" class="quiz-data">{ "title": "随堂测验",
+      "questions": [
+        { "type": "mcq", "q": "题干", "options": ["A项", "B项", "C项", "D项"], "answer": 0, "explain": "解析" },
+        { "type": "tf", "q": "判断题题干", "answer": true, "explain": "解析" },
+        { "type": "fill", "q": "填空：____", "answer": ["答案"], "explain": "解析" }
+      ] }</script>
+  </section>
+
+  <!-- 上一章 / 下一章 / 返回目录由 nav.js 自动生成，无需手写 -->
+
+</main>
+
+<script src="../assets/js/highlight.js"></script>
+<script src="../assets/js/toc.js"></script>
+<script src="../assets/js/nav.js"></script>
+<script src="../assets/js/quiz.js"></script>
+<script src="../assets/js/interactive.js"></script>
+<script src="../assets/js/teacher.js"></script>
+<script src="../assets/js/mastery.js"></script>
+<script src="../assets/js/bughunt-data.js"></script>
+<script src="../assets/js/bug-hunt.js"></script>
+<script src="../assets/js/present.js"></script>
+<script src="../assets/js/glossary-data.js"></script>
+<script src="../assets/js/glossary.js"></script>
+<script src="../assets/js/page-toc.js"></script>
+<script src="../assets/js/v2-config.js"></script>
+<script src="../assets/js/v2-core.js"></script>
+<script src="../assets/js/v2-lab.js"></script>
+</body>
+</html>
